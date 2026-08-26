@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.jsx'
 import { initAnalytics } from './lib/analytics.js'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import MaintenanceBanner from './components/MaintenanceBanner.jsx'
 
 initAnalytics()
 
@@ -29,6 +30,11 @@ window.addEventListener('vite:preloadError', () => {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
+    {/* Above ErrorBoundary, not inside it, so the banner stays visible even
+        if <App/> hits ErrorBoundary's own fallback screen — a site-wide
+        status notice is exactly as relevant when something's gone wrong as
+        it is on a normal page. See components/MaintenanceBanner.jsx. */}
+    <MaintenanceBanner />
     <ErrorBoundary>
       {/* react-router-dom was already a listed dependency but never
           actually used anywhere — App.jsx ran its own in-memory
