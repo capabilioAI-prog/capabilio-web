@@ -6,6 +6,7 @@ import { PLANS, getPlansByPath, getPlansByPathWithDiscount, getDefaultPlanForPat
 import { useRazorpay } from "../hooks/useRazorpay"
 import { getSkillModule } from "../config/skillModules"
 import { ROLE_REGISTRY } from "../config/roleConfig"
+import { confidenceAdjustedScore } from "../lib/skillScore"
 
 const SERVER = import.meta.env.VITE_API_URL || "https://capabilio-web.onrender.com"
 
@@ -692,9 +693,30 @@ const buildUserSavePayload = ({ path, user, username, data }) => {
   return { displayName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "", email: user.email || "", username, path, onboarding_complete: true, createdAt: new Date().toISOString() }
 }
 
-// ─── Radar chart (minimal, unchanged visual) ───────────────────────
+// ─── Radar chart ─────────────────────────────────────────────────────
+// The SVG's own box has to include room for label text beyond the polygon
+// radius — relying on overflow:visible alone still clips if any ancestor
+// (a modal, a grid cell) establishes its own overflow context. LABEL_PAD
+// bakes that room into the viewBox itself so the chart is self-contained,
+// and width/height:100%+maxWidth make it scale down (not clip) in a
+// narrower container instead of a fixed px size.
+function wrapRadarLabel(label, maxCharsPerLine = 11) {
+  const words = String(label || "").trim().split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return [words[0] || ""]
+  const lines = []
+  let line = ""
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w
+    if (candidate.length > maxCharsPerLine && line) { lines.push(line); line = w }
+    else line = candidate
+  }
+  if (line) lines.push(line)
+  return lines.slice(0, 2)
+}
 function RadarChart({ data, size = 260 }) {
-  const cx = size / 2, cy = size / 2, r = size * 0.35
+  const LABEL_PAD = 46
+  const box = size + LABEL_PAD * 2
+  const cx = box / 2, cy = box / 2, r = size * 0.35
   const n = data.length, step = (2 * Math.PI) / n
   const colors = [T.primary, "#78FF9E", T.purple, T.amber, "#FF6B9D", "#06D6A0"]
   const pt = (i, val) => { const a = i * step - Math.PI / 2, d = (val / 100) * r; return { x: cx + d * Math.cos(a), y: cy + d * Math.sin(a) } }
@@ -702,7 +724,7 @@ function RadarChart({ data, size = 260 }) {
   const pts = data.map((d, i) => pt(i, d.value))
   const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ") + "Z"
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={box} height={box} viewBox={`0 0 ${box} ${box}`} style={{ width: "100%", height: "auto", maxWidth: box, overflow: "visible" }}>
       {[20, 40, 60, 80, 100].map(lvl => {
         const gpts = data.map((_, i) => pt(i, lvl))
         const d = gpts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ") + "Z"
@@ -711,7 +733,16 @@ function RadarChart({ data, size = 260 }) {
       {data.map((_, i) => { const op = pt(i, 100); return <line key={i} x1={cx} y1={cy} x2={op.x} y2={op.y} stroke="rgba(59,130,246,0.1)" strokeWidth={1} /> })}
       <path d={pathD} fill="rgba(59,130,246,0.12)" stroke={T.primary} strokeWidth={2} />
       {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3.5} fill={colors[i % colors.length]} />)}
-      {data.map((d, i) => { const p = lp(i); const lbl = String(d.label || ""); return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize={9} fontWeight={700} fill="#A8A29E" fontFamily={T.body}>{lbl.length > 12 ? lbl.slice(0, 11) + "…" : lbl}</text> })}
+      {data.map((d, i) => {
+        const p = lp(i)
+        const lines = wrapRadarLabel(d.label)
+        const startDy = lines.length > 1 ? -0.3 : 0.32
+        return (
+          <text key={i} x={p.x} y={p.y} textAnchor="middle" fontSize={9} fontWeight={700} fill="#A8A29E" fontFamily={T.body}>
+            {lines.map((line, li) => <tspan key={li} x={p.x} dy={li === 0 ? `${startDy}em` : "1.1em"}>{line}</tspan>)}
+          </text>
+        )
+      })}
     </svg>
   )
 }
@@ -2177,7 +2208,13 @@ export default function Onboarding({ user, onComplete, onBack }) {
     const total = questions.length
     const catMap = {}
     questions.forEach((q,i)=>{ const cat = q.category&&q.category!=="undefined"?q.category:"General"; if(!catMap[cat]) catMap[cat]={correct:0,total:0}; catMap[cat].total++; if(finalAnswers[i]===ci(q.correct)) catMap[cat].correct++ })
-    const radarData = Object.entries(catMap).filter(([l])=>l&&l!=="undefined"&&l.trim()).map(([label,v])=>({ label, value:Math.round((v.correct/v.total)*100) }))
+    // Per-skill value is confidence-adjusted (not a raw correct/total%) — a
+    // category with only 1-2 questions answered shouldn't render as "100%
+    // mastered". See lib/skillScore.js. This value is what gets persisted
+    // into profiles.skillGraph on "Go to Dashboard" below, so every later
+    // consumer (Aura dashboard/skills tab, Strengths cards, Practice cards)
+    // inherits the adjusted score for free — no raw count survives past here.
+    const radarData = Object.entries(catMap).filter(([l])=>l&&l!=="undefined"&&l.trim()).map(([label,v])=>({ label, value:confidenceAdjustedScore(v.correct, v.total) }))
     setLoadingMsg("🤖 AI is analysing your performance…")
     try {
       const aiRes = await fetch(`${SERVER}/api/analyse-assessment`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ keyword, score, total, pct:Math.round((score/total)*100), radarData, path, resumeContext:resumeText.slice(0,500) }) })
