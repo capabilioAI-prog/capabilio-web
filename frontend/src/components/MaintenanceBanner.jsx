@@ -34,6 +34,12 @@ function readDismissed(message) {
 }
 
 export default function MaintenanceBanner() {
+  // Custom messages set via VITE_MAINTENANCE_BANNER_MESSAGE are treated as
+  // self-contained (the site owner writes their own heading/emoji, e.g.
+  // "🔧 Scheduled Maintenance — ...") — the hardcoded "Heads up —" prefix
+  // only applies to the built-in DEFAULT_MESSAGE, so a custom message never
+  // ends up double-headed ("Heads up — 🔧 Scheduled Maintenance...").
+  const isCustomMessage = !!MAINTENANCE_BANNER_MESSAGE
   const message = MAINTENANCE_BANNER_MESSAGE || DEFAULT_MESSAGE
   const [dismissed, setDismissed] = useState(() => readDismissed(message))
 
@@ -47,12 +53,14 @@ export default function MaintenanceBanner() {
   return (
     <div
       role="status"
+      className="capabilio-maintenance-banner"
       style={{
         display: "flex",
+        flexWrap: "wrap",
         alignItems: "center",
         justifyContent: "center",
         gap: 12,
-        padding: "9px 40px 9px 16px",
+        padding: "10px 40px 10px 16px",
         background: "#FFF3EE",
         borderBottom: "1px solid #FFD8C2",
         fontFamily: "'DM Sans', system-ui, sans-serif",
@@ -63,8 +71,14 @@ export default function MaintenanceBanner() {
         textAlign: "center",
       }}
     >
-      <span>
-        <span style={{ color: "#FF5701", fontWeight: 700 }}>Heads up —</span> {message}
+      <style>{`
+        @media (max-width: 640px) {
+          .capabilio-maintenance-banner { font-size: 12px !important; padding: 8px 34px 8px 12px !important; }
+        }
+      `}</style>
+      <span style={{ maxWidth: 780 }}>
+        {!isCustomMessage && <span style={{ color: "#FF5701", fontWeight: 700 }}>Heads up — </span>}
+        {message}
       </span>
       <button
         type="button"
@@ -87,6 +101,7 @@ export default function MaintenanceBanner() {
           lineHeight: 1,
           cursor: "pointer",
           borderRadius: 6,
+          flexShrink: 0,
         }}
         onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,23,20,0.06)" }}
         onMouseLeave={e => { e.currentTarget.style.background = "transparent" }}
