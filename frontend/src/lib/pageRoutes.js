@@ -34,6 +34,19 @@ export const PAGE_KEYS = [
   // branch gets its own key here in a later phase (e.g. "arenaDomainRole").
   "arenaCollegeStream",
   "aura", "authority", "candidateSearch", "communities",
+  // "arena" removed 2026-08-26 — no currentPage === "arena" block has
+  // existed in App.jsx since the College Stream rebuild (arenaCollegeStream
+  // is the live entry now); the key kept resolving to a silent blank panel.
+  // The 17 arenaV2* keys below have the exact same problem (no matching
+  // render block either) but are deliberately left as-is here — out of
+  // scope for this fix, tracked as part of the separate arena-v2 removal.
+  "arenaV2BiotechPilot", "arenaV2CivilPilot", "arenaV2ClinicalLabPilot",
+  "arenaV2CyberPilot", "arenaV2DataAnalystPilot", "arenaV2DbaPilot", "arenaV2DevOpsPilot",
+  "arenaV2EcePilot", "arenaV2EeePilot", "arenaV2FrontendPilot", "arenaV2MLPilot",
+  "arenaV2MechanicalPilot", "arenaV2MedicalBiotechPilot",
+  "arenaV2RecruiterView", "arenaV2SoftwarePilot",
+  "arenaV2SapFicoPilot", "arenaV2SapMmSdPilot", "arenaV2SapAbapPilot",
+  "aura", "authority", "candidateSearch", "challenges", "communities",
   "company", "events", "execnetwork", "executiveHome", "executivefeed",
   "forge", "funding", "growth", "jobPostings", "launchpad", "marketplace",
   "myTasks", "nexus", "orbit",

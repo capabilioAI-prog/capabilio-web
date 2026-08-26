@@ -416,7 +416,7 @@ export default function AuthorityProfile({ user, userData, setUserData, onNaviga
       `}</style>
 
       {bookingType&&<BookingModal type={bookingType} authorName={userData?.displayName||userData?.name||"Authority"} authorUid={profileUid||""} requesterUid={viewerUid||""} requesterName={user?.displayName||"User"} onClose={()=>setBookingType(null)}/>}
-      {showVerifyModal&&<VerificationModal onClose={()=>setShowVerifyModal(false)} onNavigateArena={()=>{setShowVerifyModal(false);onNavigate?.("arena")}} authorityType={authorityType} userData={userData}/>}
+      {showVerifyModal&&<VerificationModal onClose={()=>setShowVerifyModal(false)} onNavigateArena={()=>{setShowVerifyModal(false);onNavigate?.("arenaCollegeStream")}} authorityType={authorityType} userData={userData}/>}
       {showCreate&&<CreatePostModal onClose={()=>setShowCreate(false)} onPost={handlePost} authorityType={authorityType}/>}
 
       {/* Cover Banner */}

@@ -567,11 +567,30 @@ function EloHistoryCard({ history, currentElo, eloDecayToday }) {
 }
 
 // ─── RADAR CHART ─────────────────────────────────────────────────────────────
+// LABEL_PAD bakes label-text room into the viewBox itself (rather than relying
+// on overflow:visible alone, which still clips under a parent that establishes
+// its own overflow/containment context, e.g. a grid cell) and width:100% +
+// maxWidth make it scale down instead of clip in a narrower container.
+function wrapRadarLabel(label, maxCharsPerLine = 11) {
+  const words = String(label || "").trim().split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return [words[0] || ""]
+  const lines = []
+  let line = ""
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w
+    if (candidate.length > maxCharsPerLine && line) { lines.push(line); line = w }
+    else line = candidate
+  }
+  if (line) lines.push(line)
+  return lines.slice(0, 2)
+}
 function RadarChart({ data, size = 280 }) {
   if (!data || data.length === 0) return null
   const clean = data.filter(d => d && (d.label||d.skill) && (d.label||d.skill) !== "undefined")
   if (clean.length === 0) return null
-  const cx = size/2, cy = size/2, r = size*0.32
+  const LABEL_PAD = 54
+  const box = size + LABEL_PAD*2
+  const cx = box/2, cy = box/2, r = size*0.32
   const n = clean.length, step = (2*Math.PI)/n
   const C = [T.indigo,T.green,"#E67E22","#8E44AD","#E74C3C","#16A085","#2980B9","#C0392B"]
   const pt = (i,v) => { const a=i*step-Math.PI/2, d=(v/100)*r; return {x:cx+d*Math.cos(a),y:cy+d*Math.sin(a)} }
@@ -579,7 +598,7 @@ function RadarChart({ data, size = 280 }) {
   const pts = clean.map((d,i) => pt(i, d.value||d.score||0))
   const poly = pts.map((p,i) => `${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")+"Z"
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{overflow:"visible"}}>
+    <svg width={box} height={box} viewBox={`0 0 ${box} ${box}`} style={{width:"100%",height:"auto",maxWidth:box,overflow:"visible"}}>
       <defs>
         <radialGradient id="radarFill" cx="50%" cy="50%">
           <stop offset="0%" stopColor={T.indigo} stopOpacity="0.12"/>
@@ -602,13 +621,18 @@ function RadarChart({ data, size = 280 }) {
       {clean.map((d,i) => {
         const l = lp(i), lbl = String(d.label||d.skill||"Skill "+(i+1))
         const score = d.value||d.score||0
+        const lines = wrapRadarLabel(lbl)
+        const labelYs = lines.length>1 ? [l.y-13,l.y-2] : [l.y-6]
+        const scoreY = lines.length>1 ? l.y+11 : l.y+7
         return (
           <g key={i}>
-            <text x={l.x.toFixed(1)} y={(l.y-6).toFixed(1)} textAnchor="middle" dominantBaseline="middle"
-              fontSize={9} fontWeight={700} fill={T.ink2} fontFamily="DM Sans,sans-serif">
-              {lbl.length>12?lbl.slice(0,11)+"…":lbl}
-            </text>
-            <text x={l.x.toFixed(1)} y={(l.y+7).toFixed(1)} textAnchor="middle" dominantBaseline="middle"
+            {lines.map((line,li) => (
+              <text key={li} x={l.x.toFixed(1)} y={labelYs[li].toFixed(1)} textAnchor="middle" dominantBaseline="middle"
+                fontSize={9} fontWeight={700} fill={T.ink2} fontFamily="DM Sans,sans-serif">
+                {line}
+              </text>
+            ))}
+            <text x={l.x.toFixed(1)} y={scoreY.toFixed(1)} textAnchor="middle" dominantBaseline="middle"
               fontSize={9} fontWeight={600} fill={C[i%C.length]} fontFamily="DM Sans,sans-serif">
               {score}%
             </text>
@@ -5534,49 +5558,47 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
               </p>
             </div>
 
-            {/* User's actual skills — from resume/LinkedIn, with derived scores */}
-            {skillGraph.length > 0 && (
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
-                {/* Radar of user's real skills */}
-                <Card>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                    <SectionLabel color={T.indigo}>Your Skill Radar</SectionLabel>
-                    <div style={{fontSize:10,color:T.ink4,fontFamily:"'DM Mono',monospace"}}>{keyword}</div>
-                  </div>
-                  {/* Fall back to domain radar when no personal skill data yet */}
-                  {(() => {
-                    const radarData = skillGraph.length > 0 ? skillGraph.slice(0,8) : domainSkillGraph.slice(0,8)
-                    const allZeroFallback = radarData.every(d=>(d.value||d.score||0)===0)
-                    return (
-                      <>
-                        <div style={{display:"flex",justifyContent:"center",padding:"12px 0",position:"relative"}}>
-                          <RadarChart data={radarData} size={280}/>
-                          {allZeroFallback && (
-                            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-                              <div style={{background:"rgba(255,255,255,0.92)",borderRadius:10,padding:"10px 16px",textAlign:"center",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
-                                <div style={{fontSize:24,marginBottom:4}}>🎯</div>
-                                <div style={{fontSize:12,fontWeight:700,color:T.ink2}}>No assessment data yet</div>
-                                <div style={{fontSize:11,color:T.muted,marginTop:3}}>Complete the assessment to calibrate your radar</div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginTop:10}}>
-                          {radarData.map((d,i)=>(
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:T.ink3,
-                              padding:"2px 8px",borderRadius:99,background:C[i%C.length]+"10",border:`1px solid ${C[i%C.length]}30`}}>
-                              <div style={{width:6,height:6,borderRadius:"50%",background:C[i%C.length]}}/>
-                              <span style={{fontWeight:600}}>{d.label||d.skill}</span>
-                              {(d.value||d.score||0)>0&&<strong style={{color:C[i%C.length]}}>{d.value||d.score}%</strong>}
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )
-                  })()}
-                </Card>
+            {/* Radar + skill scores. The radar always reads domainSkillGraph — the
+                exact same variable the Dashboard tab's radar uses — so the two
+                tabs can never drift apart (previously this fell back to the raw,
+                resume-derived `skillGraph` sliced to 8 entries whenever the user
+                had any resume skills at all, which showed a different skill set,
+                a different shape, and silently dropped whichever of the role's
+                skills didn't survive the slice). */}
+            <div style={{display:"grid",gridTemplateColumns:skillGraph.length>0?"1fr 1fr":"1fr",gap:16,marginBottom:20}}>
+              {/* Radar of the role's full skill set */}
+              <Card>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <SectionLabel color={T.indigo}>Your Skill Radar</SectionLabel>
+                  <div style={{fontSize:10,color:T.ink4,fontFamily:"'DM Mono',monospace"}}>{resolvedKeyword} · {domainSkillGraph.length} skills</div>
+                </div>
+                <div style={{display:"flex",justifyContent:"center",padding:"12px 0",position:"relative"}}>
+                  <RadarChart data={domainSkillGraph} size={280}/>
+                  {domainSkillGraph.every(d=>(d.value||d.score||0)===0) && (
+                    <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+                      <div style={{background:"rgba(255,255,255,0.92)",borderRadius:10,padding:"10px 16px",textAlign:"center",boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
+                        <div style={{fontSize:24,marginBottom:4}}>🎯</div>
+                        <div style={{fontSize:12,fontWeight:700,color:T.ink2}}>No assessment data yet</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:3}}>Complete the assessment to calibrate your radar</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center",marginTop:10}}>
+                  {domainSkillGraph.map((d,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:T.ink3,
+                      padding:"2px 8px",borderRadius:99,background:C[i%C.length]+"10",border:`1px solid ${C[i%C.length]}30`}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:C[i%C.length]}}/>
+                      <span style={{fontWeight:600}}>{d.label||d.skill}</span>
+                      {(d.value||d.score||0)>0&&<strong style={{color:C[i%C.length]}}>{d.value||d.score}%</strong>}
+                    </div>
+                  ))}
+                </div>
+              </Card>
 
-                {/* Actual skill scores */}
+              {/* Actual skill scores — from resume/LinkedIn, a separate personal
+                  list (not role-scoped), so it stays gated on having any */}
+              {skillGraph.length > 0 && (
                 <Card>
                   <SectionLabel color={T.indigo}>Skill Scores</SectionLabel>
                   <p style={{fontSize:11,color:T.ink4,margin:"0 0 12px"}}>
@@ -5606,8 +5628,8 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                     })}
                   </div>
                 </Card>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Practice Skills — sourced from user's actual resume skills, with Arena scores */}
             <Card style={{marginBottom:20}}>
