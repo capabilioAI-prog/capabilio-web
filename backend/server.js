@@ -243,6 +243,44 @@ app.use(cors({
   credentials: true,
 }))
 
+// ─── Maintenance lockout (2026-08-26) ──────────────────────────────────────────
+// Full-application shutdown for the backend, independent of the frontend's
+// FLAGS.maintenance_mode (main.jsx/MaintenancePage.jsx) — the two are
+// separate switches by design so either side can come down/back up on its
+// own. Every request gets a 503 with a small JSON body — including direct
+// API callers who never load the frontend at all — EXCEPT the two health
+// routes below, which must keep returning 200 or Render's process
+// supervisor will read the service as crashed and restart-loop it, which
+// is worse than the outage this is meant to manage. There is no
+// render.yaml in this repo (Render is configured entirely via its
+// dashboard), so the exact health-check path Render pings isn't visible
+// here in code — both "/" and "/health" (the only two GET routes this
+// server exposes with no "/api" prefix) are excluded to cover either.
+//
+// Registered AFTER cors() (so the 503 still carries CORS headers and
+// reaches the browser as a real response instead of failing as an opaque
+// CORS/network error) but BEFORE the rate limiters and route mounts below,
+// so a maintenance window doesn't burn rate-limit budget or reach any
+// route handler's own logic.
+//
+// Read fresh via process.env on every request (not cached into a
+// module-load-time const like MENTOR_MARKETPLACE_V1_ENABLED in
+// mentorMarketplace.js) so flipping the var takes effect on the very next
+// request IF the host delivers env var changes to a running process
+// without a restart. Render does not: env vars are injected at container
+// start, so on Render this still requires triggering a redeploy/restart
+// after changing MAINTENANCE_MODE in the dashboard, same restart
+// requirement as every other backend flag in this codebase (see
+// docs/mentor-marketplace-operator-runbook.md §9). The per-request read
+// here is still correct — it's what makes the flag take effect immediately
+// on any platform (or any future Render feature) that does support live
+// env var delivery, and it costs nothing on Render either way.
+app.use((req, res, next) => {
+  if (process.env.MAINTENANCE_MODE !== "true") return next()
+  if (req.path === "/" || req.path === "/health") return next()
+  res.status(503).json({ error: "maintenance", message: "Capabilio is temporarily offline for maintenance. We'll be back shortly." })
+})
+
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 // Instances now imported from server/lib/rateLimiters.js (see that file's
 // header for the 2026-07-30 incident this split fixes). /api/skill-studio

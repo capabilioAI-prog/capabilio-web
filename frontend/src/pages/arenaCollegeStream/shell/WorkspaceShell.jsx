@@ -164,23 +164,33 @@ function ShellInner({ workspace, userId, children }) {
           centerContent
         ) : (
           <ResizablePanelGroup id="arena-shell-h" direction="horizontal" persistId="arena-shell-h" storage={layout.panelStorage}>
-            <ResizablePanel id="mission-sidebar" defaultSize={22} minSize={14} maxSize={36} collapsible collapsedSize={0} panelRef={missionPanelRef}>
+            {/* react-resizable-panels' Panel size props are unit-sensitive: a
+                bare number means pixels, a string means percent (see its own
+                doc comment on Panel — "Numeric values are assumed to be
+                pixels. Strings without explicit units are assumed to be
+                percentages"). These were passed as numbers, so e.g.
+                defaultSize={22} meant a literal 22px-wide sidebar (not 22% of
+                the group), and minSize={14}/maxSize={36} permanently pinned
+                it to a 14-36px sliver regardless of the group's real width —
+                the reported "sidebar collapses to single characters, main
+                panel overlaps it" bug. Fixed by passing percent strings. */}
+            <ResizablePanel id="mission-sidebar" defaultSize="22%" minSize="14%" maxSize="36%" collapsible collapsedSize={0} panelRef={missionPanelRef}>
               <MissionSidebar workspace={workspace} activeTab={layout.missionSidebarTab} onActiveTabChange={layout.setMissionSidebarTab} />
             </ResizablePanel>
             <PanelResizeHandle direction="horizontal" />
-            <ResizablePanel id="center-column" defaultSize={56} minSize={30}>
+            <ResizablePanel id="center-column" defaultSize="56%" minSize="30%">
               <ResizablePanelGroup id="arena-shell-v" direction="vertical" persistId="arena-shell-v" storage={layout.panelStorage}>
-                <ResizablePanel id="center-panel" defaultSize={70} minSize={30}>
+                <ResizablePanel id="center-panel" defaultSize="70%" minSize="30%">
                   {centerContent}
                 </ResizablePanel>
                 <PanelResizeHandle direction="vertical" />
-                <ResizablePanel id="bottom-panel" defaultSize={30} minSize={0} collapsible collapsedSize={0} panelRef={bottomPanelRef}>
+                <ResizablePanel id="bottom-panel" defaultSize="30%" minSize={0} collapsible collapsedSize={0} panelRef={bottomPanelRef}>
                   <BottomPanel workspace={workspace} activeTab={layout.bottomPanelTab} onActiveTabChange={layout.setBottomPanelTab} />
                 </ResizablePanel>
               </ResizablePanelGroup>
             </ResizablePanel>
             <PanelResizeHandle direction="horizontal" />
-            <ResizablePanel id="right-sidebar" defaultSize={22} minSize={14} maxSize={36} collapsible collapsedSize={0} panelRef={rightPanelRef}>
+            <ResizablePanel id="right-sidebar" defaultSize="22%" minSize="14%" maxSize="36%" collapsible collapsedSize={0} panelRef={rightPanelRef}>
               <RightSidebar workspace={workspace} activeTab={layout.rightSidebarTab} onActiveTabChange={layout.setRightSidebarTab} />
             </ResizablePanel>
           </ResizablePanelGroup>

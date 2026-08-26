@@ -117,6 +117,21 @@ export const FLAGS = {
   // VITE_FF_MAINTENANCE_BANNER=true in Vercel env vars + redeploy for the
   // deployment you want it on, no code change either way.
   maintenance_banner: envFlag("MAINTENANCE_BANNER", false),
+
+  // Full-application maintenance lockout (2026-08-26) — a hard stop, NOT
+  // the same mechanism as maintenance_banner above: when this is on,
+  // main.jsx renders ONLY MaintenancePage.jsx before BrowserRouter/App
+  // ever mounts — no nav, no auth check, no Supabase session read, no data
+  // fetch, nothing else reachable, on every route. There is no bypass by
+  // design. Off by default; flip via VITE_FF_MAINTENANCE_MODE=true in
+  // Vercel env vars + REBUILD (Vite bakes import.meta.env in at build
+  // time — a redeploy of already-built static assets alone does not pick
+  // this up, same requirement as every other flag here). The backend has
+  // its own independent switch (MAINTENANCE_MODE on Render — see the
+  // maintenance-lockout middleware registered right after cors() in
+  // backend/server.js) so the frontend and backend lockouts can be
+  // flipped separately if only one side needs to come down.
+  maintenance_mode: envFlag("MAINTENANCE_MODE", false),
 }
 
 // Plain string override for the banner's copy — kept outside FLAGS since

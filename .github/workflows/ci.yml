@@ -6,6 +6,10 @@ name: CI
 # predates the ESLint config added alongside this workflow and would
 # otherwise surface a large pre-existing backlog unrelated to any single PR.
 # Tighten this (make lint blocking) once that backlog is triaged.
+# otherwise surface a large pre-existing backlog unrelated to any single PR
+# (348 errors / 440 warnings as of 2026-08-26, confirmed via `npm run lint`
+# — still not triaged). Tighten this (make lint blocking) once that backlog
+# is triaged.
 #
 # 2026-08-07: widened test coverage to test:arena-v2, test:arena-v2-frontend,
 # test:backend-lib, test:frontend-unit, and non-blocking test:routes.
@@ -29,6 +33,27 @@ name: CI
 # under-restrictive, but is still a real bug). Fixing those is a separate,
 # focused task, not something to bundle into a CI-coverage change — tracked
 # here so it isn't lost. Make this blocking once triaged.
+# 2026-08-26: removed test:arena-v2 and test:arena-v2-frontend. Both scripts
+# were already deleted from package.json by an earlier, unrelated commit
+# (a4aa548, "rebuild landing page per DESIGN.md") that folded their coverage
+# into the scripts still run below — test:backend-lib's glob was widened to
+# drop its old `-not -path '*/arena-v2/*'` exclusion, and test:frontend-unit
+# was never narrowed in the first place, so frontend/src/arena-v2/*.test.js
+# was always included there too. This workflow just never got updated to
+# match, so it had been calling two scripts that haven't existed since
+# 2026-08-07 — failing CI on every single PR/push regardless of what the
+# PR actually changed. No coverage lost: the arena-v2 *.test.js files still
+# in the working tree today (31 backend, 2 frontend — legacy Arena V2, and
+# already staged for removal in a separate PR) are still picked up by
+# test:backend-lib/test:frontend-unit's broad globs and still run.
+#
+# test:routes (backend/server/routes/__tests__) stays NON-BLOCKING for now.
+# Its 3 previously-failing tests (opsDashboardRouting, pulseNoMockData,
+# questionBankAdminRouting) now pass — 81/81 as of 2026-08-26, verified via
+# `node --test` directly on those three files — so that specific rationale
+# is stale. Left non-blocking anyway: making it blocking is a real policy
+# change, a separate decision from removing two dead script references, not
+# something to fold in here by inertia.
 # 2026-08-07: widened test coverage. Before this change, CI only ran
 # test:arena-v2 — 1 suite out of 72 .test.js files in the repo. Everything
 # added below was verified green locally first:
@@ -78,7 +103,7 @@ jobs:
       - run: npm run build
       - run: npm run test:backend-lib
       - run: npm run test:frontend-unit
-      - name: Route tests (non-blocking — 3 pre-existing failures, see header comment)
+      - name: Route tests (non-blocking — see header comment)
         run: npm run test:routes || true
       - name: Lint (non-blocking)
         run: npm run lint || true
