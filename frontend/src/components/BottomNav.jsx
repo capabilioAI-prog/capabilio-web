@@ -8,7 +8,7 @@ import { useState, useCallback } from "react"
 const NAV_BY_PATH = {
   student: [
     { id: "home",      label: "Home",      page: "studentHome",      icon: HomeIcon      },
-    { id: "arena",     label: "Arena",     page: "arena",            icon: ArenaIcon     },
+    { id: "arena",     label: "Arena",     page: "arenaCollegeStream", icon: ArenaIcon   },
     { id: "pulse",     label: "Pulse",     page: "pulse",            icon: PulseIcon     },
     { id: "aura",      label: "Aura",      page: "aura",             icon: AuraIcon      },
     { id: "community", label: "Community", page: "nexus",            icon: CommunityIcon },

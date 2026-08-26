@@ -353,7 +353,7 @@ export default function StudentHome({ user, userData, onNavigate }) {
                 ? `${todaySubmissions} challenge${todaySubmissions > 1 ? "s" : ""} done today`
                 : "Earn evidence recruiters can inspect"}
             </span>
-            <button className="gold-btn" onClick={() => onNavigate("arena")}>
+            <button className="gold-btn" onClick={() => onNavigate("arenaCollegeStream")}>
               Enter Arena →
             </button>
           </div>
@@ -530,7 +530,7 @@ export default function StudentHome({ user, userData, onNavigate }) {
           </div>
 
           {/* CTA */}
-          <button className="gold-btn" onClick={() => onNavigate("arena")}>
+          <button className="gold-btn" onClick={() => onNavigate("arenaCollegeStream")}>
             Enter Arena →
           </button>
         </div>
@@ -578,7 +578,7 @@ export default function StudentHome({ user, userData, onNavigate }) {
             High market demand
           </div>
 
-          <button className="secondary-btn" onClick={() => onNavigate("arena")}>
+          <button className="secondary-btn" onClick={() => onNavigate("arenaCollegeStream")}>
             Start in Studio →
           </button>
         </div>
@@ -727,7 +727,7 @@ export default function StudentHome({ user, userData, onNavigate }) {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
-              { icon: "⚔️", label: "Arena",     page: "arena",    accentColor: D.indigo  },
+              { icon: "⚔️", label: "Arena",     page: "arenaCollegeStream", accentColor: D.indigo },
               { icon: "📡", label: "Pulse",     page: "pulse",    accentColor: "#38BDF8" },
               { icon: "✦",  label: "Aura",      page: "aura",     accentColor: D.violet  },
               { icon: "👥", label: "Community", page: "nexus",    accentColor: D.emerald },
