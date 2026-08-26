@@ -17,6 +17,16 @@ name: CI
 #     all pure-unit/mocked, no live external services) — added as blocking,
 #     same bar as test:arena-v2.
 #   - test:routes (backend/server/routes/__tests__) is added NON-BLOCKING,
+#
+# 2026-08-26: removed the test:arena-v2 / test:arena-v2-frontend steps below.
+# Arena V2 was fully decommissioned (chore/remove-arena-v2) and both scripts
+# were deleted from package.json, but this workflow was never updated to
+# match — every PR against main since has failed CI at "npm run
+# test:arena-v2" with "Missing script", regardless of what the PR actually
+# touched (confirmed: this PR's own build, test:backend-lib (591 tests), and
+# test:frontend-unit (18 tests) all pass clean once these two dead steps are
+# removed). test:backend-lib + test:frontend-unit are the current real
+# blocking coverage — see the 2026-08-07 note above for what they cover.
 #     same reasoning as the lint step below: 3 of its 81 tests currently
 #     fail against real pre-existing bugs unrelated to this change
 #     (opsDashboardRouting 200-vs-404 routing-shadow regression,
@@ -44,8 +54,6 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      - run: npm run test:arena-v2
-      - run: npm run test:arena-v2-frontend
       - run: npm run test:backend-lib
       - run: npm run test:frontend-unit
       - name: Route tests (non-blocking — 3 pre-existing failures, see header comment)

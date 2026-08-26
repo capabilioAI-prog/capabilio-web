@@ -100,7 +100,24 @@ export const FLAGS = {
   // inside ModuleRuntime, which only exists when V2 is enabled. Off by
   // default per the same "new surface ships flag-off first" convention.
   skill_studio_video: envFlag("SKILL_STUDIO_VIDEO", false),
+
+  // Site-wide "heads up" deploy banner (2026-08-26) — a thin, dismissible
+  // bar rendered above the whole app (see components/MaintenanceBanner.jsx).
+  // Deliberately a separate, unrelated mechanism from the full-page
+  // maintenance-mode takeover flag (main.jsx/MaintenancePage.jsx, landing
+  // in a different branch) — this one never blocks the app, the site stays
+  // fully usable underneath it. Off by default; flip via
+  // VITE_FF_MAINTENANCE_BANNER=true in Vercel env vars + redeploy for the
+  // deployment you want it on, no code change either way.
+  maintenance_banner: envFlag("MAINTENANCE_BANNER", false),
 }
+
+// Plain string override for the banner's copy — kept outside FLAGS since
+// envFlag() above only handles true/false toggles. Empty string means "use
+// MaintenanceBanner.jsx's own default wording". Set
+// VITE_MAINTENANCE_BANNER_MESSAGE in Vercel env vars + redeploy to change
+// the message without a code change.
+export const MAINTENANCE_BANNER_MESSAGE = import.meta.env.VITE_MAINTENANCE_BANNER_MESSAGE || ""
 
 export function isEnabled(flag) {
   return !!FLAGS[flag]
