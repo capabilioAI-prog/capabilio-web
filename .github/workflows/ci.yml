@@ -1,31 +1,34 @@
 name: CI
 
 # Sprint 0 of EXECUTIVE_TECHNICAL_BLUEPRINT.md §10 — no CI existed before this.
-# Kept intentionally small: build must pass and the one existing real test
-# suite must pass. Lint runs but does not block merges yet, since the
-# existing codebase predates the ESLint config added alongside this workflow
-# and would otherwise surface a large pre-existing backlog unrelated to any
-# single PR. Tighten this (make lint blocking) once that backlog is triaged.
+# Kept intentionally small: build must pass and the real test suites must
+# pass. Lint runs but does not block merges yet, since the existing codebase
+# predates the ESLint config added alongside this workflow and would
+# otherwise surface a large pre-existing backlog unrelated to any single PR.
+# Tighten this (make lint blocking) once that backlog is triaged.
 #
-# 2026-08-07: widened test coverage. Before this change, CI only ran
-# test:arena-v2 — 1 suite out of 72 .test.js files in the repo. Everything
-# added below was verified green locally first:
-#   - test:arena-v2-frontend and the frontend/src/api schema-version test
-#     existed as working scripts/files but were never actually invoked by
-#     CI — just wired in now, not new tests.
-#   - test:backend-lib is every other backend/server/lib suite (302 tests,
-#     all pure-unit/mocked, no live external services) — added as blocking,
-#     same bar as test:arena-v2.
-#   - test:routes (backend/server/routes/__tests__) is added NON-BLOCKING,
-#     same reasoning as the lint step below: 3 of its 81 tests currently
-#     fail against real pre-existing bugs unrelated to this change
-#     (opsDashboardRouting 200-vs-404 routing-shadow regression,
-#     pulseNoMockData market-insights honesty-labeling, and
-#     questionBankAdminRouting incorrectly 403-ing an unrelated route for a
-#     non-admin user — the last one fails safe, over-restrictive rather than
-#     under-restrictive, but is still a real bug). Fixing those is a
-#     separate, focused task, not something to bundle into a CI-coverage
-#     change — tracked here so it isn't lost. Make this blocking once triaged.
+# 2026-08-07: widened test coverage to test:arena-v2, test:arena-v2-frontend,
+# test:backend-lib, test:frontend-unit, and non-blocking test:routes.
+#
+# 2026-08-26: arena-v2 removed entirely (decommissioned in favor of the
+# ArenaCollegeStream rebuild — see CAPABILIO_ARCHITECTURE.md §8). Dropped
+# test:arena-v2 and test:arena-v2-frontend since both scripts and the
+# suites they ran no longer exist — not replaced 1:1: test:backend-lib and
+# test:frontend-unit already glob every remaining *.test.js under
+# backend/server/lib and frontend/src respectively (including what
+# test:arena-v2-frontend used to run standalone), so coverage isn't lost,
+# just no longer double-invoked under a separate script name.
+#
+# test:routes (backend/server/routes/__tests__) stays NON-BLOCKING, same
+# reasoning as the lint step below: as of 2026-08-07, 3 of its 81 tests
+# failed against real pre-existing bugs unrelated to any single change
+# (opsDashboardRouting 200-vs-404 routing-shadow regression,
+# pulseNoMockData market-insights honesty-labeling, and
+# questionBankAdminRouting incorrectly 403-ing an unrelated route for a
+# non-admin user — the last one fails safe, over-restrictive rather than
+# under-restrictive, but is still a real bug). Fixing those is a separate,
+# focused task, not something to bundle into a CI-coverage change — tracked
+# here so it isn't lost. Make this blocking once triaged.
 
 on:
   pull_request:
@@ -44,8 +47,6 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      - run: npm run test:arena-v2
-      - run: npm run test:arena-v2-frontend
       - run: npm run test:backend-lib
       - run: npm run test:frontend-unit
       - name: Route tests (non-blocking — 3 pre-existing failures, see header comment)

@@ -3,7 +3,7 @@
  *
  * capabilio-web's authenticated app has historically run on a single
  * in-memory `currentPage` state (App.jsx) instead of real routes — every
- * page (Aura, Arena, Pulse, Skill Studio, 49+ others) lived at the same
+ * page (Aura, Pulse, Skill Studio, 49+ others) lived at the same
  * URL, so nothing was bookmarkable/shareable and the browser back/forward
  * buttons didn't work, unlike capabilio-recruiter (react-router-dom,
  * real paths like /recruiter/applications).
@@ -26,14 +26,14 @@
 // block in App.jsx. Add new pages here — the path is derived, not manual,
 // so there's no separate list to keep in sync.
 export const PAGE_KEYS = [
-  "aicopilot", "analytics", "arena",
-  "arenaV2BiotechPilot", "arenaV2CivilPilot", "arenaV2ClinicalLabPilot",
-  "arenaV2CyberPilot", "arenaV2DataAnalystPilot", "arenaV2DbaPilot", "arenaV2DevOpsPilot",
-  "arenaV2EcePilot", "arenaV2EeePilot", "arenaV2FrontendPilot", "arenaV2MLPilot",
-  "arenaV2MechanicalPilot", "arenaV2MedicalBiotechPilot",
-  "arenaV2RecruiterView", "arenaV2SoftwarePilot",
-  "arenaV2SapFicoPilot", "arenaV2SapMmSdPilot", "arenaV2SapAbapPilot",
-  "aura", "authority", "candidateSearch", "challenges", "communities",
+  "aicopilot", "analytics",
+  // Arena rebuild — College Stream branch (Phase 1). Note: this deterministic
+  // camelCase->kebab-case deriver has no slash support, so this resolves to
+  // "/arena-college-stream", not "/arena/college-stream" as in the rebuild
+  // spec's prose — a real path, just flat rather than nested. Domain Role
+  // branch gets its own key here in a later phase (e.g. "arenaDomainRole").
+  "arenaCollegeStream",
+  "aura", "authority", "candidateSearch", "communities",
   "company", "events", "execnetwork", "executiveHome", "executivefeed",
   "forge", "funding", "growth", "jobPostings", "launchpad", "marketplace",
   "myTasks", "nexus", "orbit",

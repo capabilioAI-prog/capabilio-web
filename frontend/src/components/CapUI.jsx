@@ -132,9 +132,9 @@ export function AppNavBar({ user, currentPage, onNavigate, onTabChange, onSignOu
 
   const ALL_PAGES = [
     { id: "aura",        label: "Aura",        icon: "✦", hideForExec: false },
-    { id: "arena",       label: "Arena",        icon: "⚔", hideForExec: true  },
     { id: "pulse",       label: "Pulse",        icon: "📡", hideForExec: true  },
     { id: "skillstudio", label: "Skill Studio", icon: "🎓", hideForExec: true  },
+    { id: "arenaCollegeStream", label: "Arena", icon: "🏟️", hideForExec: true  },
     { id: "launchpad",   label: isExecutive ? "Intel Hub" : "Launchpad", icon: isExecutive ? "◈" : "🚀", hideForExec: false },
   ]
 

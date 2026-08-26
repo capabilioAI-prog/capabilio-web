@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from "react"
 import { arenaDb } from "../lib/db"
 import { getRoleConfig } from "../config/roleConfig"
+import { getTier } from "../theme"
 
 // ── Design tokens ─────────────────────────────────────────────────────────
 const D = {
@@ -50,13 +51,19 @@ function useCountUp(target, duration = 900, delay = 0) {
 }
 
 // ── ELO tier ──────────────────────────────────────────────────────────────
+// Tier name/boundary sourced from ../theme's canonical ELO_TIERS (Rookie→Elite);
+// this page's own color/bg/border palette (D.*) is preserved per tier.
+const TIER_STYLE = {
+  Rookie:       { color: D.muted,   bg: "rgba(100,116,139,0.12)", border: "rgba(100,116,139,0.20)" },
+  Apprentice:   { color: D.gold,    bg: "rgba(245,158,11,0.10)",  border: "rgba(245,158,11,0.20)" },
+  Practitioner: { color: D.emerald, bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.30)" },
+  Expert:       { color: D.indigo,  bg: "rgba(99,102,241,0.15)",  border: "rgba(99,102,241,0.30)" },
+  Master:       { color: D.violet,  bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.30)" },
+  Elite:        { color: D.rose,    bg: "rgba(244,63,94,0.15)",   border: "rgba(244,63,94,0.30)" },
+}
 function eloTier(elo) {
-  if (elo >= 750) return { tier: "Expert",   color: D.gold,    bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.30)" }
-  if (elo >= 650) return { tier: "Advanced", color: D.violet,  bg: "rgba(139,92,246,0.15)",  border: "rgba(139,92,246,0.30)" }
-  if (elo >= 550) return { tier: "Rising",   color: D.indigo,  bg: "rgba(99,102,241,0.15)",  border: "rgba(99,102,241,0.30)" }
-  if (elo >= 450) return { tier: "Building", color: D.emerald, bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.30)" }
-  if (elo >= 400) return { tier: "Learning", color: D.gold,    bg: "rgba(245,158,11,0.10)",  border: "rgba(245,158,11,0.20)" }
-  return               { tier: "Beginner",  color: D.muted,   bg: "rgba(100,116,139,0.12)", border: "rgba(100,116,139,0.20)" }
+  const { label } = getTier(elo)
+  return { tier: label, ...TIER_STYLE[label] }
 }
 
 function toProof(sub) {
