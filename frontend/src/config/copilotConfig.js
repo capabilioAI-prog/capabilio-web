@@ -1,6 +1,7 @@
 // ============================================================
 // Capabilio AI Career Copilot — Pipeline Configuration
 // ============================================================
+import { getTier } from "../theme"
 
 // ── 1. MODEL ROUTING ────────────────────────────────────────
 
@@ -325,11 +326,7 @@ If the question requires data you don't have, say what is missing and how to add
 }
 
 function getEloTier(elo) {
-  if (!elo || elo < 600) return "Beginner"
-  if (elo < 800)  return "Developing"
-  if (elo < 1000) return "Proficient"
-  if (elo < 1200) return "Advanced"
-  return "Expert"
+  return getTier(elo || 0).label
 }
 
 // CAREER OS TRANCHE 5: honest "what real data went into this answer" note.

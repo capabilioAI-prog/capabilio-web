@@ -290,183 +290,110 @@ Each module is a distinct frontend section with its own API routes, but they sha
 
 ## 8. Arena — Execution Engine
 
+> **Status note:** Arena is mid-rebuild as of 2026-08-16. The original Arena and the subsequent "Arena V2" content-engine rebuild (`backend/server/lib/arena-v2/`) have both been decommissioned — the latter's entire tree is deleted in the current working tree. What ships today is a single new page, `frontend/src/pages/arenaCollegeStream/ArenaCollegeStream.jsx`, built around two independent branches. This section describes that current implementation.
+
 ### 8.1 What Arena Is
 
-Arena is where skill gets proven. It is a real-time execution environment — not a video lecture, not a quiz, not a reading exercise. Users receive a business scenario modeled on actual tasks performed at Indian tech companies (Swiggy, Razorpay, Zepto, PhonePe, etc.) and must produce working output in a domain-specific workspace.
+Arena is where skill gets proven through graded work — not AI-generated missions, not a quiz. Landing on Arena shows two entry points, resolved automatically from the student's own profile (no manual mode picker):
 
-The output is AI-scored on a 0–100 scale. The score is timestamped. The submission becomes a Proof artifact that is attached to the user's Aura profile. The ELO is updated immediately.
+| Branch | What it is | Resolved from | Status |
+|---|---|---|---|
+| **College Stream** | Curriculum-aligned coursework practice | `userData.branch` → `streams.slug` | Phase 1, live — only the `cse` stream has full semester/subject/unit/experiment content today; other branches exist as bare stream rows |
+| **Domain Role** | Job-function-specific missions | `roleConfig` → `domain_roles` | Phase 2, live but thin — 44 `domain_roles` are seeded, but only **Data Analyst** has authored missions; the other 43 honestly return `mission: null, totalMissions: 0` rather than fabricating content |
 
-### 8.2 Arena Workstations
+Both branches share exactly one thing: the student's global `profiles.elo_rating`. Everything else — tables, evaluators, route files, lib directories — is kept structurally independent by explicit rebuild rule, so a bug or change in one branch's scoring logic can never leak into the other's.
 
-Each workstation is a specialized environment matched to a job function:
+**Project-wide rule, enforced in both branches' code comments: no unaudited AI scoring.** Every submission's score, pass/fail verdict, and ELO delta are decided by a deterministic, pure-function evaluator before any AI model is ever called. See §8.4.
 
-| Workstation | Primary Domain | Tools/Environment |
-|------------|----------------|-------------------|
-| **Code IDE** | Software Engineering | Python/JS/Java REPL, syntax highlighting |
-| **Frontend Sandbox** | Frontend Dev | React live preview, CSS, HTML |
-| **API Workstation** | Backend Dev | Request builder, mock server, JSON view |
-| **SQL Lab** | Data / DBA | sql.js WASM, schema viewer, query result grid |
-| **Notebook Lab** | Data Science / ML | Pyodide (Python in browser), matplotlib |
-| **BI Dashboard Studio** | Business Intelligence | Charting primitives, KPI builder, SQL layer |
-| **Data Pipeline Studio** | Data Engineering | DAG view, Python ETL, schema diff |
-| **Infra Terminal** | DevOps | Simulated bash, YAML editor, linting |
-| **Cloud Arch Lab** | Cloud Engineering | Architecture canvas, service cards |
-| **SRE Console** | SRE / Platform | Prometheus-style metrics, runbook editor |
-| **Security Console** | Cybersecurity | Log viewer, vulnerability scanner simulation |
-| **SOC Console** | SOC / IR | SIEM simulation, alert triage, KQL |
-| **QA Lab** | QA Engineering | Playwright-style test editor, coverage view |
-| **BA Board** | Business Analysis | PRD template, user story builder, metrics |
-| **Product Strategy** | Product Management | Roadmap canvas, RICE scoring, metrics |
-| **Mobile Studio** | Mobile Dev | React Native preview, device frame |
-| **AI/LLM Studio** | AI/ML Engineering | Prompt editor, token counter, model selector |
-| **System Design** | Architecture | Canvas, component library, flow arrows |
-| **Markdown Board** | Medical / Technical | Structured document editor |
+### 8.2 College Stream Branch (Phase 1)
 
-**Critical Architecture Note:** All workstations that execute code must use real runtimes:
-- SQL Workstation: `sql.js` (SQLite compiled to WASM, runs in browser)
-- Notebook / Python: `Pyodide` (CPython compiled to WASM, runs in browser)
-- Code IDE: JS runs natively in browser; Python uses Pyodide; other languages use sandboxed server execution
-- No workstation should ever fake execution output with hardcoded mock data
+Curriculum tree: `streams` → `semesters` → `subjects` → `units` → `experiments`, each experiment carrying a `rubric` (jsonb), `elo_reward`, `difficulty`, and an optional `tier`.
 
-### 8.3 Mission Architecture
+Two ways to browse a stream, both public/no-auth to read:
+- **Drill-down** — `GET /streams/:slug` walks semester → subject → unit
+- **Flat grid** (`GET /streams/:slug/all-experiments`) — every experiment in the stream with its curriculum breadcrumb attached, which is what the LeetCode-style Academic Workspace grid renders directly
 
-A **Mission** is a single Arena challenge. It consists of:
+**Workspace type** comes from `stream_workspace_config.workspace_type` per stream (default `"text_answer"`). Two rubric shapes exist today:
+- `exact_match` / `numeric_tolerance` — pure JS string/number comparison (`lib/collegeStream/evaluator.js`)
+- `python_stdout_match` — student's Python source runs in a sandboxed `python3` subprocess (`lib/collegeStream/pythonSandbox.js`) and stdout is compared to an expected value
 
-```json
-{
-  "id": "sql-cohort-analysis-swiggy-2024-q3",
-  "title": "Cohort Retention Analysis",
-  "company": "Swiggy",
-  "difficulty": "Medium",
-  "type": "Data Analysis",
-  "scenario": "Swiggy's growth team noticed a 12% drop in 90-day user retention...",
-  "taskDescription": "Write a SQL cohort query to calculate 30/60/90-day retention rates...",
-  "objective": "Return a cohort matrix with correct retention %s for each time bucket",
-  "workstation": "sql",
-  "starterCode": "-- Dataset: swiggy_orders\n-- user_id, order_date, order_amount\nSELECT ...",
-  "expectedOutput": "Cohort table with dates as rows and 30/60/90d columns",
-  "eloGain": 18,
-  "timeLimit": 40,
-  "tags": ["sql", "cohort", "retention", "data-analyst"],
-  "hints": ["Use DATE_TRUNC for cohort grouping", "Self-join or window function for retention calc"],
-  "rubric": {
-    "correctOutput": 40,
-    "queryEfficiency": 20,
-    "codeStyle": 20,
-    "explanation": 20
-  }
-}
-```
+**Sandbox security model (Python):** process-level isolation, not container/VM isolation. It caps CPU/wall-clock (hard timeout + SIGKILL), memory (`ulimit -v`), process count (`ulimit -u`, anti fork-bomb), and stdout size, and strips the subprocess's environment to `PATH` only — the real process never sees `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, `RAZORPAY_KEY_SECRET`, or JWT secrets. It does **not** provide filesystem or network isolation — that's flagged as explicit follow-up work (container/VM isolation via gVisor or Firecracker), not silently deferred.
 
-### 8.4 Mission Generation (AI)
+**Common Challenge Framework progression tiers:** `foundation → core → applied → industry → master`. A tier unlocks once the student has passed at least half (rounded up, minimum 1) of the previous tier's experiments in that stream; untiered/legacy experiments are always unlocked. Enforced server-side on submit, not just hidden client-side.
 
-Missions are generated by Gemini (gemini-2.5-flash) and are **sticky** — generated once, stored in Supabase (`arena_missions` table), and reused until completed.
+### 8.3 Domain Role Branch (Phase 2)
 
-Generation flow:
-```
-User opens Arena
-    ↓
-Check arena_missions for today's unfinished missions for this user
-    ↓
-If none exist → call POST /api/arena/daily
-    ↓
-Gemini generates 3 missions: Easy / Medium / Hard
-    ↓
-Missions stored in arena_missions table
-    ↓
-Served to the frontend
-```
+Config-driven schema: `panel_types` / `domain_roles` / `evaluation_axes` / `domain_missions`. Only **one panel type is implemented today: `sql_runner`** — submitting to any other `panel_type` returns `400 "Panel type X is not yet supported."` rather than pretending to grade it.
 
-**Domain context is injected into Gemini.** For a Data Analyst, the prompt uses:
-- Real Python/Pandas/SQL starter code
-- Real-world company scenarios
-- Correct workstation type (`notebook` or `sql`)
-- Domain-specific rubric criteria
+**SQL Runner scoring (`lib/domainRole/sqlSandbox.js`):**
+1. The mission's seeded `dataset` (`{tableName, columns, rows}`) is loaded fresh into an **ephemeral, per-submission, in-memory SQLite database** via `sql.js` (WASM) — never run against real application tables, so untrusted student SQL can't leak other users' data or drift against changing live data.
+2. The submitted query is restricted to a single read statement: `SELECT`/`WITH` only, no statement-stacking (`;`), and `INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/PRAGMA/VACUUM` are all blocked.
+3. The result set is compared to the mission's `expected_result` — `unordered_rows` (multiset comparison, default — real SQL doesn't guarantee order without `ORDER BY`) or `ordered_rows` for missions that explicitly test ordering. `expected_result` and the full `dataset` are never sent to the client, only a 5-row preview.
 
-This prevents Gemini from generating generic algorithmic challenges for domain-specific roles.
+**Daily quota** (unlike College Stream, which has none): a rolling 24-hour window over the caller's own passed `domain_submissions` for that role — `free: 1`, `pro: 3`, `elite: 6` concurrent tasks, keyed off `profiles.subscription`. This is read entirely from existing submission timestamps rather than a separate mutable counter, so there's nothing to drift out of sync or corrupt via a race. An unfinished (unpassed) mission never rotates out on its own.
 
-### 8.5 Submission and Scoring
+### 8.4 Scoring Philosophy: Deterministic Verdict, AI Commentary Only
+
+Score, pass/fail, and ELO delta are **always** decided by the branch's own pure-function evaluator before any model call. Groq (`GROQ_FAST`) is invoked *after*, purely to generate a 2–3 sentence coaching explanation of a result that has already been finalized — its system prompt explicitly forbids inventing a verdict or score ("using ONLY the facts given... never invent a pass/fail verdict or a score; those are already decided and given to you as fact"). If `GROQ_API_KEY` is unset, Groq errors, or the call is slow, `ai_feedback` is simply `null` and the deterministic `insight`/`error`/`reason` text already computed is shown instead — a submission never fails or blocks on this call.
+
+| | College Stream | Domain Role |
+|---|---|---|
+| Evaluator | `evaluate()` / `evaluatePythonStdout()` | `compareResults()` |
+| Verdict basis | Rubric match (exact/tolerance/stdout) | SQL result-set match |
+| AI involvement | None in scoring; optional feedback text | None in scoring; optional feedback text |
+
+### 8.5 Submission Flow
 
 ```
-User submits solution
+POST /api/arena/{college-stream/experiments | domain-role/missions}/:id/submit
     ↓
-POST /api/arena/submit
-    Body: { missionId, code, workstation, userId, domain }
+Auth required · already-passed check (server-side lock, 409 if resubmitted)
     ↓
-Server validates submission structure
+College Stream: tier-progression gate (403 if previous tier not cleared)
+Domain Role:    daily-quota gate (429 + nextUnlockAt if exhausted)
     ↓
-AI Scoring (Gemini or Groq):
-    - Runs rubric evaluation
-    - Checks code correctness
-    - Evaluates efficiency
-    - Generates feedback
+Deterministic evaluator runs (rubric match / SQL sandbox comparison)
     ↓
-Score (0–100) returned
+elo_delta computed:
+    pass → experiment.elo_reward / mission.elo_reward (fixed per-item value)
+    fail → -ELO_FAIL_PENALTY[difficulty]   (easy: -2, medium: -3, hard: -5)
     ↓
-ELO delta computed (see Section 19)
+Submission row inserted (college_submissions / domain_submissions) —
+    written even on a FAILED attempt, so every try has an audit record
     ↓
-arena_history row inserted:
-    { user_id, task_id, title, domain, score, elo_delta, feedback, completed_at }
+Best-effort Groq feedback generated (never blocks, never revises the verdict)
     ↓
-User's ELO updated in profiles table
+profiles.elo_rating updated via atomic RPC increment_profile_elo
+    (read-then-write would race under concurrent submissions; the RPC can't)
     ↓
-Proof artifact created (see Section 19)
+arena_history row inserted — type: 'academic' or 'domain'
     ↓
-Frontend: score displayed, ELO animates, proof badge appears
+Response: { score, passed, elo_delta, feedback, ai_feedback, ...branch-specific detail }
 ```
 
-### 8.6 Arena Scoring Rubric
+A `23505` (unique-violation) on insert is the database-level backstop for the check-then-insert race on the "already passed" lock — two near-simultaneous submissions can both pass the initial SELECT check, but only one INSERT wins; the loser gets the same `409` a sequential duplicate would.
 
-Every challenge type has a domain-specific rubric. Generic example:
+### 8.6 ELO Economics and the Shared Activity Ledger
 
-| Category | Weight | What it Checks |
-|----------|--------|----------------|
-| Correctness | 40% | Does the output match the expected result? |
-| Efficiency | 20% | Is the approach appropriately optimal? |
-| Code Quality | 20% | Naming, structure, readability |
-| Explanation | 20% | Can the user explain what they built? |
+The two branches deliberately have **different ELO economics**, by explicit 2026-08-16 product decision:
 
-For SQL challenges:
-- Correctness: Does the query return the right rows/columns?
-- Query plan efficiency: Are indexes used? Are N+1 patterns avoided?
-- Formatting: Aliasing, indentation, comment clarity
+- **Domain Role is the ELO-growth engine** — every passing task awards its full `elo_reward`, uncapped, gated instead by the daily task quota (§8.3).
+- **College Stream is capped to one ELO-earning pass per calendar day** (UTC midnight boundary), no matter how many experiments the student clears that day — clearing 20 Academic tasks in one sitting earns the same ELO as clearing 1. This is intentional: College Stream exists to build the skill graph and portfolio record, not to be farmable for ELO by volume. Failing submissions are **not** capped — a wrong answer still costs ELO even after that day's pass is already banked, closing the obvious retry-farming loophole.
 
-For frontend challenges:
-- Visual correctness vs spec
-- Accessibility compliance (ARIA, keyboard nav)
-- Performance (no unnecessary re-renders)
-- Error handling
+**`arena_history`** is the shared, denormalized event ledger that Aura's "ELO Rating History" timeline and Portfolio's task lists both read from — `type: 'academic'` vs `type: 'domain'` distinguishes the two branches' rows without guessing from free text. It was dark (no backend route wrote to it) from Arena V1's decommission until it was reactivated on 2026-08-16 alongside this rebuild — Aura showed "No arena events yet" despite a real, changing ELO in the interim.
 
-### 8.7 Arena Homepage Layout
+**`GET /api/arena/activity/summary`** (`routes/arenaActivity.js`) is a read-only aggregation over *both* branches' submission tables (`domain_submissions.created_at`, `college_submissions.submitted_at`) to compute the 84-day activity calendar and streak — it writes nothing and contains no scoring logic of its own, so it doesn't violate the branch-independence rule.
+
+### 8.7 Frontend Navigation
+
+`ArenaCollegeStream.jsx` is a single page with in-component state-machine navigation (matching `App.jsx`'s `currentPage` pattern rather than introducing nested routes for one page):
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  ARENA                          [Daily Reset: 14h 32m]          │
-├──────────────────────────────────────────────────────────────────┤
-│  DOMAIN: Data Analyst      ELO: 634      Streak: 🔥 7 days       │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  TODAY'S MISSIONS                                               │
-│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐   │
-│  │ 🟢 EASY        │  │ 🟡 MEDIUM      │  │ 🔴 HARD        │   │
-│  │ Swiggy         │  │ Razorpay       │  │ CRED           │   │
-│  │ "Clean messy   │  │ "Cohort        │  │ "Build ETL     │   │
-│  │ customer data" │  │ retention      │  │ pipeline for   │   │
-│  │                │  │ analysis"      │  │ transactions"  │   │
-│  │ SQL Lab        │  │ Notebook Lab   │  │ Data Pipeline  │   │
-│  │ +8 ELO         │  │ +18 ELO        │  │ +30 ELO        │   │
-│  │ 25 min         │  │ 40 min         │  │ 60 min         │   │
-│  └────────────────┘  └────────────────┘  └────────────────┘   │
-│                                                                  │
-│  THIS WEEK'S PROGRESS ████████░░ 4/5 challenges                 │
-│                                                                  │
-│  PAST PROOF ARTIFACTS (last 5)                                   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Funnel analysis — Zepto — Score: 84 — +16 ELO — 2d ago │   │
-│  │ ✅ SQL window functions — Nykaa — Score: 91 — +22 ELO     │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+landing ──┬── Stream ── semester ── subject ── unit ── experiment list ── experiment
+          └── Domain ── mission list ── mission
 ```
+
+Visual language matches `Aura.jsx`: same design-token set, 1160px centered content column, CSS-grid cards, small-caps eyebrow section labels — a desktop web page, not a stacked mobile card list.
 
 ---
 

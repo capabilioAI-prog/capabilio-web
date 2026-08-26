@@ -3,7 +3,7 @@
  *
  * capabilio-web's authenticated app has historically run on a single
  * in-memory `currentPage` state (App.jsx) instead of real routes — every
- * page (Aura, Arena, Pulse, Skill Studio, 49+ others) lived at the same
+ * page (Aura, Pulse, Skill Studio, 49+ others) lived at the same
  * URL, so nothing was bookmarkable/shareable and the browser back/forward
  * buttons didn't work, unlike capabilio-recruiter (react-router-dom,
  * real paths like /recruiter/applications).
@@ -27,6 +27,13 @@
 // so there's no separate list to keep in sync.
 export const PAGE_KEYS = [
   "aicopilot", "analytics",
+  // Arena rebuild — College Stream branch (Phase 1). Note: this deterministic
+  // camelCase->kebab-case deriver has no slash support, so this resolves to
+  // "/arena-college-stream", not "/arena/college-stream" as in the rebuild
+  // spec's prose — a real path, just flat rather than nested. Domain Role
+  // branch gets its own key here in a later phase (e.g. "arenaDomainRole").
+  "arenaCollegeStream",
+  "aura", "authority", "candidateSearch", "communities",
   // "arena" removed 2026-08-26 — no currentPage === "arena" block has
   // existed in App.jsx since the College Stream rebuild (arenaCollegeStream
   // is the live entry now); the key kept resolving to a silent blank panel.

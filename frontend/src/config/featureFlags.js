@@ -101,6 +101,13 @@ export const FLAGS = {
   // default per the same "new surface ships flag-off first" convention.
   skill_studio_video: envFlag("SKILL_STUDIO_VIDEO", false),
 
+  // Site-wide maintenance gate (2026-08-16) — when on, main.jsx renders only
+  // MaintenancePage.jsx and never mounts <App/> at all, so no route, auth
+  // check, or page-level effect runs underneath it. Off by default; flip via
+  // VITE_FF_MAINTENANCE_MODE=true in Vercel env vars for the deployment you
+  // want gated, then redeploy. Set back to false (or unset) and redeploy to
+  // reopen the site — no code change needed either way.
+  maintenance_mode: envFlag("MAINTENANCE_MODE", false),
   // Site-wide "heads up" deploy banner (2026-08-26) — a thin, dismissible
   // bar rendered above the whole app (see components/MaintenanceBanner.jsx).
   // Deliberately a separate, unrelated mechanism from the full-page
