@@ -6,47 +6,67 @@ import App from './App.jsx'
 import { initAnalytics } from './lib/analytics.js'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import MaintenanceBanner from './components/MaintenanceBanner.jsx'
+import MaintenancePage from './pages/MaintenancePage.jsx'
+import { isEnabled } from './config/featureFlags.js'
 
-initAnalytics()
+// Full-application lockout — checked before ANYTHING else runs (before
+// initAnalytics, before BrowserRouter/App mount, before any auth check or
+// Supabase session read). When on, render ONLY MaintenancePage and stop —
+// no ErrorBoundary wrapping needed since there's nothing under it to fail,
+// and MaintenanceBanner is deliberately NOT also rendered here: a full
+// lockout supersedes the dismissible banner, and showing both would be
+// confusing. See config/featureFlags.js's maintenance_mode flag and
+// pages/MaintenancePage.jsx for the full design rationale. There is no
+// bypass (no query param, no localStorage key, no route path) — do not add
+// one.
+if (isEnabled('maintenance_mode')) {
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <MaintenancePage />
+    </StrictMode>,
+  )
+} else {
+  initAnalytics()
 
-// Vite fires this specific event when a lazy-loaded chunk fails to load
-// (e.g. the browser's cached index.html points at a chunk hash that a
-// newer deploy has since replaced/purged). This is the same failure mode
-// ErrorBoundary guards against for in-tree render errors, but preload
-// failures can also surface here, outside a component's render cycle —
-// so both are handled. Guarded to reload at most once per session so a
-// genuinely broken chunk can't loop forever.
-window.addEventListener('vite:preloadError', () => {
-  let alreadyTried = false
-  try {
-    alreadyTried = sessionStorage.getItem('capabilio_chunk_reload_attempted') === '1'
-  } catch (_) { /* sessionStorage unavailable */ }
+  // Vite fires this specific event when a lazy-loaded chunk fails to load
+  // (e.g. the browser's cached index.html points at a chunk hash that a
+  // newer deploy has since replaced/purged). This is the same failure mode
+  // ErrorBoundary guards against for in-tree render errors, but preload
+  // failures can also surface here, outside a component's render cycle —
+  // so both are handled. Guarded to reload at most once per session so a
+  // genuinely broken chunk can't loop forever.
+  window.addEventListener('vite:preloadError', () => {
+    let alreadyTried = false
+    try {
+      alreadyTried = sessionStorage.getItem('capabilio_chunk_reload_attempted') === '1'
+    } catch (_) { /* sessionStorage unavailable */ }
 
-  if (!alreadyTried) {
-    try { sessionStorage.setItem('capabilio_chunk_reload_attempted', '1') } catch (_) {}
-    window.location.reload()
-  }
-})
+    if (!alreadyTried) {
+      try { sessionStorage.setItem('capabilio_chunk_reload_attempted', '1') } catch (_) {}
+      window.location.reload()
+    }
+  })
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    {/* Above ErrorBoundary, not inside it, so the banner stays visible even
-        if <App/> hits ErrorBoundary's own fallback screen — a site-wide
-        status notice is exactly as relevant when something's gone wrong as
-        it is on a normal page. See components/MaintenanceBanner.jsx. */}
-    <MaintenanceBanner />
-    <ErrorBoundary>
-      {/* react-router-dom was already a listed dependency but never
-          actually used anywhere — App.jsx ran its own in-memory
-          currentPage state machine with no real URLs for any page except
-          a handful of special early-return routes (/portfolio/:username,
-          /admin/*, /join/*, /career, /company-invite/*). BrowserRouter
-          here + the sync logic in App.jsx (see lib/pageRoutes.js) gives
-          every page a real, bookmarkable URL without changing any of the
-          existing page components, nav callbacks, or render logic. */}
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ErrorBoundary>
-  </StrictMode>,
-)
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      {/* Above ErrorBoundary, not inside it, so the banner stays visible even
+          if <App/> hits ErrorBoundary's own fallback screen — a site-wide
+          status notice is exactly as relevant when something's gone wrong as
+          it is on a normal page. See components/MaintenanceBanner.jsx. */}
+      <MaintenanceBanner />
+      <ErrorBoundary>
+        {/* react-router-dom was already a listed dependency but never
+            actually used anywhere — App.jsx ran its own in-memory
+            currentPage state machine with no real URLs for any page except
+            a handful of special early-return routes (/portfolio/:username,
+            /admin/*, /join/*, /career, /company-invite/*). BrowserRouter
+            here + the sync logic in App.jsx (see lib/pageRoutes.js) gives
+            every page a real, bookmarkable URL without changing any of the
+            existing page components, nav callbacks, or render logic. */}
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ErrorBoundary>
+    </StrictMode>,
+  )
+}
