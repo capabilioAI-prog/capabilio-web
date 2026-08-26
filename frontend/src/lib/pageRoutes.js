@@ -26,7 +26,13 @@
 // block in App.jsx. Add new pages here — the path is derived, not manual,
 // so there's no separate list to keep in sync.
 export const PAGE_KEYS = [
-  "aicopilot", "analytics", "arena",
+  "aicopilot", "analytics",
+  // "arena" removed 2026-08-26 — no currentPage === "arena" block has
+  // existed in App.jsx since the College Stream rebuild (arenaCollegeStream
+  // is the live entry now); the key kept resolving to a silent blank panel.
+  // The 17 arenaV2* keys below have the exact same problem (no matching
+  // render block either) but are deliberately left as-is here — out of
+  // scope for this fix, tracked as part of the separate arena-v2 removal.
   "arenaV2BiotechPilot", "arenaV2CivilPilot", "arenaV2ClinicalLabPilot",
   "arenaV2CyberPilot", "arenaV2DataAnalystPilot", "arenaV2DbaPilot", "arenaV2DevOpsPilot",
   "arenaV2EcePilot", "arenaV2EeePilot", "arenaV2FrontendPilot", "arenaV2MLPilot",

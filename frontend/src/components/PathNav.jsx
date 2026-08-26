@@ -13,7 +13,7 @@
 const NAV = {
   student: [
     { id: "home",        label: "Home",         page: "studentHome", icon: HomeIcon        },
-    { id: "arena",       label: "Arena",        page: "arena",       icon: ArenaIcon       },
+    { id: "arena",       label: "Arena",        page: "arenaCollegeStream", icon: ArenaIcon },
     { id: "pulse",       label: "Pulse",        page: "pulse",       icon: PulseIcon       },
     { id: "skillstudio", label: "Skill Studio", page: "skillstudio", icon: SkillStudioIcon },
     { id: "launchpad",   label: "Launchpad",    page: "launchpad",   icon: LaunchIcon      },
