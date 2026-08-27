@@ -1,0 +1,36 @@
+{
+  "name": "@capabilio/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capabilio/ai": "workspace:*",
+    "@capabilio/db": "workspace:*",
+    "@capabilio/evaluation": "workspace:*",
+    "@capabilio/types": "workspace:*",
+    "@capabilio/workspaces": "workspace:*",
+    "@supabase/ssr": "^0.3.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "@types/sql.js": "^1.4.11",
+    "drizzle-orm": "^0.30.0",
+    "next": "14.2.3",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "sql.js": "^1.14.2",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@capabilio/eslint-config": "workspace:*",
+    "@capabilio/typescript-config": "workspace:*",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0"
+  }
+}

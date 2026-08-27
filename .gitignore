@@ -55,3 +55,18 @@ backend/server/lib/collegeStream/.sandbox-venv/
 _verify_pure.mjs
 _verify_sync_tmp.mjs
 frontend/src/config/.write_test.tmp
+
+# --- apps/, packages/ (Next.js + Drizzle monorepo) ---
+.pnpm-store
+.next
+.turbo
+Thumbs.db
+*.swp
+coverage
+playwright-report
+test-results
+drizzle/
+
+# Local AI tooling artifacts — not application code
+.gemini/
+graphify-out/

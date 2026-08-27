@@ -1,0 +1,19 @@
+{
+  "name": "@capabilio/workspaces",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capabilio/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@capabilio/typescript-config": "workspace:*",
+    "typescript": "^5.4.0"
+  }
+}

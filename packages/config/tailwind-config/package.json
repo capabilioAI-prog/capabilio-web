@@ -1,0 +1,16 @@
+{
+  "name": "@capabilio/tailwind-config",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["index.js"],
+  "exports": {
+    ".": "./index.js"
+  },
+  "peerDependencies": {
+    "tailwindcss": ">=3.4.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7"
+  }
+}

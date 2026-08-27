@@ -1,0 +1,32 @@
+{
+  "name": "@capabilio/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/seed/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.30.0",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": {
+    "@capabilio/typescript-config": "workspace:*",
+    "@capabilio/eslint-config": "workspace:*",
+    "@types/node": "^20.0.0",
+    "drizzle-kit": "^0.21.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
