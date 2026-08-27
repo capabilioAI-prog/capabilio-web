@@ -5,11 +5,14 @@
  * column, no requireAdmin/requireRole helper anywhere in server/). Content
  * authoring (Milestone 2 CRUD) needs *some* write gate stronger than "any
  * logged-in user," so this adds the smallest thing that closes that gap: a
- * boolean `profiles.is_admin` column (arena_v2_migration/002_admin_flag.sql,
- * additive/backward-compatible, defaults false) and a middleware that checks
- * it. This is plumbing, not a redesign of the frozen spec — logged as a
- * simplification in docs/future-improvements.md for whenever the platform
- * needs real roles/permissions (content-author vs. full-admin, etc).
+ * boolean `profiles.is_admin` column (additive/backward-compatible, defaults
+ * false) and a middleware that checks it. This is plumbing, not a full
+ * roles/permissions redesign (content-author vs. full-admin, etc) — that
+ * remains future work if the platform ever needs finer-grained roles.
+ * Originally added for Arena V2's content-authoring milestone (since
+ * removed); this middleware outlived that system and is now the general
+ * admin gate for mentorMarketplaceAdmin.js, skillStudioContentAdmin.js,
+ * questionBankAdmin.js, and opsDashboard.js.
  *
  * Must run after requireAuth (reads req.user.id).
  */
