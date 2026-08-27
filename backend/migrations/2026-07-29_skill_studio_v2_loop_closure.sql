@@ -6,10 +6,10 @@
 -- writing this file: none of these four table names collide with anything
 -- already in the database.
 --
--- Admin gating reuses the EXISTING profiles.is_admin flag (arena_v2_migration/
--- 002_admin_flag.sql, already live) via requireAdmin.js — no second admin/
--- role model introduced, per the same "don't invent a parallel model" rule
--- that shaped the rest of Skill Studio V2.
+-- Admin gating reuses the EXISTING profiles.is_admin flag (already live) via
+-- requireAdmin.js — no second admin/role model introduced, per the same
+-- "don't invent a parallel model" rule that shaped the rest of Skill
+-- Studio V2.
 
 -- ── 1. Arena ingestion tracking ─────────────────────────────────────────────
 -- One row per av2_assessments.id ever ingested by Skill Studio. The UNIQUE
