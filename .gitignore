@@ -66,3 +66,6 @@ supabase/.temp/
 _verify_pure.mjs
 _verify_sync_tmp.mjs
 frontend/src/config/.write_test.tmp
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

@@ -1,23 +1,32 @@
 /**
- * tools/arena.ts — Arena domain (5 core tools + 3 added)
+ * tools/arena.ts — Arena domain (1 working tool + 7 not yet implemented)
  *
  * Tools:
- *   arena.getCatalog           — list challenges filtered by role/stream/difficulty
- *   arena.getChallenge         — get a single challenge by id
- *   arena.submitSolution       — submit code for grading (async job)
- *   arena.getSubmissionResult  — poll a grading job's result
- *   arena.getLeaderboard       — global/domain ELO leaderboard
- *   arena.getWorkbenchForRole  — resolve a role's IDE/workbench (code/firmware/HDL/circuit/etc.)
- *   arena.getMissionHistory    — 30-day submission stats + portfolio-visible artifacts
- *   arena.recommendNextChallenge — AI-reasoning tool: what should the student attempt next
+ *   arena.getCatalog             — NOT_IMPLEMENTED (no unified catalog endpoint)
+ *   arena.getChallenge           — NOT_IMPLEMENTED (no unified challenge-id space)
+ *   arena.submitSolution         — NOT_IMPLEMENTED (async job-queue model no longer exists)
+ *   arena.getSubmissionResult    — NOT_IMPLEMENTED (no job queue to poll)
+ *   arena.getLeaderboard         — NOT_IMPLEMENTED (no global/unified leaderboard)
+ *   arena.getWorkbenchForRole    — resolve a role's IDE/workbench (pure local registry lookup, unaffected)
+ *   arena.getMissionHistory      — NOT_IMPLEMENTED (no per-uid stats/proof-artifacts endpoint)
+ *   arena.recommendNextChallenge — NOT_IMPLEMENTED (depends entirely on the above)
  *
- * BACKEND WIRING NOTE (2026-07-14 fix): the previous version of this file called
- * /api/arena/catalog, /api/arena/challenge/:id, /api/arena/submit,
- * /api/arena/submission/:id, /api/arena/leaderboard — none of which exist.
- * The real Arena API is mounted at /api/arena/v2/* (backend/server/routes/arenaV2.js),
- * with a different path shape and an async job-queue submission model (submit
- * returns a job_id immediately; grading happens in a background worker).
- * All five tools below have been corrected to match the real routes.
+ * BACKEND WIRING NOTE (2026-09-01 fix): this file previously called
+ * /api/arena/v2/* (backend/server/routes/arenaV2.js) — that backend, along
+ * with the rest of "Arena V2", was fully deleted in commit c34d357
+ * (2026-08-26, "chore: remove arena-v2 and legacy Arena"). The rebuilt Arena
+ * (backend/server/routes/arenaCollegeStream.js + arenaDomainRole.js) is not
+ * a drop-in path rename — it has NO unified catalog/challenge-id space, NO
+ * async job-queue submission (submit is synchronous, result comes back in
+ * the same response), and NO per-uid /elo, /stats, /proof-artifacts,
+ * /weak-topics, or /daily-assignment endpoint (ELO is a flat
+ * profiles.elo_rating column with no dedicated read route). Building a
+ * unified layer over the two structurally-independent live branches
+ * (College Stream: streams→...→experiments; Domain Role: role-scoped
+ * missions) is new backend/product design work, out of scope for this fix.
+ * Every tool below that depended on a dead endpoint now fails fast with a
+ * clear McpError instead of an opaque backend 404 — same precedent as
+ * elo.getComparison (tools/elo.ts) and vault.listArtifacts (tools/vault.ts).
  *
  * Security: every tool verifies JWT. Submission tools assert the uid in the
  * submission matches the authenticated user.
@@ -27,19 +36,19 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { verifyJWT, extractBearer } from "../shared/auth.js"
 import { assertPermission } from "../shared/permissions.js"
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js"
 import {
   parse, AuthSchema, PaginationSchema, DifficultySchema, RoleHintSchema,
 } from "../shared/validation.js"
-import { api } from "../shared/client.js"
 import { createLogger, startTimer } from "../shared/logger.js"
-import { resolveRole, getWorkbenchForRole as lookupWorkbench } from "../shared/registry.js"
+import { getWorkbenchForRole as lookupWorkbench } from "../shared/registry.js"
 
 export function registerArenaTools(server: McpServer): void {
 
   // ── arena.getCatalog ───────────────────────────────────────────────────────
   server.tool(
     "arena.getCatalog",
-    "List Arena challenges. Filter by category, difficulty, or search term. Returns challenges relevant to the student's stream and role.",
+    "NOT YET IMPLEMENTED — the rebuilt Arena backend has no unified catalog endpoint spanning both branches. Use student.getCurrentRole to determine the student's domain, then browse via the live UI; a real MCP-facing catalog needs new backend work. Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       category:    z.string().optional().describe("Problem category, e.g. 'DSA', 'ECE', 'SQL'"),
@@ -60,25 +69,18 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      try {
-        // Real route: GET /api/arena/v2/catalog. It reads `domain` (not
-        // `category`) and `limit` (not `pageSize`) — mapped below.
-        const data = await api.get(authorization, `/api/arena/v2/catalog`, {
-          domain: category, difficulty, search, page, limit: pageSize,
-        })
-        log.success(t, { category, difficulty })
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No unified Arena catalog endpoint exists on the rebuilt backend", { category, difficulty, search, page, pageSize })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.getCatalog has no backend implementation yet — the rebuilt Arena backend has two separate branches (College Stream, Domain Role) with no unified catalog. Tracked as follow-up work."
+      )
     }
   )
 
   // ── arena.getChallenge ─────────────────────────────────────────────────────
   server.tool(
     "arena.getChallenge",
-    "Get a single Arena challenge by ID — problem statement, constraints, examples, starter code stubs.",
+    "NOT YET IMPLEMENTED — the rebuilt Arena backend has no unified challenge-id space; a raw UUID can't be resolved to either College Stream's experiments or Domain Role's missions without knowing which branch it belongs to. Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       challengeId:   z.string().uuid("challengeId must be a UUID"),
@@ -91,21 +93,18 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      try {
-        const data = await api.get(authorization, `/api/arena/v2/challenges/${challengeId}`)
-        log.success(t)
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No unified challenge-id lookup exists on the rebuilt backend", { challengeId })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.getChallenge has no backend implementation yet — there is no unified challenge-id space across College Stream and Domain Role. Tracked as follow-up work."
+      )
     }
   )
 
   // ── arena.submitSolution ───────────────────────────────────────────────────
   server.tool(
     "arena.submitSolution",
-    "Submit code to the Arena judge. Grading runs asynchronously in a background worker — this returns a jobId immediately. Poll arena.getSubmissionResult (with the same challengeId + the returned jobId) for the verdict.",
+    "NOT YET IMPLEMENTED — the async job-queue submission model (submit → jobId → poll) this tool was built for no longer exists. The rebuilt Arena backend's submit endpoints are synchronous and scoped per-branch (College Stream experiment or Domain Role mission), which this tool's flat challengeId/code shape cannot address. Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       challengeId:   z.string().uuid("challengeId must be a UUID"),
@@ -126,30 +125,18 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      try {
-        // Real route: POST /api/arena/v2/challenges/:id/submit — challengeId
-        // is a URL param, not a body field. Enqueues a background grading job
-        // and returns { queued, job_id, message } immediately (~50ms), not a verdict.
-        // uid is taken from the JWT by the backend — we never pass it from here.
-        const data = await api.post(authorization, `/api/arena/v2/challenges/${challengeId}/submit`, {
-          code,
-          test_results: [],
-          time_taken_secs: 0,
-          is_timed_out: false,
-        })
-        log.success(t, { challengeId })
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No async submission/job-queue model exists on the rebuilt backend", { challengeId, codeLength: code.length })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.submitSolution has no backend implementation yet — the rebuilt Arena backend submits synchronously per-branch, not via an async job queue. Tracked as follow-up work."
+      )
     }
   )
 
   // ── arena.getSubmissionResult ──────────────────────────────────────────────
   server.tool(
     "arena.getSubmissionResult",
-    "Poll the result of an Arena code submission's grading job. Returns status (queued/processing/done/failed) and, once done, the verdict, test case breakdown, and ELO delta.",
+    "NOT YET IMPLEMENTED — there is no grading job queue to poll. The rebuilt Arena backend returns the graded result synchronously from the submit call itself (see arena.submitSolution). Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       challengeId:   z.string().uuid("challengeId must be a UUID"),
@@ -166,23 +153,18 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      try {
-        // Real route: GET /api/arena/v2/challenges/:id/jobs/:job_id — both
-        // challengeId and jobId are required URL params (no flat /submission/:id).
-        const data = await api.get(authorization, `/api/arena/v2/challenges/${challengeId}/jobs/${jobId}`)
-        log.success(t)
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No grading job queue exists on the rebuilt backend", { challengeId, jobId })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.getSubmissionResult has no backend implementation yet — the rebuilt Arena backend has no job queue; results return synchronously from submit. Tracked as follow-up work."
+      )
     }
   )
 
   // ── arena.getLeaderboard ───────────────────────────────────────────────────
   server.tool(
     "arena.getLeaderboard",
-    "Get the Arena ELO leaderboard. Filter by stream/domain. NOTE: college-scoped leaderboards are not yet supported by the backend — collegeCode is currently ignored (tracked as follow-up work); only global and domain scopes exist today.",
+    "NOT YET IMPLEMENTED — there is no global/unified Arena leaderboard on the rebuilt backend, only per-branch leaderboards scoped to a specific College Stream slug or Domain Role id, which this tool's flat stream/collegeCode shape cannot address without a real design pass. Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       stream:        z.string().optional().describe("Domain/stream filter — should be an arena domain key (e.g. from student.resolveRole's arenaKey), e.g. 'swe', 'ece_embedded'"),
@@ -201,25 +183,11 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      if (collegeCode) {
-        log.warn("collegeCode requested but not supported by backend — ignoring", { collegeCode })
-      }
-
-      try {
-        // Real route: GET /api/arena/v2/leaderboard, reads scope_type/scope_id/
-        // metric/page/limit — no college scoping exists server-side.
-        const data = await api.get(authorization, `/api/arena/v2/leaderboard`, {
-          scope_type: stream ? "domain" : "global",
-          scope_id:   stream ?? "all",
-          metric:     "elo",
-          page, limit: pageSize,
-        })
-        log.success(t, { stream })
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No global/unified Arena leaderboard endpoint exists on the rebuilt backend", { stream, collegeCode, page, pageSize })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.getLeaderboard has no backend implementation yet — the rebuilt Arena backend only exposes per-branch leaderboards (a specific College Stream slug or Domain Role id), not a global/unified one. Tracked as follow-up work."
+      )
     }
   )
 
@@ -260,7 +228,7 @@ export function registerArenaTools(server: McpServer): void {
   // ── arena.getMissionHistory ────────────────────────────────────────────────
   server.tool(
     "arena.getMissionHistory",
-    "Get the student's recent Arena activity: 30-day submission stats (avg score, pass rate, ELO delta, streak) plus portfolio-visible proof artifacts. NOTE: the backend has no per-submission audit-log endpoint today, so this is aggregate stats + notable artifacts, not a full attempt-by-attempt history (tracked as follow-up work).",
+    "NOT YET IMPLEMENTED — the per-uid stats and proof-artifacts endpoints this tool depended on no longer exist on the rebuilt backend. College Stream's GET /streams/:slug/history and Domain Role's GET /:roleId/history are live but per-branch and per-user-session-scoped (not directly callable with a bare uid from here). Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
     },
@@ -271,33 +239,18 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      try {
-        const [stats, artifacts] = await Promise.all([
-          api.get(authorization, `/api/arena/v2/stats/${user.id}`),
-          api.get(authorization, `/api/arena/v2/proof-artifacts/${user.id}`),
-        ])
-        log.success(t)
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              stats_30d: stats,
-              notable_artifacts: artifacts,
-              note: "Aggregate stats + portfolio-visible artifacts only — no per-submission log exists in the backend yet.",
-            }),
-          }],
-        }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No per-uid stats/proof-artifacts endpoint exists on the rebuilt backend")
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.getMissionHistory has no backend implementation yet — the stats/proof-artifacts endpoints it depended on were removed with Arena V2. Tracked as follow-up work."
+      )
     }
   )
 
   // ── arena.recommendNextChallenge ───────────────────────────────────────────
   server.tool(
     "arena.recommendNextChallenge",
-    "AI-reasoning tool: recommend what Arena challenge the student should attempt next. Composes today's role-appropriate daily assignment, weak-topic signals, and a catalog search filtered to the student's domain/ELO band — all read-only calls to existing backend routes, no new backend logic. Call this before answering 'what should I do next?'",
+    "NOT YET IMPLEMENTED — this tool composed elo/weak-topics/daily-assignment/catalog, all of which were removed with Arena V2. Domain Role's GET /:roleId/next-mission is a live, real partial equivalent (role-scoped 'what's next' with quota awareness) but is not a drop-in replacement for this tool's cross-domain reasoning shape. Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       roleHint: RoleHintSchema,
@@ -310,40 +263,11 @@ export function registerArenaTools(server: McpServer): void {
       const t    = startTimer()
       assertPermission(user, "arena")
 
-      const role = roleHint ? resolveRole(roleHint) : undefined
-      const domainKey = role?.arenaKey ?? "swe"
-      const roleSlug   = role?.id ?? "swe"
-
-      try {
-        const eloData = await api.get<{ overall?: number }>(authorization, `/api/arena/v2/elo/${user.id}`)
-        const elo = eloData?.overall ?? 800
-        const difficultyBand = elo < 700 ? "Easy" : elo < 1100 ? "Medium" : "Hard"
-
-        const [weakTopics, daily, catalog] = await Promise.all([
-          api.get(authorization, `/api/arena/v2/weak-topics/${user.id}`),
-          api.get(authorization, `/api/arena/v2/daily-assignment`, { role_slug: roleSlug, elo }),
-          api.get(authorization, `/api/arena/v2/catalog`, {
-            domain: domainKey, difficulty: difficultyBand, page: 1, limit: 5,
-          }),
-        ])
-
-        log.success(t, { domainKey, difficultyBand })
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              reasoning: `Filtered to domain='${domainKey}', difficulty band='${difficultyBand}' (from current ELO ${elo}). Weak topics and today's role-matched daily assignment are surfaced separately so the AI can prioritize closing gaps over novelty.`,
-              current_elo: elo,
-              daily_assignment: daily,
-              weak_topics: weakTopics,
-              catalog_matches: catalog,
-            }),
-          }],
-        }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No elo/weak-topics/daily-assignment/catalog endpoints exist on the rebuilt backend", { roleHint })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "arena.recommendNextChallenge has no backend implementation yet — every endpoint it composed was removed with Arena V2. See the live GET /:roleId/next-mission route for a role-scoped partial equivalent. Tracked as follow-up work."
+      )
     }
   )
 }

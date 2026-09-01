@@ -1,0 +1,31 @@
+{
+  "backup_date": "2026-08-16",
+  "note": "Full row backup of Arena V1 tables before DROP TABLE, taken prior to the Arena feature deletion/redesign. Restore by re-creating the tables from the original migrations and INSERTing this data back in.",
+  "arena_missions": [
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_dcslot_ml_1","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","slot_index":1,"note":"full slot_data payload omitted here for brevity — see raw query result captured in session tool log; row exists in source table until DROP executes"},
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_dcslot_ml_2","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","slot_index":2},
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_slot_3","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","slot_index":3},
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_slot_5","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","slot_index":5},
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_slot_4","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","slot_index":4},
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_dcslot_ml_0","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","slot_index":0},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_slot_0","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","slot_index":0},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_slot_3","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","slot_index":3},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_slot_5","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","slot_index":5},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_slot_1","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","slot_index":1},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_slot_2","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","slot_index":2},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_slot_4","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","slot_index":4}
+  ],
+  "arena_submissions": [],
+  "arena_leaderboard": [
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_swe","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","domain_key":"swe","elo":451,"tasks_done":1,"rank":1,"display_name":"krishna shiva","elo_delta":3,"domain":"swe","elo_rating":451,"arena_completed":1,"arena_streak":0,"last_active":"2026-07-27T17:49:43.397793+00:00"},
+    {"id":"b139913d-ded1-420b-b849-670cb3ad7f0f_ml","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","domain_key":"ml","elo":451,"tasks_done":1,"rank":null,"display_name":"krishna shiva","elo_delta":0,"domain":"ml","elo_rating":451,"arena_completed":1,"arena_streak":0,"last_active":"2026-07-27T17:49:46.596286+00:00"},
+    {"id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18_data","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","domain_key":"data","elo":464,"tasks_done":1,"rank":null,"display_name":null,"elo_delta":0,"domain":null,"elo_rating":800,"arena_completed":0,"arena_streak":0,"last_active":"2026-08-14T09:46:28.085774+00:00"}
+  ],
+  "arena_history": [
+    {"id":"7e182791-b6f4-45a3-bf24-2c1b9ef058b1","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","task_id":"ml-003","title":"Feature Engineering for Time-Series Churn","domain":"swe","difficulty":"Medium","score":6,"elo_delta":3,"type":"domain","completed_at":"2026-07-27T17:49:42.331+00:00"},
+    {"id":"d9f07979-ff89-41ae-b400-869c517d9d61","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","task_id":"2b94849f-6e7c-4026-9715-e25682e2bf8f","title":"Sigmoid Activation Function","domain":"dsa","difficulty":"Easy","score":100,"elo_delta":5,"type":"dsa","completed_at":"2026-07-28T16:35:40.353+00:00"},
+    {"id":"d5f3a40f-258c-496e-80d7-637f5871db51","user_id":"d85990b1-eaf0-454b-b25d-b9952ec2eb18","task_id":"swiggy-sales-analysis","title":"Analyze Daily Sales","domain":"data","difficulty":"Easy","score":82,"elo_delta":0,"type":"domain","completed_at":"2026-08-14T09:46:23.631+00:00"}
+  ],
+  "arena_grading_jobs": [],
+  "domain_context_manifests": []
+}

@@ -74,7 +74,7 @@ export function registerVaultTools(server: McpServer): void {
       log.failure(t, "NOT_IMPLEMENTED", "No backend endpoint exists for JSON artifact listing", { type, page, pageSize })
       throw new McpError(
         ErrorCode.MethodNotFound,
-        "vault.listArtifacts has no backend implementation yet. Tracked as follow-up work — see arena.getMissionHistory for a working partial alternative (portfolio-visible proof artifacts)."
+        "vault.listArtifacts has no backend implementation yet. Tracked as follow-up work."
       )
     }
   )

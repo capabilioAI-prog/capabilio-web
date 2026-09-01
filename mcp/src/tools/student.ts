@@ -1,5 +1,5 @@
 /**
- * tools/student.ts — Student domain (8 tools)
+ * tools/student.ts — Student domain (6 working tools, 3 not yet implemented)
  *
  * Tools:
  *   student.getProfile          — fetch own profile
@@ -9,18 +9,22 @@
  *   student.getPulseInsights    — AI market pulse for this role/stream
  *   student.resolveRole         — resolve keyword/slug → full RoleConfig
  *   student.getCurrentRole      — resolve role from the caller's OWN profile (no hint needed)
- *   student.getWeakSkills       — weak-topic signals (< 50% pass rate, last 14 days)
+ *   student.getWeakSkills       — NOT_IMPLEMENTED (no weak-topics endpoint on the rebuilt backend — see tools/arena.ts)
  *
- * ADDED 2026-07-14: getCurrentRole and getWeakSkills are thin wrappers that
- * expose logic/data that already existed but wasn't independently callable —
- * no new backend endpoints, no duplicated calculations:
+ * ADDED 2026-07-14: getCurrentRole is a thin wrapper that exposes logic/data
+ * that already existed but wasn't independently callable — no new backend
+ * endpoints, no duplicated calculations:
  *   - getCurrentRole reuses the same GET /api/pro/profile/:uid call as
  *     getProfile, then resolves role locally via resolveRoleFromProfile()
  *     (shared/registry.ts) — the same registry student.resolveRole uses.
- *   - getWeakSkills calls the same GET /api/arena/v2/weak-topics/:uid endpoint
- *     that arena.recommendNextChallenge already calls internally, now exposed
- *     standalone so a chatbot can surface weak skills without triggering a
- *     full challenge recommendation.
+ *
+ * UPDATED 2026-09-01: getWeakSkills previously called
+ * GET /api/arena/v2/weak-topics/:uid, the same endpoint
+ * arena.recommendNextChallenge called internally. That endpoint was deleted
+ * along with the rest of Arena V2 in commit c34d357 (2026-08-26) and has no
+ * replacement on the rebuilt backend — getWeakSkills now fails fast with a
+ * clear NOT_IMPLEMENTED error instead of an opaque 404 (same treatment as
+ * tools/arena.ts, tools/elo.ts, tools/recruiter.ts in this same fix).
  *
  * Security: every tool verifies JWT → uid ownership → namespace permission.
  * Never exposes another student's profile unless user is recruiter/admin.
@@ -260,7 +264,7 @@ export function registerStudentTools(server: McpServer): void {
   // ── student.getWeakSkills ──────────────────────────────────────────────────
   server.tool(
     "student.getWeakSkills",
-    "Get the student's weak-topic signals — Arena submission topics with < 50% pass rate over the last 14 days. Thin wrapper around the same weak-topics endpoint arena.recommendNextChallenge already calls internally, exposed standalone so a chatbot can surface it without triggering a full challenge recommendation. Recruiters/institution_admins/admins may pass targetUid.",
+    "NOT YET IMPLEMENTED — the weak-topics endpoint this tool depended on no longer exists on the rebuilt Arena backend (removed with Arena V2, no replacement — see tools/arena.ts). Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       targetUid: UidSchema.optional().describe(
@@ -278,17 +282,11 @@ export function registerStudentTools(server: McpServer): void {
       const uid = targetUid ?? user.id
       assertOwnership(user, uid, /* publicOk */ true)
 
-      try {
-        // Real route: GET /api/arena/v2/weak-topics/:uid (arenaV2.js) — same
-        // call arena.recommendNextChallenge makes internally.
-        const data = await api.get(authorization, `/api/arena/v2/weak-topics/${uid}`)
-        log.success(t)
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "Unknown error"
-        log.failure(t, "API_ERROR", msg)
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No weak-topics endpoint exists on the rebuilt backend", { uid })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "student.getWeakSkills has no backend implementation yet — its backing endpoint was removed with Arena V2 and has no replacement. Tracked as follow-up work."
+      )
     }
   )
 }
