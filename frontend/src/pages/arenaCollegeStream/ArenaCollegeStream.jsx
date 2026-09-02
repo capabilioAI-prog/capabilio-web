@@ -1711,12 +1711,26 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
   // page layout unchanged.
   const isWorkspaceActive = domainMainTab === "workspace" && level === "domainMission" && !!domainMission
 
+  // App.jsx's page-content wrapper (the real viewport-height owner) is
+  // `calc(100vh - 56px)` — matching its 56px global header exactly — and is
+  // itself a flex column. `minHeight: 0` (rather than the old, disconnected
+  // `minHeight: "100vh"`) is what lets THIS div actually receive its share
+  // of that already-correct height via `flex: 1` instead of independently
+  // re-deriving the viewport and guaranteed-overflowing its parent by the
+  // header's own height on every render. Only the workspace-active state
+  // turns off this div's own scrolling (`overflowY: "hidden"`): once it's a
+  // properly bounded flex child, WorkspaceShell's internal panels become the
+  // one true scroll boundary, instead of this wrapper scrolling too.
   return (
     <div style={{
-      flex: 1, minHeight: "100vh", overflowY: "auto", fontFamily: BODY,
+      flex: 1, minHeight: 0, overflowY: isWorkspaceActive ? "hidden" : "auto", fontFamily: BODY,
+      display: "flex", flexDirection: "column",
       background: isWorkspaceActive ? T.cream : `radial-gradient(ellipse at 30% 40%, rgba(139,92,246,0.10) 0%, transparent 55%), radial-gradient(ellipse at 75% 15%, rgba(99,102,241,0.07) 0%, transparent 50%), ${T.cream}`,
     }}>
-      <div style={isWorkspaceActive ? { padding: "12px 20px 20px" } : { maxWidth: 1800, margin: "0 auto", padding: "32px 40px 60px" }}>
+      <div style={isWorkspaceActive
+        ? { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, padding: "12px 20px 20px", boxSizing: "border-box" }
+        : { maxWidth: 1800, margin: "0 auto", padding: "32px 40px 60px" }
+      }>
         {!isWorkspaceActive && level !== "landing" && (
           <>
             <div style={{ fontSize: 30, fontWeight: 800, color: T.ink, marginBottom: 4, letterSpacing: -0.5 }}>
@@ -1868,7 +1882,14 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
             )}
 
             {isWorkspaceActive && (
-              <div style={{ height: "calc(100vh - 90px)", minHeight: 560 }}>
+              // Was `height: calc(100vh - 90px)` — a guessed constant that
+              // didn't match the real 56px global header (see App.jsx) and
+              // never accounted for the breadcrumb/padding above it, so the
+              // box was sized independently of its actual available space.
+              // `flex: 1` instead lets it consume exactly what's left in the
+              // now-correct flex chain above; `minHeight: 560` keeps the same
+              // small-viewport floor the previous code already had.
+              <div style={{ flex: 1, minHeight: 560 }}>
                 <WorkspaceShell workspace={workspace} userId={user?.id}>
                   <WorkspaceRenderer workspace={workspace} />
                 </WorkspaceShell>

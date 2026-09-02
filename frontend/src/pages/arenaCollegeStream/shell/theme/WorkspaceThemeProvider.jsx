@@ -51,7 +51,18 @@ export default function WorkspaceThemeProvider({ children }) {
 
   return (
     <WorkspaceThemeContext.Provider value={value}>
-      <div className="capabilio-workspace" data-theme={dataTheme} style={{ minHeight: "100%" }}>
+      {/* `height` (not `minHeight`) is required here, not just cosmetic:
+          `min-height: 100%` makes this div visually fill its parent, but its
+          computed `height` stays `auto` — and CSS only lets a descendant's
+          `height: 100%` resolve against an ancestor with a *specified*
+          height, not one merely constrained via min-height. With minHeight,
+          ShellInner's own `height: "100%"` (and everything under it —
+          header, toolbar, the resizable panel tree) silently failed to
+          resolve and collapsed to content height, floating at the top of
+          this div while its background alone stretched to fill the
+          available space — the exact "large blank area below the
+          workspace" bug. */}
+      <div className="capabilio-workspace" data-theme={dataTheme} style={{ height: "100%" }}>
         {children}
       </div>
     </WorkspaceThemeContext.Provider>
