@@ -2799,8 +2799,8 @@ export default function Pulse({ user, userData }) {
     <div style={{ background:T.bg, flex:1, minHeight:0, overflowY:"auto", fontFamily:T.sans, paddingBottom:40 }}>
       <style>{G}</style>
 
-      <div style={{ maxWidth:1128, margin:"0 auto", padding:"20px 16px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,2fr) minmax(0,1fr)", gap:20, alignItems:"start" }}>
+      <div style={{ maxWidth:1800, margin:"0 auto", padding:"20px 32px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(220px,280px) minmax(0,1fr) minmax(260px,360px)", gap:24, alignItems:"start" }}>
 
           {/* ── Left sidebar ── */}
           <div style={{ position:"sticky", top:72 }}>

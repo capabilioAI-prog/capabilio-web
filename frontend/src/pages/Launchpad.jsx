@@ -773,7 +773,7 @@ function ReadinessHeroStrip({ userData, total, newCount }) {
   const readiness = Math.min(100, 40 + (skills > 10 ? 20 : skills * 2) + (elo > 800 ? 20 : elo > 500 ? 12 : 6))
   return (
     <div style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(79,70,229,0.18) 100%)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(99,102,241,0.2)", padding: "14px 24px" }}>
-      <div style={{ maxWidth: 1040, margin: "0 auto", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ maxWidth: 1800, margin: "0 auto", padding: "0 8px", display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
             {newCount > 0 ? `${newCount} new matches since your last visit` : `${total.toLocaleString()} opportunities matched to your profile`}
@@ -970,7 +970,7 @@ export default function Launchpad({ user, userData, onNavigatePricing }) {
 
       {/* ── Sticky toolbar ── */}
       <div style={{ background: "rgba(255,255,255,0.95))", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: `1px solid ${T.border}`, padding: "12px 24px", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
-        <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+        <div style={{ maxWidth: 1800, margin: "0 auto", padding: "0 8px" }}>
           {/* Tabs + search row */}
           <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 2, background: "rgba(0,0,0,0.03)", borderRadius: 10, padding: 3 }}>
@@ -1019,7 +1019,7 @@ export default function Launchpad({ user, userData, onNavigatePricing }) {
       </div>
 
       {/* ── Page content ── */}
-      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px" }}>
+      <div style={{ maxWidth: 1800, margin: "0 auto", padding: "24px 32px" }}>
 
         {/* BROWSE TAB */}
         {activeTab === "browse" && (

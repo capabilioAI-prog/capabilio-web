@@ -1214,7 +1214,7 @@ export default function SkillStudio({ user, userData }) {
         background: "rgba(255,255,255,0.97)", backdropFilter: "blur(20px)",
         borderBottom: `1px solid ${D.border}`,
       }}>
-        <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", gap: 14, height: 58 }}>
+        <div style={{ maxWidth: 1800, margin: "0 auto", padding: "0 32px", display: "flex", alignItems: "center", gap: 14, height: 58 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: domainColor + "20", border: `1px solid ${domainColor}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{domainIcon}</div>
             <div>
@@ -1250,7 +1250,7 @@ export default function SkillStudio({ user, userData }) {
       </div>
 
       {/* MAIN LAYOUT */}
-      <div style={{ maxWidth: 1300, margin: "0 auto", padding: "24px 24px 60px", display: "grid", gridTemplateColumns: "260px 1fr", gap: 22, alignItems: "start" }}>
+      <div style={{ maxWidth: 1800, margin: "0 auto", padding: "24px 32px 60px", display: "grid", gridTemplateColumns: "minmax(240px,280px) minmax(0,1fr)", gap: 22, alignItems: "start" }}>
 
         {/* LEFT SIDEBAR */}
         <div style={{ position: "sticky", top: 78 }}>
