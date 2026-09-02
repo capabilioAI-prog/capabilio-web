@@ -158,6 +158,7 @@ import skillGapRoutes         from "./server/routes/skillGap.js"
 import enrichRoutes           from "./server/routes/enrich.js"
 import voiceRoutes            from "./server/routes/voice.js"
 import ttsRoutes              from "./server/routes/tts.js"
+import securityRoutes         from "./server/routes/security.js" // security/{password,mfa,sessions,visibility,notification-preferences,ai-preferences,events,account/delete}
 // ── Professional Path modules ─────────────────────────────────────────────────
 import professionalProfileRoutes from "./server/routes/professionalProfile.js"
 import employerAttestationRoutes from "./server/routes/employerAttestation.js"
@@ -322,6 +323,7 @@ app.use("/api/pro/profile/summary", aiLimiter)
 // itself is already infeasible to brute force.
 app.use("/api/pro/attestation", strictLimiter)
 app.use("/api/attestation",     strictLimiter)
+app.use("/api/security",        strictLimiter) // password change, MFA enroll/verify/disable, recovery-code login — brute-force protection
 
 // (cors() is registered above, before the rate limiters — see the 2026-07-29
 // bug-fix comment near `const app = express()` for why.)
@@ -429,6 +431,7 @@ app.use("/api",              skillGapRoutes)     // skill-gap, market analysis �
 app.use("/api/enrich",       enrichRoutes)       // stub — replaced by ProxyCurl
 app.use("/api/voice",        voiceRoutes)        // transcribe — Deepgram nova-2 + Claude eval
 app.use("/api/tts",          ttsRoutes)          // speak — Deepgram Aura-2 TTS (EchoPitch audio-in-video)
+app.use("/api/security",     securityRoutes)     // Settings/Security redesign — password, MFA, sessions, visibility, notification/AI preferences
 // ── Professional Path ─────────────────────────────────────────────────────────
 app.use("/api",              professionalProfileRoutes) // pro/profile, pro/epfo, pro/visibility
 app.use("/api",              employerAttestationRoutes) // pro/attestation/{request,list} (auth), attestation/:token/{,confirm,decline} (public, token-gated)

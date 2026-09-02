@@ -14,6 +14,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { supabase } from "../lib/supabase"
 import { getPlan } from "../config/plans"
 import { upsertProfileEducation } from "../lib/profileEducation"
+import { securityApi } from "../lib/api"
 import PolicyModal from "../components/PolicyModal"
 import { POLICIES } from "../config/policies"
 import { formatPolicyDate } from "../config/policies/blocks"
@@ -84,7 +85,7 @@ const NAV_GROUPS = [
   {
     label: "Visibility",
     items: [
-      { id:"privacy",      icon:"🔒", label:"Privacy",         desc:"Page & search visibility" },
+      { id:"privacy",      icon:"🔒", label:"Visibility",      desc:"Profile, page & search visibility" },
       { id:"proof",        icon:"🔗", label:"Proof & Portfolio",desc:"Links & certifications" },
     ],
   },
@@ -105,7 +106,7 @@ const NAV_GROUPS = [
     label: "Data",
     items: [
       { id:"data",         icon:"📦", label:"Data & Export",   desc:"Download your data" },
-      { id:"security",     icon:"🛡️", label:"Security",        desc:"Sessions & auth" },
+      { id:"security",     icon:"🛡️", label:"Login & Security", desc:"Password, 2FA & sessions" },
     ],
   },
   {
@@ -627,6 +628,26 @@ function PrivacySection({ userData, save, setUserData, path }) {
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Profile Visibility: settings/security redesign (2026-09-02). Separate
+  // save flow (its own endpoint, POST /api/security/visibility) from the
+  // toggles below — it needs its own audit-log entry and is the one
+  // control that gates the database's own row-level-security policy, not
+  // just an application-layer query filter like `searchable` below.
+  const [profileVisibility, setProfileVisibility] = useState(userData?.profile_visibility || "public")
+  const [visSaved, setVisSaved] = useState(false)
+  const [visLoading, setVisLoading] = useState(false)
+  const saveVisibility = async (next) => {
+    setVisLoading(true)
+    try {
+      await securityApi.setProfileVisibility(next)
+      setProfileVisibility(next)
+      if (setUserData) setUserData(d => ({ ...d, profile_visibility: next }))
+      setVisSaved(true)
+      setTimeout(() => setVisSaved(false), 2000)
+    } catch { /* keep the previous selection visible on failure */ }
+    finally { setVisLoading(false) }
+  }
+
   const toggle = (id) => setVis(v => ({ ...v, [id]: !(v[id] !== false) }))
 
   const handleSave = async () => {
@@ -644,9 +665,39 @@ function PrivacySection({ userData, save, setUserData, path }) {
     }
   }
 
+  const VISIBILITY_OPTIONS = [
+    { value:"public",          icon:"🌐", label:"Public",           desc:"Anyone with your profile link can view it, signed in or not" },
+    { value:"capabilio_users", icon:"👥", label:"Capabilio users only", desc:"Only people signed in to Capabilio can view your profile" },
+    { value:"private",         icon:"🔒", label:"Private",          desc:"Only you can view your profile" },
+  ]
+
   return (
     <div>
-      <SectionTitle icon="🔒" title="Privacy" subtitle="Control what others see and how you appear on Capabilio" />
+      <SectionTitle icon="🔒" title="Visibility" subtitle="Control what others see and how you appear on Capabilio" />
+
+      <div style={{ marginBottom:14, fontSize:12, fontWeight:700, color:T.ink2 }}>Profile Visibility</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+        {VISIBILITY_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => !visLoading && saveVisibility(opt.value)}
+            disabled={visLoading}
+            style={{
+              display:"flex", alignItems:"center", gap:12, textAlign:"left", width:"100%",
+              padding:"12px 16px", background: profileVisibility === opt.value ? T.indigo3 : "#fff",
+              border:`1.5px solid ${profileVisibility === opt.value ? T.indigo : T.border}`,
+              borderRadius:11, cursor: visLoading ? "wait" : "pointer", font:"inherit",
+            }}
+          >
+            <span style={{ fontSize:18 }}>{opt.icon}</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:700, color: profileVisibility === opt.value ? T.indigo : T.ink }}>{opt.label}</div>
+              <div style={{ fontSize:11, color:T.ink4 }}>{opt.desc}</div>
+            </div>
+            {profileVisibility === opt.value && <span style={{ color:T.indigo, fontWeight:800 }}>{visSaved ? "✓" : "●"}</span>}
+          </button>
+        ))}
+      </div>
 
       <div style={{ marginBottom:14, fontSize:12, fontWeight:700, color:T.ink2 }}>Page Visibility</div>
       {pages.map(p => {
@@ -682,8 +733,8 @@ function PrivacySection({ userData, save, setUserData, path }) {
         />
       </div>
 
-      <InfoBox icon="ℹ️" text="Aura Dashboard itself is always private to you. The toggles above control your public-facing pages only." />
-      <InfoBox icon="🔒" text="Search visibility is enforced server-side in Connect search results — turning this off actually removes you from other users' search, not just hides a UI toggle." />
+      <InfoBox icon="ℹ️" text="Aura Dashboard itself is always private to you. The toggles below control your public-facing pages only." />
+      <InfoBox icon="🔒" text="Profile Visibility and search visibility are both enforced server-side — including at the database level — not just hidden by a UI toggle. A private profile returns 'not found' to anyone else who tries to view it directly." />
 
       <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
         <SaveBtn onClick={handleSave} saved={saved} error={error} loading={loading} />
@@ -1198,41 +1249,53 @@ function ArenaSection({ userData, save, setUserData }) {
 }
 
 // ── Section: Notifications ────────────────────────────────────────────────────
-function NotificationsSection({ userData, save, setUserData }) {
-  const [prefs, setPrefs] = useState({
-    emailDigest:     userData?.notifPrefs?.emailDigest    !== false,
-    achievementAlert: userData?.notifPrefs?.achievementAlert !== false,
-    decayWarning:    userData?.notifPrefs?.decayWarning   !== false,
-    missionReminder: userData?.notifPrefs?.missionReminder !== false,
-    marketReport:    userData?.notifPrefs?.marketReport   !== false,
-    launchpadMatch:  userData?.notifPrefs?.launchpadMatch !== false,
-  })
+// Settings/Security redesign (2026-09-02): this used to write to
+// userData.notifPrefs, a column (profiles.notif_prefs) that never existed —
+// every save silently failed server-side and this section still showed a
+// fake "✓ Saved" regardless, since it never checked save()'s return value.
+// Now backed by the real notification_preferences table via securityApi —
+// see backend/server/lib/reengagementSignals.js for the one existing
+// notification writer that actually reads and respects these.
+function NotificationsSection() {
+  const [prefs, setPrefs] = useState(null)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const togglePref = (k) => setPrefs(p => ({ ...p, [k]: !p[k] }))
+  useEffect(() => {
+    securityApi.getNotificationPreferences()
+      .then(r => setPrefs(r.preferences))
+      .catch(() => setPrefs({}))
+  }, [])
+
+  const togglePref = (k) => setPrefs(p => ({ ...p, [k]: !(p[k] !== false) }))
 
   const handleSave = async () => {
-    setLoading(true)
+    setLoading(true); setError(false)
     try {
-      const patch = { notifPrefs: prefs }
-      if (save) await save(patch)
-      if (setUserData) setUserData(d => ({ ...d, ...patch }))
+      await securityApi.updateNotificationPreferences(prefs)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
+    } catch {
+      setError(true)
+      setTimeout(() => setError(false), 3500)
     } finally {
       setLoading(false)
     }
   }
 
   const items = [
-    { key:"emailDigest",     icon:"📧", label:"Weekly email digest",          desc:"Summary of your ELO progress, completed challenges, and top news" },
-    { key:"achievementAlert",icon:"🏆", label:"Achievement unlocks",          desc:"Notify when you hit a new ELO tier or earn a milestone" },
-    { key:"decayWarning",    icon:"⚠️", label:"ELO decay warning",            desc:"Alert before the 14-day inactivity decay threshold" },
-    { key:"missionReminder", icon:"⚔️", label:"Mission slot ready",           desc:"Notify when your 24-hour cooldown expires and a new slot is available" },
-    { key:"marketReport",    icon:"📊", label:"New market report available",  desc:"Alert when a fresh market analysis report is ready" },
-    { key:"launchpadMatch",  icon:"🚀", label:"New job matches",              desc:"Weekly digest of new Launchpad jobs matching your profile" },
+    { key:"career_recommendations", icon:"🧭", label:"Career recommendations",   desc:"Suggestions based on your profile and Arena activity" },
+    { key:"arena_mission_ready",    icon:"⚔️", label:"Mission slot ready",        desc:"Notify when your 24-hour cooldown expires and a new slot is available" },
+    { key:"arena_achievements",     icon:"🏆", label:"Achievement unlocks",       desc:"Notify when you hit a new ELO tier or earn a milestone" },
+    { key:"arena_streak_reminders", icon:"⚠️", label:"Streak & ELO decay alerts", desc:"Alert before a streak breaks or the 14-day inactivity decay threshold" },
+    { key:"market_reports",         icon:"📊", label:"New market report available", desc:"Alert when a fresh market analysis report is ready" },
+    { key:"launchpad_matches",      icon:"🚀", label:"New job matches",           desc:"Digest of new Launchpad jobs matching your profile" },
+    { key:"weekly_digest",          icon:"📧", label:"Weekly email digest",       desc:"Summary of your ELO progress and completed challenges" },
+    { key:"marketing_emails",       icon:"📣", label:"Product news & offers",     desc:"Occasional email about new features or promotions — off by default" },
   ]
+
+  if (!prefs) return <div style={{ fontSize:12, color:T.ink4 }}>Loading…</div>
 
   return (
     <div>
@@ -1242,7 +1305,7 @@ function NotificationsSection({ userData, save, setUserData }) {
         {items.map(item => (
           <Toggle
             key={item.key}
-            value={prefs[item.key]}
+            value={prefs[item.key] !== false}
             onChange={() => togglePref(item.key)}
             label={`${item.icon} ${item.label}`}
             desc={item.desc}
@@ -1250,34 +1313,28 @@ function NotificationsSection({ userData, save, setUserData }) {
         ))}
       </div>
 
-      <InfoBox icon="📭" text="Notification delivery is subject to your plan. Email digests require a verified email address." />
+      <InfoBox icon="📭" text="Account and security notices (like a password change) are always sent and can't be turned off here." />
 
       <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
-        <SaveBtn onClick={handleSave} saved={saved} loading={loading} />
+        <SaveBtn onClick={handleSave} saved={saved} error={error} loading={loading} />
       </div>
     </div>
   )
 }
 
 // ── Section: Appearance ───────────────────────────────────────────────────────
-function AppearanceSection({ userData, save, setUserData, path }) {
-  const [compactMode, setCompactMode] = useState(userData?.compactMode || false)
-  const [saved, setSaved] = useState(false)
-  const [loading, setLoading] = useState(false)
-
+// Settings/Security redesign (2026-09-02): "Compact mode" used to write to
+// userData.compactMode, a column (profiles.compact_mode) that never
+// existed — the save silently failed AND, independent of that bug, nothing
+// anywhere in Aura.jsx ever reads compactMode to actually change any
+// layout density. It was decorative twice over. Rather than half-fix the
+// persistence bug and still ship a toggle with zero visual effect, it's
+// removed and folded into an honest "coming soon" note alongside dark
+// mode — matching the design brief's "every row is functional now, clearly
+// coming soon, or hidden" rule. The path-based accent color below is real
+// and unchanged.
+function AppearanceSection({ path }) {
   const pm = PATH_META[path] || PATH_META.student
-
-  const handleSave = async () => {
-    setLoading(true)
-    try {
-      if (save) await save({ compactMode })
-      if (setUserData) setUserData(d => ({ ...d, compactMode }))
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div>
@@ -1304,47 +1361,56 @@ function AppearanceSection({ userData, save, setUserData, path }) {
         </div>
       </Card>
 
-      <div style={{ marginBottom:14 }}>
-        <Toggle
-          value={compactMode}
-          onChange={setCompactMode}
-          label="⚡ Compact mode"
-          desc="Reduce padding and spacing across the Aura dashboard for a denser layout"
-        />
-      </div>
-
-      <InfoBox icon="🌙" text="Dark mode is on the Capabilio roadmap. Follow our announcements to stay informed when it launches." color={T.amber} bg={T.amber2} />
-
-      <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
-        <SaveBtn onClick={handleSave} saved={saved} loading={loading} />
-      </div>
+      <InfoBox icon="🌙" text="Dark mode and a compact layout density option are on the Capabilio roadmap. Follow our announcements to stay informed when they launch." color={T.amber} bg={T.amber2} />
     </div>
   )
 }
 
 // ── Section: AI Preferences ───────────────────────────────────────────────────
-function AISection({ userData, save, setUserData }) {
-  const [form, setForm] = useState({
-    summaryTone:    userData?.aiPrefs?.summaryTone    || "professional",
-    summaryLang:    userData?.aiPrefs?.summaryLang    || "en",
-    feedbackStyle:  userData?.aiPrefs?.feedbackStyle  || "detailed",
-    autoSummary:    userData?.aiPrefs?.autoSummary    !== false,
-  })
+// Settings/Security redesign (2026-09-02): previously wrote to
+// userData.aiPrefs, a column (profiles.ai_prefs) that never existed — every
+// save silently failed and this section still showed a fake "✓ Saved". Now
+// backed by the real ai_preferences table. Every field here has a real,
+// wired consumer: summary_tone/content_language feed
+// POST /pro/profile/summary/generate's prompt (professionalProfile.js);
+// feedback_style feeds Arena's AI-explanation generator
+// (arenaCollegeStream.js's generateAiFeedback). The old "Auto-generate
+// Portfolio summary" toggle is removed — nothing in this codebase
+// auto-triggers summary generation (it's always a user-clicked button), so
+// a toggle for it would have been decorative.
+function AISection() {
+  const [form, setForm] = useState(null)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    securityApi.getAiPreferences()
+      .then(r => setForm({
+        summary_tone: r.preferences.summary_tone || "professional",
+        content_language: r.preferences.content_language || "en",
+        feedback_style: r.preferences.feedback_style || "detailed",
+        personalization_enabled: r.preferences.personalization_enabled !== false,
+        use_activity_for_recommendations: r.preferences.use_activity_for_recommendations !== false,
+      }))
+      .catch(() => setForm({ summary_tone: "professional", content_language: "en", feedback_style: "detailed", personalization_enabled: true, use_activity_for_recommendations: true }))
+  }, [])
+
   const handleSave = async () => {
-    setLoading(true)
+    setLoading(true); setError(false)
     try {
-      const patch = { aiPrefs: form }
-      if (save) await save(patch)
-      if (setUserData) setUserData(d => ({ ...d, ...patch }))
+      await securityApi.updateAiPreferences(form)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
+    } catch {
+      setError(true)
+      setTimeout(() => setError(false), 3500)
     } finally {
       setLoading(false)
     }
   }
+
+  if (!form) return <div style={{ fontSize:12, color:T.ink4 }}>Loading…</div>
 
   return (
     <div>
@@ -1355,8 +1421,8 @@ function AISection({ userData, save, setUserData }) {
           <div>
             <FieldLabel>Profile Summary Tone</FieldLabel>
             <select
-              value={form.summaryTone}
-              onChange={e => setForm(p => ({ ...p, summaryTone: e.target.value }))}
+              value={form.summary_tone}
+              onChange={e => setForm(p => ({ ...p, summary_tone: e.target.value }))}
               style={{
                 width:"100%", padding:"9px 12px", borderRadius:9,
                 border:`1.5px solid ${T.border}`, fontSize:13,
@@ -1372,8 +1438,8 @@ function AISection({ userData, save, setUserData }) {
           <div>
             <FieldLabel>Content Language</FieldLabel>
             <select
-              value={form.summaryLang}
-              onChange={e => setForm(p => ({ ...p, summaryLang: e.target.value }))}
+              value={form.content_language}
+              onChange={e => setForm(p => ({ ...p, content_language: e.target.value }))}
               style={{
                 width:"100%", padding:"9px 12px", borderRadius:9,
                 border:`1.5px solid ${T.border}`, fontSize:13,
@@ -1389,39 +1455,444 @@ function AISection({ userData, save, setUserData }) {
           <div>
             <FieldLabel>Arena Feedback Style</FieldLabel>
             <select
-              value={form.feedbackStyle}
-              onChange={e => setForm(p => ({ ...p, feedbackStyle: e.target.value }))}
+              value={form.feedback_style}
+              onChange={e => setForm(p => ({ ...p, feedback_style: e.target.value }))}
               style={{
                 width:"100%", padding:"9px 12px", borderRadius:9,
                 border:`1.5px solid ${T.border}`, fontSize:13,
                 color:T.ink, background:"#fff", outline:"none",
               }}
             >
-              <option value="detailed">Detailed with examples</option>
-              <option value="concise">Concise summary</option>
-              <option value="mentor">Mentor-style coaching</option>
+              <option value="detailed">Detailed (2-3 sentences)</option>
+              <option value="concise">Concise (1 sentence)</option>
             </select>
           </div>
         </div>
 
-        <div style={{ marginTop:14 }}>
+        <div style={{ marginTop:14, display:"flex", flexDirection:"column", gap:10 }}>
           <Toggle
-            value={form.autoSummary}
-            onChange={v => setForm(p => ({ ...p, autoSummary: v }))}
-            label="✨ Auto-generate Portfolio summary"
-            desc="Automatically build your professional summary from Arena performance data"
+            value={form.personalization_enabled}
+            onChange={v => setForm(p => ({ ...p, personalization_enabled: v }))}
+            label="🧠 AI personalization"
+            desc="Let Capabilio use your profile information to personalize AI-generated content"
+          />
+          <Toggle
+            value={form.use_activity_for_recommendations}
+            onChange={v => setForm(p => ({ ...p, use_activity_for_recommendations: v }))}
+            label="📈 Use activity for recommendations"
+            desc="Let Capabilio use your Arena history and skill activity to suggest what to practice next"
           />
         </div>
       </Card>
 
+      <InfoBox icon="⚠️" text="AI-generated content can be wrong or incomplete. Don't treat it as professional, legal, medical, or financial advice, and avoid entering confidential or sensitive information into AI-assisted fields." color={T.amber} bg={T.amber2} />
+
       <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
-        <SaveBtn onClick={handleSave} saved={saved} loading={loading} />
+        <SaveBtn onClick={handleSave} saved={saved} error={error} loading={loading} />
       </div>
     </div>
   )
 }
 
 // ── Section: Security ─────────────────────────────────────────────────────────
+// ── Sub-section: Change Password ──────────────────────────────────────────────
+function ChangePasswordCard() {
+  const [open, setOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [done, setDone] = useState(false)
+
+  const reset = () => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setError(""); setDone(false) }
+
+  const handleSubmit = async () => {
+    setError("")
+    if (newPassword.length < 8) return setError("New password must be at least 8 characters.")
+    if (newPassword !== confirmPassword) return setError("New passwords don't match.")
+    setLoading(true)
+    try {
+      await securityApi.changePassword(currentPassword, newPassword)
+      setDone(true)
+      setCurrentPassword(""); setNewPassword(""); setConfirmPassword("")
+      setTimeout(() => { setDone(false); setOpen(false) }, 2000)
+    } catch (e) {
+      setError(e.message || "Could not change your password.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card style={{ marginBottom:14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <FieldLabel>Password</FieldLabel>
+          <div style={{ fontSize:12, color:T.ink3 }}>Change the password you use to sign in.</div>
+        </div>
+        {!open && (
+          <button onClick={() => { reset(); setOpen(true) }} style={{
+            padding:"8px 16px", background:T.indigo3, border:"none", borderRadius:8,
+            color:T.indigo, fontSize:12, fontWeight:700, cursor:"pointer",
+          }}>Change Password</button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ marginTop:14, display:"flex", flexDirection:"column", gap:10 }}>
+          <div>
+            <FieldLabel>Current Password</FieldLabel>
+            <Input type="password" value={currentPassword} onChange={setCurrentPassword} placeholder="Enter your current password" />
+          </div>
+          <div>
+            <FieldLabel>New Password</FieldLabel>
+            <Input type="password" value={newPassword} onChange={setNewPassword} placeholder="At least 8 characters" />
+          </div>
+          <div>
+            <FieldLabel>Confirm New Password</FieldLabel>
+            <Input type="password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Re-enter your new password" />
+          </div>
+          {error && <div style={{ fontSize:12, color:T.red, fontWeight:600 }}>{error}</div>}
+          {done && <div style={{ fontSize:12, color:T.green, fontWeight:700 }}>✓ Password changed</div>}
+          <div style={{ display:"flex", gap:10, marginTop:4 }}>
+            <button onClick={handleSubmit} disabled={loading || !currentPassword || !newPassword} style={{
+              padding:"9px 18px", background: loading ? T.cream3 : T.indigo, border:"none", borderRadius:8,
+              color: loading ? T.ink4 : "#fff", fontSize:12, fontWeight:700, cursor: loading ? "wait" : "pointer",
+            }}>{loading ? "Changing…" : "Confirm Change"}</button>
+            <button onClick={() => setOpen(false)} style={{
+              padding:"9px 18px", background:T.cream3, border:"none", borderRadius:8,
+              color:T.ink2, fontSize:12, fontWeight:700, cursor:"pointer",
+            }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Sub-section: Two-Factor Authentication ────────────────────────────────────
+// Built directly on Supabase Auth's own native TOTP MFA (auth.mfa.enroll/
+// challenge/verify/unenroll) via backend/server/routes/security.js — this
+// backend never generates, sees, or stores the TOTP secret itself; Supabase
+// does. Recovery codes are Capabilio's own addition on top, since Supabase
+// has no native backup-code mechanism (their documented recommendation is a
+// second TOTP factor instead — see the design report for why hashed
+// recovery codes were chosen here instead).
+function RecoveryCodesDisplay({ codes }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div>
+      <InfoBox icon="🔑" text="Save these recovery codes somewhere safe — each one can be used once if you lose access to your authenticator app. They will not be shown again." color={T.amber} bg={T.amber2} />
+      <div style={{
+        display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:10,
+        padding:14, background:T.ink, borderRadius:10,
+      }}>
+        {codes.map(c => (
+          <div key={c} style={{ fontFamily:"'DM Mono',monospace", fontSize:13, color:"#E8E8E1", letterSpacing:0.5 }}>{c}</div>
+        ))}
+      </div>
+      <button
+        onClick={() => { navigator.clipboard.writeText(codes.join("\n")); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+        style={{ marginTop:10, padding:"8px 16px", background:T.indigo3, border:"none", borderRadius:8, color:T.indigo, fontSize:12, fontWeight:700, cursor:"pointer" }}
+      >{copied ? "✓ Copied" : "Copy all codes"}</button>
+    </div>
+  )
+}
+
+function TwoFactorSetupWizard({ onDone, onCancel }) {
+  const [step, setStep] = useState("password") // password -> qr -> verify -> codes
+  const [password, setPassword] = useState("")
+  const [factorId, setFactorId] = useState(null)
+  const [qrCode, setQrCode] = useState(null)
+  const [secret, setSecret] = useState(null)
+  const [code, setCode] = useState("")
+  const [recoveryCodes, setRecoveryCodes] = useState(null)
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const startEnroll = async () => {
+    setError(""); setLoading(true)
+    try {
+      const res = await securityApi.mfaEnroll(password)
+      setFactorId(res.factorId); setQrCode(res.qrCode); setSecret(res.secret)
+      setStep("qr")
+    } catch (e) { setError(e.message || "Could not start setup.") } finally { setLoading(false) }
+  }
+
+  const submitVerify = async () => {
+    setError(""); setLoading(true)
+    try {
+      const res = await securityApi.mfaVerify(factorId, code)
+      setRecoveryCodes(res.recoveryCodes)
+      setStep("codes")
+    } catch (e) { setError(e.message || "Incorrect code.") } finally { setLoading(false) }
+  }
+
+  return (
+    <Card style={{ marginTop:14, border:`1.5px solid ${T.indigo}33` }}>
+      {step === "password" && (
+        <div>
+          <FieldLabel>Confirm your password to continue</FieldLabel>
+          <div style={{ display:"flex", gap:10, marginTop:8 }}>
+            <Input type="password" value={password} onChange={setPassword} placeholder="Current password" />
+          </div>
+          {error && <div style={{ fontSize:12, color:T.red, marginTop:8, fontWeight:600 }}>{error}</div>}
+          <div style={{ display:"flex", gap:10, marginTop:14 }}>
+            <button onClick={startEnroll} disabled={loading || !password} style={{ padding:"9px 18px", background:T.indigo, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>{loading ? "Starting…" : "Continue"}</button>
+            <button onClick={onCancel} style={{ padding:"9px 18px", background:T.cream3, border:"none", borderRadius:8, color:T.ink2, fontSize:12, fontWeight:700, cursor:"pointer" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {step === "qr" && (
+        <div>
+          <FieldLabel>Scan this QR code with your authenticator app</FieldLabel>
+          <div style={{ fontSize:12, color:T.ink3, marginBottom:10 }}>Google Authenticator, Microsoft Authenticator, Authy, or 1Password all work.</div>
+          {qrCode && <img src={qrCode} alt="Two-factor authentication QR code" style={{ width:180, height:180, borderRadius:10, border:`1px solid ${T.border}` }} />}
+          {secret && (
+            <div style={{ marginTop:10, fontSize:11, color:T.ink4 }}>
+              Can&apos;t scan it? Enter this key manually: <span style={{ fontFamily:"'DM Mono',monospace", color:T.ink2 }}>{secret}</span>
+            </div>
+          )}
+          <div style={{ marginTop:14 }}>
+            <FieldLabel>Enter the 6-digit code from your app</FieldLabel>
+            <Input value={code} onChange={setCode} placeholder="123456" monospace />
+          </div>
+          {error && <div style={{ fontSize:12, color:T.red, marginTop:8, fontWeight:600 }}>{error}</div>}
+          <div style={{ display:"flex", gap:10, marginTop:14 }}>
+            <button onClick={submitVerify} disabled={loading || code.length < 6} style={{ padding:"9px 18px", background:T.indigo, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>{loading ? "Verifying…" : "Verify & Enable"}</button>
+            <button onClick={onCancel} style={{ padding:"9px 18px", background:T.cream3, border:"none", borderRadius:8, color:T.ink2, fontSize:12, fontWeight:700, cursor:"pointer" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {step === "codes" && recoveryCodes && (
+        <div>
+          <div style={{ fontSize:13, fontWeight:800, color:T.green, marginBottom:10 }}>✓ Two-factor authentication is now enabled</div>
+          <RecoveryCodesDisplay codes={recoveryCodes} />
+          <button onClick={onDone} style={{ marginTop:14, padding:"9px 18px", background:T.indigo, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Done</button>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function DisableTwoFactorFlow({ factorId, onDone, onCancel }) {
+  const [password, setPassword] = useState("")
+  const [mode, setMode] = useState("code") // code | recoveryCode
+  const [code, setCode] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const submit = async () => {
+    setError(""); setLoading(true)
+    try {
+      await securityApi.mfaDisable(password, factorId, mode === "code" ? { code } : { recoveryCode: code })
+      onDone()
+    } catch (e) { setError(e.message || "Could not disable two-factor authentication.") } finally { setLoading(false) }
+  }
+
+  return (
+    <Card style={{ marginTop:14, border:`1.5px solid ${T.red}33` }}>
+      <FieldLabel>Disable two-factor authentication</FieldLabel>
+      <div style={{ fontSize:12, color:T.ink3, marginBottom:10 }}>This requires your password and a current code — an attacker with just your browser session can&apos;t turn this off.</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        <Input type="password" value={password} onChange={setPassword} placeholder="Current password" />
+        <div style={{ display:"flex", gap:14, fontSize:12 }}>
+          <label style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer" }}>
+            <input type="radio" checked={mode === "code"} onChange={() => { setMode("code"); setCode("") }} /> Authenticator code
+          </label>
+          <label style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer" }}>
+            <input type="radio" checked={mode === "recoveryCode"} onChange={() => { setMode("recoveryCode"); setCode("") }} /> Recovery code
+          </label>
+        </div>
+        <Input value={code} onChange={setCode} placeholder={mode === "code" ? "6-digit code" : "XXXX-XXXX"} monospace />
+      </div>
+      {error && <div style={{ fontSize:12, color:T.red, marginTop:8, fontWeight:600 }}>{error}</div>}
+      <div style={{ display:"flex", gap:10, marginTop:14 }}>
+        <button onClick={submit} disabled={loading || !password || !code} style={{ padding:"9px 18px", background:T.red, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>{loading ? "Disabling…" : "Disable 2FA"}</button>
+        <button onClick={onCancel} style={{ padding:"9px 18px", background:T.cream3, border:"none", borderRadius:8, color:T.ink2, fontSize:12, fontWeight:700, cursor:"pointer" }}>Cancel</button>
+      </div>
+    </Card>
+  )
+}
+
+function TwoFactorCard() {
+  const [status, setStatus] = useState(null) // null = loading
+  const [mode, setMode] = useState(null) // null | "setup" | "disable" | "regenerate"
+  const [regenCode, setRegenCode] = useState("")
+  const [regenPassword, setRegenPassword] = useState("")
+  const [regenCodes, setRegenCodes] = useState(null)
+  const [regenError, setRegenError] = useState("")
+  const [regenLoading, setRegenLoading] = useState(false)
+
+  const load = () => securityApi.mfaStatus().then(setStatus).catch(() => setStatus({ enabled: false, error: true }))
+  useEffect(() => { load() }, [])
+
+  const submitRegenerate = async () => {
+    setRegenError(""); setRegenLoading(true)
+    try {
+      const res = await securityApi.regenerateRecoveryCodes(regenPassword, regenCode)
+      setRegenCodes(res.recoveryCodes)
+    } catch (e) { setRegenError(e.message || "Could not regenerate recovery codes.") } finally { setRegenLoading(false) }
+  }
+
+  if (!status) return <Card style={{ marginBottom:14 }}><div style={{ fontSize:12, color:T.ink4 }}>Loading…</div></Card>
+
+  return (
+    <Card style={{ marginBottom:14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <FieldLabel>Two-Factor Authentication</FieldLabel>
+          <div style={{ fontSize:12, color:T.ink3 }}>
+            {status.enabled
+              ? `Enabled since ${status.createdAt ? new Date(status.createdAt).toLocaleDateString("en-IN") : "—"} · ${status.recoveryCodesRemaining} recovery code${status.recoveryCodesRemaining === 1 ? "" : "s"} remaining`
+              : "Add an authenticator app as a second sign-in step."}
+          </div>
+        </div>
+        {status.enabled ? (
+          <span style={{ padding:"6px 12px", background:T.green2, borderRadius:20, color:T.green, fontSize:11, fontWeight:800 }}>● Enabled</span>
+        ) : (
+          !mode && <button onClick={() => setMode("setup")} style={{ padding:"8px 16px", background:T.indigo, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Set Up</button>
+        )}
+      </div>
+
+      {status.enabled && !mode && (
+        <div style={{ display:"flex", gap:10, marginTop:12 }}>
+          <button onClick={() => setMode("regenerate")} style={{ padding:"8px 14px", background:T.cream3, border:"none", borderRadius:8, color:T.ink2, fontSize:12, fontWeight:700, cursor:"pointer" }}>Regenerate Recovery Codes</button>
+          <button onClick={() => setMode("disable")} style={{ padding:"8px 14px", background:"transparent", border:`1.5px solid ${T.red}`, borderRadius:8, color:T.red, fontSize:12, fontWeight:700, cursor:"pointer" }}>Disable 2FA</button>
+        </div>
+      )}
+
+      {mode === "setup" && (
+        <TwoFactorSetupWizard onDone={() => { setMode(null); load() }} onCancel={() => setMode(null)} />
+      )}
+      {mode === "disable" && (
+        <DisableTwoFactorFlow factorId={status.factorId} onDone={() => { setMode(null); load() }} onCancel={() => setMode(null)} />
+      )}
+      {mode === "regenerate" && (
+        <Card style={{ marginTop:14 }}>
+          {!regenCodes ? (
+            <>
+              <FieldLabel>Regenerate recovery codes</FieldLabel>
+              <div style={{ fontSize:12, color:T.ink3, marginBottom:10 }}>This invalidates every existing recovery code immediately.</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <Input type="password" value={regenPassword} onChange={setRegenPassword} placeholder="Current password" />
+                <Input value={regenCode} onChange={setRegenCode} placeholder="6-digit authenticator code" monospace />
+              </div>
+              {regenError && <div style={{ fontSize:12, color:T.red, marginTop:8, fontWeight:600 }}>{regenError}</div>}
+              <div style={{ display:"flex", gap:10, marginTop:14 }}>
+                <button onClick={submitRegenerate} disabled={regenLoading || !regenPassword || !regenCode} style={{ padding:"9px 18px", background:T.indigo, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>{regenLoading ? "Regenerating…" : "Regenerate"}</button>
+                <button onClick={() => setMode(null)} style={{ padding:"9px 18px", background:T.cream3, border:"none", borderRadius:8, color:T.ink2, fontSize:12, fontWeight:700, cursor:"pointer" }}>Cancel</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <RecoveryCodesDisplay codes={regenCodes} />
+              <button onClick={() => { setMode(null); setRegenCodes(null); setRegenPassword(""); setRegenCode(""); load() }} style={{ marginTop:14, padding:"9px 18px", background:T.indigo, border:"none", borderRadius:8, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>Done</button>
+            </>
+          )}
+        </Card>
+      )}
+    </Card>
+  )
+}
+
+// ── Sub-section: Active Sessions ──────────────────────────────────────────────
+// Lists Supabase's own real session records (see backend's
+// get_user_sessions_admin). Per-row "revoke this one device" isn't offered
+// deliberately — Supabase's documented signOut() API only supports
+// scope global/local/others (no single-session-by-id revocation), so this
+// exposes only actions that are genuinely, fully backed server-side. See
+// the design report's "Recovery and session management design" section.
+function SessionsCard() {
+  const [sessions, setSessions] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState("")
+
+  useEffect(() => { securityApi.sessions().then(r => setSessions(r.sessions)).catch(() => setSessions([])) }, [])
+
+  const signOutOthers = async () => {
+    setBusy(true); setMessage("")
+    try {
+      await supabase.auth.signOut({ scope: "others" })
+      setMessage("Signed out of every other session.")
+      securityApi.sessions().then(r => setSessions(r.sessions))
+    } catch { setMessage("Could not sign out other sessions.") } finally { setBusy(false) }
+  }
+
+  const signOutEverywhere = async () => {
+    setBusy(true)
+    try { await supabase.auth.signOut({ scope: "global" }) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <Card style={{ marginBottom:14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <FieldLabel>Active Sessions</FieldLabel>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={signOutOthers} disabled={busy} style={{ padding:"7px 12px", background:T.cream3, border:"none", borderRadius:7, color:T.ink2, fontSize:11, fontWeight:700, cursor:"pointer" }}>Sign out other sessions</button>
+          <button onClick={signOutEverywhere} disabled={busy} style={{ padding:"7px 12px", background:"transparent", border:`1.5px solid ${T.red}`, borderRadius:7, color:T.red, fontSize:11, fontWeight:700, cursor:"pointer" }}>Sign out everywhere</button>
+        </div>
+      </div>
+      {message && <div style={{ fontSize:12, color:T.green, fontWeight:600, marginBottom:8 }}>{message}</div>}
+      {sessions === null ? (
+        <div style={{ fontSize:12, color:T.ink4 }}>Loading…</div>
+      ) : sessions.length === 0 ? (
+        <div style={{ fontSize:12, color:T.ink4 }}>No session records found.</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {sessions.map(s => (
+            <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 12px", background:T.cream, borderRadius:8, fontSize:12 }}>
+              <div>
+                <span style={{ fontWeight:700, color:T.ink }}>{s.userAgent ? s.userAgent.slice(0, 60) : "Unknown device"}</span>
+                {s.isCurrent && <span style={{ marginLeft:8, padding:"1px 7px", background:T.indigo3, color:T.indigo, borderRadius:20, fontSize:10, fontWeight:800 }}>This device</span>}
+                <div style={{ color:T.ink4, fontSize:11, marginTop:2 }}>Last active {new Date(s.lastActiveAt).toLocaleString("en-IN")}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Sub-section: Recent Security Activity ─────────────────────────────────────
+const SECURITY_EVENT_LABEL = {
+  mfa_enabled: "Two-factor authentication enabled",
+  mfa_disabled: "Two-factor authentication disabled",
+  mfa_challenge_failed: "Failed two-factor verification attempt",
+  recovery_codes_regenerated: "Recovery codes regenerated",
+  recovery_code_used: "Signed in with a recovery code",
+  password_changed: "Password changed",
+  session_revoked: "A session was signed out",
+  all_sessions_revoked: "Signed out of all sessions",
+  profile_visibility_changed: "Profile visibility changed",
+  account_deletion_requested: "Account deletion requested",
+}
+
+function SecurityActivityCard() {
+  const [events, setEvents] = useState(null)
+  useEffect(() => { securityApi.events().then(r => setEvents(r.events)).catch(() => setEvents([])) }, [])
+  if (events === null) return null
+  if (events.length === 0) return null
+  return (
+    <Card style={{ marginBottom:14 }}>
+      <FieldLabel>Recent Security Activity</FieldLabel>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+        {events.slice(0, 8).map((e, i) => (
+          <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:12, padding:"6px 0", borderBottom:`1px solid ${T.border}` }}>
+            <span style={{ color:T.ink2 }}>{SECURITY_EVENT_LABEL[e.event_type] || e.event_type}</span>
+            <span style={{ color:T.ink4, fontFamily:"'DM Mono',monospace", fontSize:11 }}>{new Date(e.created_at).toLocaleString("en-IN")}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 function SecuritySection({ user }) {
   const providers = user?.app_metadata?.providers || [user?.app_metadata?.provider].filter(Boolean) || []
   const lastSignIn = user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString("en-IN") : "—"
@@ -1429,28 +1900,12 @@ function SecuritySection({ user }) {
 
   return (
     <div>
-      <SectionTitle icon="🛡️" title="Security" subtitle="Your authentication and session information" />
+      <SectionTitle icon="🛡️" title="Login & Security" subtitle="Password, two-factor authentication, and active sessions" />
 
-      <Card style={{ marginBottom:14 }}>
-        <FieldLabel>Connected Sign-In Providers</FieldLabel>
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginTop:6 }}>
-          {providers.length > 0 ? providers.map(p => (
-            <div key={p} style={{
-              display:"flex", alignItems:"center", gap:7, padding:"7px 14px",
-              background:T.green2, borderRadius:20, border:`1px solid ${T.green}22`,
-            }}>
-              <span style={{ fontSize:14 }}>
-                {p === "google" ? "🔵" : p === "github" ? "⚫" : p === "email" ? "📧" : "🔑"}
-              </span>
-              <span style={{ fontSize:12, fontWeight:700, color:T.green }}>
-                {p.charAt(0).toUpperCase() + p.slice(1)} — Connected
-              </span>
-            </div>
-          )) : (
-            <div style={{ fontSize:12, color:T.ink4 }}>No providers detected.</div>
-          )}
-        </div>
-      </Card>
+      <ChangePasswordCard />
+      <TwoFactorCard />
+      <SessionsCard />
+      <SecurityActivityCard />
 
       <Card style={{ marginBottom:14 }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
@@ -1462,21 +1917,12 @@ function SecuritySection({ user }) {
             <FieldLabel>Last Sign In</FieldLabel>
             <div style={{ fontSize:13, color:T.ink, fontWeight:600 }}>{lastSignIn}</div>
           </div>
-          <div>
-            <FieldLabel>User ID</FieldLabel>
-            <div style={{
-              fontSize:11, color:T.ink4,
-              fontFamily:"'DM Mono',monospace",
-              wordBreak:"break-all",
-            }}>{user?.id || "—"}</div>
-          </div>
         </div>
       </Card>
 
-      <InfoBox
-        icon="🔐"
-        text="Capabilio uses Supabase Auth for secure authentication. Password management, 2FA setup, and session revocation are available through your sign-in provider (e.g., Google Account settings)."
-      />
+      {providers.length > 0 && (
+        <InfoBox icon="🔗" text={`Connected sign-in: ${providers.join(", ")}`} />
+      )}
     </div>
   )
 }
@@ -1705,52 +2151,41 @@ function PoliciesSection() {
 }
 
 // ── Section: Advanced ─────────────────────────────────────────────────────────
-function AdvancedSection({ user, userData, save, setUserData }) {
+// Settings/Security redesign (2026-09-02): two fixes here beyond wiring
+// real re-authentication —
+//  1. Deletion previously wrote deletion_requested_at directly from the
+//     client with no password check at all; now goes through
+//     POST /api/security/account/delete, which re-verifies the password
+//     server-side AND immediately revokes every active session (global
+//     sign-out), not just the current tab's local one.
+//  2. The "Debug Information" card (raw User ID, internal state) shown to
+//     every normal user in production is exactly the kind of internal/
+//     development-facing detail the redesign brief says must never reach
+//     a normal user's Settings page — removed, not relocated.
+function AdvancedSection() {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [password, setPassword] = useState("")
   const [deleteInput, setDeleteInput] = useState("")
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [done, setDone] = useState(false)
 
   const handleDeleteAccount = async () => {
     if (deleteInput !== "DELETE") return
-    setDeleteLoading(true)
+    setDeleteLoading(true); setError("")
     try {
-      // Mark account for deletion — actual purge handled server-side
-      await supabase.from("profiles").update({
-        deletion_requested_at: new Date().toISOString(),
-        deletion_reason: "user_requested",
-      }).eq("id", user?.id)
-      await supabase.auth.signOut()
+      await securityApi.deleteAccount(password, "user_requested")
+      setDone(true)
+      setTimeout(() => { window.location.href = "/" }, 2500)
     } catch (e) {
-      console.error("Delete request failed:", e)
+      setError(e.message || "Could not process the deletion request.")
       setDeleteLoading(false)
     }
   }
 
   return (
     <div>
-      <SectionTitle icon="⚙️" title="Advanced" subtitle="Power-user settings and danger zone" />
-
-      <Card style={{ marginBottom:14 }}>
-        <div style={{ fontSize:12, fontWeight:700, color:T.ink2, marginBottom:10 }}>Debug Information</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          {[
-            { label:"User ID",       value: user?.id?.slice(0,16) + "…" || "—" },
-            { label:"Path",          value: userData?.path || "—" },
-            { label:"Plan",          value: userData?.subscription || "free" },
-            { label:"ELO",           value: userData?.eloRating || 500 },
-            { label:"Arena Streak",  value: userData?.arenaStreak || 0 },
-          ].map(row => (
-            <div key={row.label} style={{
-              display:"flex", justifyContent:"space-between",
-              fontSize:12, padding:"5px 0",
-              borderBottom:`1px solid ${T.border}`,
-            }}>
-              <span style={{ color:T.ink4, fontWeight:600 }}>{row.label}</span>
-              <span style={{ color:T.ink2, fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{String(row.value)}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <SectionTitle icon="⚙️" title="Advanced" subtitle="Account management" />
 
       {/* Danger Zone */}
       <div style={{
@@ -1761,10 +2196,14 @@ function AdvancedSection({ user, userData, save, setUserData }) {
           ⚠️ Danger Zone
         </div>
 
-        {!confirmDelete ? (
+        {done ? (
+          <div style={{ fontSize:13, color:T.green, fontWeight:700 }}>
+            ✓ Deletion request recorded and you&apos;ve been signed out everywhere. Redirecting…
+          </div>
+        ) : !confirmDelete ? (
           <>
             <div style={{ fontSize:12, color:T.ink2, marginBottom:14, lineHeight:1.6 }}>
-              Permanently delete your Capabilio account. This removes your profile, ELO history, Arena submissions, and all data. <strong>This cannot be undone.</strong>
+              Permanently delete your Capabilio account. This removes your profile, ELO history, Arena submissions, and all data. <strong>This cannot be undone.</strong> Data removal is a manual process today, not an instant automated purge — see our DPDP Compliance Notice.
             </div>
             <button
               onClick={() => setConfirmDelete(true)}
@@ -1780,42 +2219,56 @@ function AdvancedSection({ user, userData, save, setUserData }) {
         ) : (
           <>
             <div style={{ fontSize:12, color:T.red, marginBottom:12, fontWeight:700 }}>
-              Type DELETE to confirm permanent account deletion:
+              Confirm your password, then type DELETE to permanently delete your account:
             </div>
-            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               <input
-                value={deleteInput}
-                onChange={e => setDeleteInput(e.target.value)}
-                placeholder='Type "DELETE"'
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Current password"
                 style={{
-                  flex:1, padding:"9px 12px", borderRadius:8,
+                  padding:"9px 12px", borderRadius:8,
                   border:`1.5px solid ${T.red}`, fontSize:13,
-                  color:T.ink, fontFamily:"'DM Mono',monospace",
-                  outline:"none", background:"#fff",
+                  color:T.ink, outline:"none", background:"#fff",
                 }}
               />
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleteInput !== "DELETE" || deleteLoading}
-                style={{
-                  padding:"9px 16px", background: deleteInput === "DELETE" ? T.red : T.cream3,
-                  border:"none", borderRadius:8, color: deleteInput === "DELETE" ? "#fff" : T.ink4,
-                  fontSize:12, fontWeight:700,
-                  cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed",
-                }}
-              >
-                {deleteLoading ? "Deleting…" : "Confirm Delete"}
-              </button>
-              <button
-                onClick={() => { setConfirmDelete(false); setDeleteInput("") }}
-                style={{
-                  padding:"9px 16px", background:T.cream3,
-                  border:"none", borderRadius:8, color:T.ink2,
-                  fontSize:12, fontWeight:700, cursor:"pointer",
-                }}
-              >
-                Cancel
-              </button>
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                <input
+                  value={deleteInput}
+                  onChange={e => setDeleteInput(e.target.value)}
+                  placeholder='Type "DELETE"'
+                  style={{
+                    flex:1, padding:"9px 12px", borderRadius:8,
+                    border:`1.5px solid ${T.red}`, fontSize:13,
+                    color:T.ink, fontFamily:"'DM Mono',monospace",
+                    outline:"none", background:"#fff",
+                  }}
+                />
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteInput !== "DELETE" || !password || deleteLoading}
+                  style={{
+                    padding:"9px 16px", background: deleteInput === "DELETE" && password ? T.red : T.cream3,
+                    border:"none", borderRadius:8, color: deleteInput === "DELETE" && password ? "#fff" : T.ink4,
+                    fontSize:12, fontWeight:700,
+                    cursor: deleteInput === "DELETE" && password ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {deleteLoading ? "Deleting…" : "Confirm Delete"}
+                </button>
+                <button
+                  onClick={() => { setConfirmDelete(false); setDeleteInput(""); setPassword(""); setError("") }}
+                  style={{
+                    padding:"9px 16px", background:T.cream3,
+                    border:"none", borderRadius:8, color:T.ink2,
+                    fontSize:12, fontWeight:700, cursor:"pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+              {error && <div style={{ fontSize:12, color:T.red, fontWeight:600 }}>{error}</div>}
             </div>
           </>
         )}
@@ -1981,8 +2434,8 @@ function ContextPanel({ userData, activeSection, eloRating }) {
 }
 
 // ── Main SettingsPanel export ─────────────────────────────────────────────────
-export default function SettingsPanel({ userData, user, save, setUserData, path }) {
-  const [activeSection, setActiveSection] = useState("profile")
+export default function SettingsPanel({ userData, user, save, setUserData, path, initialSection }) {
+  const [activeSection, setActiveSection] = useState(initialSection || "profile")
   const mainRef = useRef(null)
 
   const go = (id) => {
@@ -2132,10 +2585,26 @@ export default function SettingsPanel({ userData, user, save, setUserData, path 
       </div>
 
       {/* ── Three-column layout ───────────────────────────────────────── */}
-      <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+      {/* Mobile-responsiveness fix (2026-09-02): this grid had no
+          breakpoint at all — the 210px nav rail + flexible content +
+          240px context panel just squeezed into a horizontally-scrolling
+          row below ~900px. Same scoped-<style> pattern already used
+          elsewhere in this codebase (see SqlWorkspace.jsx's own comment on
+          why — no CSS-in-JS system here) rather than introducing one just
+          for this. Stacks to nav -> content -> context panel, each full
+          width, with sticky positioning turned off (nothing to stick to
+          usefully in a single column). */}
+      <style>{`
+        @media (max-width: 900px) {
+          .settings-3col { flex-direction: column !important; }
+          .settings-nav-rail { width: 100% !important; position: static !important; }
+          .settings-context-panel { width: 100% !important; position: static !important; }
+        }
+      `}</style>
+      <div className="settings-3col" style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
 
         {/* Left Nav Rail */}
-        <div style={{
+        <div className="settings-nav-rail" style={{
           width:210, flexShrink:0,
           background:"#fff", border:`1px solid ${T.border}`,
           borderRadius:14, boxShadow:T.shadow, overflow:"hidden",
@@ -2202,7 +2671,7 @@ export default function SettingsPanel({ userData, user, save, setUserData, path 
         </div>
 
         {/* Right Contextual Panel */}
-        <div style={{ width:240, flexShrink:0, position:"sticky", top:16 }}>
+        <div className="settings-context-panel" style={{ width:240, flexShrink:0, position:"sticky", top:16 }}>
           <ContextPanel userData={userData} activeSection={activeSection} eloRating={eloRating} />
         </div>
 

@@ -836,9 +836,26 @@ router.get("/nexus/search", optionalAuth, async (req, res) => {
 router.get("/nexus/profile/:uid", optionalAuth, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin.from("profiles")
-      .select("id,name,headline,profile_photo_url,cover_photo_url,current_company,current_role_title,profile_summary,skill_graph,experiences,certifications,education,aura_score,role_elo,market_elo,proof_elo,verification_state,is_mentor,path,linkedin_url,github_url,location,years_of_experience")
+      .select("id,name,headline,profile_photo_url,cover_photo_url,current_company,current_role_title,profile_summary,skill_graph,experiences,certifications,education,aura_score,role_elo,market_elo,proof_elo,verification_state,is_mentor,path,linkedin_url,github_url,location,years_of_experience,profile_visibility")
       .eq("id", req.params.uid).single()
     if (error || !data) return res.status(404).json({ error: "Profile not found" })
+
+    // Settings/Security redesign (2026-09-02): this route used to return the
+    // full field set above for ANY profile id, unconditionally — it uses
+    // supabaseAdmin (service role), which bypasses RLS entirely, so the
+    // database-level "Profile visibility controls read access" policy never
+    // applied here regardless of the RLS fix in that same migration. Fixed
+    // by checking profile_visibility explicitly, same as RLS now does for
+    // direct-client access. 404 (not 403) for a private/restricted profile
+    // that isn't the requester's own, so a scan of ids can't distinguish
+    // "private profile" from "no such profile".
+    const isOwner = req.user?.id === req.params.uid
+    const visibility = data.profile_visibility || "public"
+    const allowed = isOwner
+      || visibility === "public"
+      || (visibility === "capabilio_users" && !!req.user)
+    if (!allowed) return res.status(404).json({ error: "Profile not found" })
+    delete data.profile_visibility // internal field, never part of the public response shape
 
     // Check connection status
     let connectionStatus = "none"

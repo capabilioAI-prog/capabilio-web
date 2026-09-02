@@ -300,6 +300,31 @@ router.post("/pro/profile/summary/generate", requireAuth, async (req, res) => {
     const { data: profile } = await supabaseAdmin.from("profiles").select("*").eq("id", uid).single()
     if (!profile) return res.status(404).json({ error: "Profile not found" })
 
+    // Settings/Security redesign (2026-09-02): AI Preferences' "Profile
+    // Summary Tone" / "Content Language" controls previously wrote to
+    // columns (profiles.ai_prefs) that don't exist — every save silently
+    // failed server-side (see the ai_preferences migration's header
+    // comment) — so this generator has never actually read a user
+    // preference before. ai_preferences is now real, dedicated storage;
+    // this is its first real consumer. personalization_enabled is a hard
+    // gate here (not a no-op toggle): this endpoint's entire purpose is
+    // generating text FROM the user's own profile/Arena data, so "off"
+    // means refuse rather than silently ignore the preference.
+    const { data: aiPrefs } = await supabaseAdmin
+      .from("ai_preferences").select("summary_tone, content_language, personalization_enabled").eq("user_id", uid).maybeSingle()
+    if (aiPrefs && aiPrefs.personalization_enabled === false) {
+      return res.status(403).json({ error: "AI personalization is turned off in Settings → AI Preferences. Enable it to generate a summary, or write your own." })
+    }
+    const TONE_INSTRUCTION = {
+      professional: "professional and formal",
+      conversational: "warm and conversational, while staying credible",
+      achievement: "achievement-focused — lead with concrete results and numbers where available",
+      concise: "concise and punchy — short sentences, no filler",
+    }
+    const LANGUAGE_NAME = { en: "English", hi: "Hindi", ta: "Tamil", te: "Telugu" }
+    const tone = TONE_INSTRUCTION[aiPrefs?.summary_tone] || TONE_INSTRUCTION.professional
+    const language = LANGUAGE_NAME[aiPrefs?.content_language] || "English"
+
     const isStudent = profile.path !== "professional"
     let prompt
 
@@ -331,7 +356,7 @@ router.post("/pro/profile/summary/generate", requireAuth, async (req, res) => {
 - Average challenge score: ${avgScore !== null ? `${avgScore}/100` : "not specified"}
 - Strongest skills: ${skills.length ? skills.join(", ") : "not specified"}
 
-Tone: confident, concrete, recruiter-facing — no generic filler like "hardworking team player," no apologizing for being a student. Return ONLY the summary text, nothing else.`
+Tone: ${tone}, concrete, recruiter-facing — no generic filler like "hardworking team player," no apologizing for being a student. Write the summary in ${language}. Return ONLY the summary text, nothing else.`
     } else {
       const skills = (profile.skill_graph || profile.skills || []).map(s => (typeof s === "string" ? s : s.name)).filter(Boolean).slice(0, 12)
       const experiences = profile.experiences || []
@@ -349,7 +374,7 @@ Tone: confident, concrete, recruiter-facing — no generic filler like "hardwork
 - Most recent role: ${topExp.title || topExp.role || "not specified"}${topExp.company ? ` at ${topExp.company}` : ""}
 - Skills: ${skills.length ? skills.join(", ") : "not specified"}
 
-Tone: confident, concrete, recruiter-facing — no generic filler like "hardworking team player." Return ONLY the summary text, nothing else.`
+Tone: ${tone}, concrete, recruiter-facing — no generic filler like "hardworking team player." Write the summary in ${language}. Return ONLY the summary text, nothing else.`
     }
 
     let generated = ""
