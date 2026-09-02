@@ -14,6 +14,9 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { supabase } from "../lib/supabase"
 import { getPlan } from "../config/plans"
 import { upsertProfileEducation } from "../lib/profileEducation"
+import PolicyModal from "../components/PolicyModal"
+import { POLICIES } from "../config/policies"
+import { formatPolicyDate } from "../config/policies/blocks"
 
 const API = import.meta.env.VITE_API_URL || "https://capabilio-web.onrender.com"
 
@@ -1650,43 +1653,53 @@ function AboutSection() {
 }
 
 // ── Section: Policies ─────────────────────────────────────────────────────────
+// Content lives in config/policies/* (one file per document, data-only —
+// see privacyPolicy.js's header comment) so this component never has to
+// hold five giant hardcoded legal documents. PolicyModal is the one shared,
+// reusable presentation layer for all of them.
+const POLICY_CARDS = [
+  { id: "privacy", icon: "🔒" },
+  { id: "terms",   icon: "📜" },
+  { id: "cookies", icon: "🍪" },
+  { id: "dpdp",    icon: "🇮🇳" },
+  { id: "refund",  icon: "💳" },
+]
+
 function PoliciesSection() {
-  const docs = [
-    { icon:"🔒", label:"Privacy Policy",       href:"https://capabilio.com/privacy",  updated:"Jan 2025" },
-    { icon:"📜", label:"Terms of Service",     href:"https://capabilio.com/terms",    updated:"Jan 2025" },
-    { icon:"🍪", label:"Cookie Policy",        href:"https://capabilio.com/cookies",  updated:"Jan 2025" },
-    { icon:"🇮🇳", label:"DPDPA Compliance",    href:"https://capabilio.com/dpdpa",    updated:"Jan 2025" },
-    { icon:"💳", label:"Refund Policy",        href:"https://capabilio.com/refunds",  updated:"Jan 2025" },
-  ]
+  const [openPolicyId, setOpenPolicyId] = useState(null)
+  const openPolicy = openPolicyId ? POLICIES[openPolicyId] : null
 
   return (
     <div>
       <SectionTitle icon="📜" title="Policies" subtitle="Legal documents governing your use of Capabilio" />
 
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-        {docs.map(doc => (
-          <a
-            key={doc.label}
-            href={doc.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration:"none" }}
-          >
-            <div style={{
-              display:"flex", alignItems:"center", gap:12,
-              padding:"13px 16px", background:"#fff",
-              border:`1px solid ${T.border}`, borderRadius:11, boxShadow:T.shadow,
-            }}>
-              <span style={{ fontSize:20 }}>{doc.icon}</span>
+        {POLICY_CARDS.map(card => {
+          const doc = POLICIES[card.id]
+          return (
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => setOpenPolicyId(card.id)}
+              style={{
+                display:"flex", alignItems:"center", gap:12, textAlign:"left",
+                padding:"13px 16px", background:"#fff", width:"100%",
+                border:`1px solid ${T.border}`, borderRadius:11, boxShadow:T.shadow,
+                cursor:"pointer", font:"inherit",
+              }}
+            >
+              <span style={{ fontSize:20 }}>{card.icon}</span>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:T.ink }}>{doc.label}</div>
-                <div style={{ fontSize:11, color:T.ink4 }}>Last updated: {doc.updated}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:T.ink }}>{doc.title}</div>
+                <div style={{ fontSize:11, color:T.ink4 }}>Last updated: {formatPolicyDate(doc.lastUpdated)}</div>
               </div>
               <span style={{ fontSize:11, color:T.indigo, fontWeight:700 }}>View →</span>
-            </div>
-          </a>
-        ))}
+            </button>
+          )
+        })}
       </div>
+
+      <PolicyModal policy={openPolicy} onClose={() => setOpenPolicyId(null)} />
     </div>
   )
 }
