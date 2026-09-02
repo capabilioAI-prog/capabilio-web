@@ -14,7 +14,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { supabase } from "../lib/supabase"
 import { getPlan } from "../config/plans"
 import { upsertProfileEducation } from "../lib/profileEducation"
-import { securityApi } from "../lib/api"
+import { securityApi, githubApi } from "../lib/api"
+import GithubCodeDnaCard from "../components/GithubCodeDnaCard"
 import PolicyModal from "../components/PolicyModal"
 import { POLICIES } from "../config/policies"
 import { formatPolicyDate } from "../config/policies/blocks"
@@ -799,6 +800,31 @@ function ProofSection({ userData, save, setUserData }) {
   const [loading, setLoading] = useState(false)
   const f = (k) => (v) => setForm(p => ({ ...p, [k]: v }))
 
+  // Canonical GitHub connect (2026-09-03) — separate from the plain URL
+  // field's generic save() above: this actually resolves the account on
+  // GitHub, records the canonical connection (github_connections), and
+  // triggers a real initial Code DNA analysis, rather than just writing an
+  // unverified string to profiles.github_url. codeDnaCardKey forces
+  // GithubCodeDnaCard to re-fetch after a successful connect, since it
+  // fetches its own data on mount and has no other way to know something
+  // changed underneath it.
+  const [connectLoading, setConnectLoading] = useState(false)
+  const [connectMessage, setConnectMessage] = useState(null)
+  const [codeDnaCardKey, setCodeDnaCardKey] = useState(0)
+  const handleConnectGithub = async () => {
+    setConnectLoading(true); setConnectMessage(null)
+    try {
+      const res = await githubApi.connect(form.githubUrl.trim())
+      setConnectMessage({ ok: true, text: `Connected as @${res.username}${res.analysisError ? " — analysis will complete on the next scan" : "."}` })
+      setCodeDnaCardKey(k => k + 1)
+      if (setUserData) setUserData(d => ({ ...d, githubUrl: `https://github.com/${res.username}` }))
+    } catch (e) {
+      setConnectMessage({ ok: false, text: e.message || "Couldn't connect that GitHub profile." })
+    } finally {
+      setConnectLoading(false)
+    }
+  }
+
   const handleSave = async () => {
     setLoading(true)
     setError(false)
@@ -848,7 +874,28 @@ function ProofSection({ userData, save, setUserData }) {
           </div>
           <div>
             <FieldLabel>GitHub URL</FieldLabel>
-            <Input value={form.githubUrl} onChange={f("githubUrl")} placeholder="https://github.com/your-username" />
+            <div style={{ display:"flex", gap:8 }}>
+              <div style={{ flex:1 }}>
+                <Input value={form.githubUrl} onChange={f("githubUrl")} placeholder="https://github.com/your-username" />
+              </div>
+              <button
+                onClick={handleConnectGithub}
+                disabled={connectLoading || !form.githubUrl.trim()}
+                style={{
+                  padding:"0 16px", background: connectLoading ? T.cream3 : T.indigo, border:"none", borderRadius:9,
+                  color: connectLoading ? T.ink4 : "#fff", fontSize:12, fontWeight:700, cursor: connectLoading ? "wait" : "pointer",
+                  whiteSpace:"nowrap",
+                }}
+              >
+                {connectLoading ? "Connecting…" : "Connect GitHub"}
+              </button>
+            </div>
+            {connectMessage && (
+              <div style={{ marginTop:6, fontSize:11, color: connectMessage.ok ? T.green : T.red, fontWeight:600 }}>{connectMessage.text}</div>
+            )}
+            <div style={{ marginTop:10 }}>
+              <GithubCodeDnaCard key={codeDnaCardKey} variant="full" />
+            </div>
           </div>
           <div>
             <FieldLabel>LeetCode / HackerRank (optional)</FieldLabel>

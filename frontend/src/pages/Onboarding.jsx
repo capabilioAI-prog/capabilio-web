@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { userDoc } from "../lib/db";
-import { collegeApi } from "../lib/api"
+import { collegeApi, githubApi } from "../lib/api"
 import { upsertProfileEducation } from "../lib/profileEducation"
 import { PLANS, getPlansByPath, getPlansByPathWithDiscount, getDefaultPlanForPath, getInviteContext, applyDiscount } from "../config/plans"
 import { useRazorpay } from "../hooks/useRazorpay"
@@ -2100,6 +2100,18 @@ export default function Onboarding({ user, onComplete, onBack }) {
       const topRepos = rd.sort((a,b)=>(b.stargazers_count||0)-(a.stargazers_count||0)).slice(0,4).map(r=>({ name:r.name, description:r.description, stars:r.stargazers_count, language:r.language, updatedAt:r.updated_at }))
       setGithubData({ username:ud.login, publicRepos:ud.public_repos, followers:ud.followers, totalStars:ts, totalForks:tf, topLanguage:langs[0]?.name||"—", languages:langs, topRepos, activeDays:rd.filter(r=>(Date.now()-new Date(r.pushed_at).getTime())<90*24*60*60*1000).length, bio:ud.bio, location:ud.location, company:ud.company })
       setGithubFetchStatus("done")
+      // Settings/Career & Vault redesign (2026-09-03): this preview fetch is
+      // deliberately left as-is (unauthenticated, client-side, feeds only
+      // THIS onboarding step's own completeness score/copy — see
+      // runProfessionalAnalysis below, which is intentionally unchanged) —
+      // rewriting it risked breaking a working, tested scoring flow for no
+      // real gain. What WAS a real gap: none of this ever reached the real
+      // Code DNA system, so a user who connected GitHub during onboarding
+      // had no canonical connection or analysis until they separately hit
+      // "Connect" again in Settings later. This establishes the real
+      // connection in the background — best-effort, never blocks or alters
+      // this screen if it fails or the user has no session yet.
+      githubApi.connect(`https://github.com/${ud.login}`).catch(() => {})
     } catch { setGithubFetchStatus("error") }
   }
 

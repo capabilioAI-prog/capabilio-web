@@ -20,6 +20,7 @@ import EchoPitchHero from "./EchoPitchHero"
 // Portfolio themes removed — single universal design
 // ── Professional Path: API-connected components ───────────────────────────────
 import CareerTimelinePro from "../components/CareerTimeline"
+import GithubCodeDnaCard from "../components/GithubCodeDnaCard"
 import { interviewApi, skillsApi, profileApi, professionalEloApi, weeklyCheckApi }  from "../lib/api"
 import SettingsPanel from "./SettingsPanel"
 import { namesLikelyMismatch, mismatchWarning } from "../lib/nameMatch"
@@ -3235,6 +3236,17 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
     (initialTabProp && validTabIds.has(initialTabProp)) ? initialTabProp : defaultTab
   )
 
+  // "View Code DNA →" links inside GithubCodeDnaCard (rendered from
+  // multiple tabs — Career & Vault, Settings) need to switch Aura's own tab
+  // state, but that component has no direct access to setActiveTab. A
+  // custom DOM event is the simplest bridge that doesn't require threading
+  // a callback prop through every place the card is used.
+  useEffect(() => {
+    const onNavigateTab = (e) => { if (validTabIds.has(e.detail)) setActiveTab(e.detail) }
+    document.addEventListener("capabilio:navigate-tab", onNavigateTab)
+    return () => document.removeEventListener("capabilio:navigate-tab", onNavigateTab)
+  }, [])
+
   // Consume a fresh one-shot deep-link request without re-subscribing to the
   // shared prop afterward (so it can't stomp on the user's own tab clicks).
   const consumedInitialTab = useRef(initialTabProp)
@@ -4090,7 +4102,13 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
       const ct=res.headers.get("content-type")||""
       const data=ct.includes("application/json") ? await res.json() : null
       if(!res.ok || !data || data.error){
-        throw new Error(data?.error || `Couldn't reach GitHub (server responded ${res.status}). Please try again in a moment.`)
+        // 2026-09-03: this used to include the raw HTTP status code in the
+        // message shown to the user (e.g. "server responded 502") — not a
+        // secret, but exactly the kind of internal implementation detail
+        // the design report's language rules say a normal user should
+        // never see. The server's own `data.error` (when present) is
+        // already written in plain, safe language — see routes/github.js.
+        throw new Error(data?.error || "Unable to analyze GitHub right now. Please try again later.")
       }
       // 2026-08-05: same identity-mismatch check as resume upload, using
       // GitHub's own profile "name" field (added server-side above). Many
@@ -6153,6 +6171,26 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                               {r.detectionSkipped&&<span style={{fontSize:9.5,fontWeight:700,color:T.amber,background:T.amber2,borderRadius:6,padding:"2px 6px"}}>⏳ Detection skipped (rate limited)</span>}
                             </div>
                           )}
+                          {/* Ownership/originality evidence (2026-09-03) —
+                              deliberately evidence-graded language only
+                              ("Strong ownership evidence", "Substantial
+                              contributor", ...) — see classifyOwnership in
+                              routes/github.js. Never "verified owner" or
+                              "not copied"; a fork is named when we know its
+                              real parent, never invented. */}
+                          {r.ownership&&(
+                            <div
+                              title={r.ownership.detail}
+                              style={{
+                                fontSize:10.5, fontWeight:700, borderRadius:6, padding:"3px 8px", marginBottom:8,
+                                display:"inline-block",
+                                color: r.ownership.tone==="positive"?T.green : r.ownership.tone==="caution"?T.amber : T.ink4,
+                                background: r.ownership.tone==="positive"?T.green2 : r.ownership.tone==="caution"?T.amber2 : T.cream2,
+                              }}
+                            >
+                              {r.isFork ? "🍴 " : ""}{r.ownership.label}{r.isFork && r.parentFullName ? ` (of ${r.parentFullName})` : ""}
+                            </div>
+                          )}
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
                             {r.lang&&<><div style={{width:8,height:8,borderRadius:"50%",background:LCOLS[r.lang]||T.ink4}}/><span style={{fontSize:11,color:T.ink3}}>{r.lang}</span></>}
                             <span style={{fontSize:10,color:T.ink4,marginLeft:"auto"}}>{r.updated}</span>
@@ -6433,6 +6471,15 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
               <p style={{fontSize:12,color:T.ink3,margin:"0 0 14px"}}>These appear as buttons on your public portfolio page.</p>
               <ProfileLinksForm userData={userData} save={save} setUserData={setUserData}/>
             </Card>
+
+            {/* ── GitHub & Code DNA status (2026-09-03) ───────────────────
+                Career & Vault stays a professional portfolio/career screen,
+                not a developer dashboard (per the design report) — this is
+                the compact variant: status + "Updated Xh ago" + a link out
+                to the real Code DNA tab, never the full analysis inline. */}
+            <div style={{marginBottom:20}}>
+              <GithubCodeDnaCard variant="compact" />
+            </div>
           </div>
         )}
 
