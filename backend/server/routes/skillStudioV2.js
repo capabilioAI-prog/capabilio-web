@@ -5,12 +5,19 @@
  * routes/skillStudio.js (lesson, learning-path, youtube, resources) — no
  * path collisions, existing routes untouched. See
  * docs/skill-studio-v2-production-spec-2026-07-29.md for the full design.
- * Arena result ingestion is now LIVE — submission-engine/service.js calls
- * arenaIngestion.js#notifySkillStudio on every real Arena submission (see
- * that file's header). GET /arena/ingestion below is the learner-facing
- * read of arena_ingestion_records so Skill Studio can show "your Arena
- * result was applied" without the learner ever needing to know the table
- * exists. Content-ops/mentor review queue lives in
+ * Arena result ingestion is NOT currently wired (corrected 2026-09-01 — the
+ * previous version of this comment was stale). arenaIngestion.js#notifySkillStudio
+ * was written against Arena V2's submission-engine/service.js, which was
+ * deleted along with the rest of Arena V2 in commit c34d357 (2026-08-26).
+ * The rebuilt Arena (routes/arenaCollegeStream.js, arenaDomainRole.js) never
+ * calls notifySkillStudio, and neither branch's content model carries the
+ * `instance.skill` tag that function requires to do anything — every real
+ * submission would hit its "no_skill_on_instance" no-op path even if wired.
+ * GET /arena/ingestion below is still live and correctly reads
+ * arena_ingestion_records, but that table is never written to post-rebuild,
+ * so it will always return an empty list. Re-wiring this requires adding
+ * real skill-tagging to Arena content first — tracked as follow-up work, not
+ * fixed here. Content-ops/mentor review queue lives in
  * routes/skillStudioContentAdmin.js (separate, admin-gated namespace).
  *
  * All routes require auth (requireAuth) and are user-scoped from req.user.id

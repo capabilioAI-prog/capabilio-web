@@ -1922,7 +1922,7 @@ function App() {
           {currentPage === "analytics"    && <ExecutiveAnalytics user={user} userData={userData} />}
           {currentPage === "aicopilot"    && <ExecutiveComingSoon module="aicopilot" />}
           {currentPage === "skillstudio" && (FLAGS.skill_studio_v2
-            ? <SkillStudioShell user={user} userData={userData} />
+            ? <SkillStudioShell user={user} userData={userData} onNavigate={p => { setCurrentPage(p); setActiveNavItem(p) }} />
             : <SkillStudio user={user} userData={userData} />)}
           {currentPage === "launchpad"   && <Launchpad   user={user} userData={userData} onNavigatePricing={() => { setCurrentPage("pricing"); setActiveNavItem("") }} />}
           {currentPage === "pricing"     && <Pricing     user={user} userData={userData} setUserData={setUserData} onBack={() => { const home = HOME_PAGE[navPath] || "studentHome"; setCurrentPage(home); setActiveNavItem("home") }} />}

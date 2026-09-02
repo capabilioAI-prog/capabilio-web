@@ -25,7 +25,8 @@
  * for one page.
  */
 import { useState, useEffect, useCallback } from "react"
-import { arenaCollegeStreamApi, arenaDomainRoleApi, arenaActivityApi, arenaPaymentsApi } from "../../lib/api"
+import { arenaCollegeStreamApi, arenaDomainRoleApi, arenaActivityApi, arenaPaymentsApi, arenaCapabilityApi } from "../../lib/api"
+import { isOpenableCapabilityTask } from "../../lib/arenaCapabilityContract"
 import { getRoleConfig } from "../../config/roleConfig"
 import { useRazorpay } from "../../hooks/useRazorpay"
 import WorkspaceRenderer from "./workspaces/WorkspaceRenderer"
@@ -697,7 +698,7 @@ function QuotaLockedNotice({ quota, planLabel }) {
   )
 }
 
-function ProfessionalWorkspaceCard({ domainLabel, skills, loading, mission, meta, quota, planLabel, onContinue }) {
+function ProfessionalWorkspaceCard({ domainLabel, skills, loading, mission, meta, quota, planLabel, onContinue, onPersonalizedPick, personalizedLoading, personalizedError }) {
   const timerMinutes = !loading && !quota?.nextUnlockAt ? mission?.time_limit_minutes : null
   return (
     <WorkspaceCard icon="🏢" title="Professional Workspace" variant="professional" timerMinutes={timerMinutes}>
@@ -728,6 +729,18 @@ function ProfessionalWorkspaceCard({ domainLabel, skills, loading, mission, meta
           >
             Continue Mission →
           </button>
+          {onPersonalizedPick && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={onPersonalizedPick}
+                disabled={personalizedLoading}
+                style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${T.indigo}`, background: "transparent", color: T.indigo, fontWeight: 700, fontFamily: BODY, cursor: personalizedLoading ? "default" : "pointer", fontSize: 12 }}
+              >
+                🎯 {personalizedLoading ? "Finding your next task…" : "Get my personalized pick"}
+              </button>
+              {personalizedError && <div style={{ marginTop: 6, fontSize: 12, color: T.red || "#DC2626" }}>{personalizedError}</div>}
+            </div>
+          )}
         </>
       )}
 
@@ -892,7 +905,7 @@ function AchievementsPanel({ elo, completed, failed, totalAttempts, hasCleanPass
   )
 }
 
-function CollegeWorkspaceCard({ streamName, branch, loading, next, meta, onContinue, onBrowse }) {
+function CollegeWorkspaceCard({ streamName, branch, loading, next, meta, onContinue, onBrowse, onPersonalizedPick, personalizedLoading, personalizedError }) {
   const timerMinutes = !loading && next ? next.experiment?.time_limit_minutes : null
   return (
     <WorkspaceCard icon="🎓" title="College Workspace" variant="college" timerMinutes={timerMinutes}>
@@ -919,6 +932,18 @@ function CollegeWorkspaceCard({ streamName, branch, loading, next, meta, onConti
           >
             Continue Experiment →
           </button>
+          {onPersonalizedPick && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={onPersonalizedPick}
+                disabled={personalizedLoading}
+                style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${T.green}`, background: "transparent", color: T.green, fontWeight: 700, fontFamily: BODY, cursor: personalizedLoading ? "default" : "pointer", fontSize: 12 }}
+              >
+                🎯 {personalizedLoading ? "Finding your next task…" : "Get my personalized pick"}
+              </button>
+              {personalizedError && <div style={{ marginTop: 6, fontSize: 12, color: T.red || "#DC2626" }}>{personalizedError}</div>}
+            </div>
+          )}
         </>
       )}
 
@@ -1042,6 +1067,12 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
   const matchedSlug = branch ? BRANCH_TO_STREAM_SLUG[branch] : null
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  // Arena Capability Engine (Phase 2) — additive personalized-pick entry
+  // point, alongside (not replacing) the existing sequential "Continue"
+  // flow below. See goToCapabilityNextTask.
+  const [capabilityLoading, setCapabilityLoading] = useState(false)
+  const [capabilityError, setCapabilityError] = useState(null)
 
   // Subscription tab — real Razorpay checkout, triggered directly from
   // Arena (no detour through the Pricing page). Same create-order ->
@@ -1332,6 +1363,47 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
     setSelectedSubject(nextExperimentCtx.subject)
     setSelectedUnit(nextExperimentCtx.unit)
     openExperiment(nextExperimentCtx.experiment)
+  }
+
+  // Arena Capability Engine (Phase 2/3) — GET /api/arena/capability/next-task
+  // returns { task, taskSource, domain, ... }, where taskSource is one of
+  // "existing_verified" | "generated" | "regenerated" | "fallback" (a real,
+  // already-persisted, already-verified task in every case) or
+  // "no_suitable_task" (task: null). Auto-opens the correct EXISTING
+  // workstation for the returned task by handing its id straight to
+  // openExperiment/openDomainMission — both already own "how do I open this
+  // task" for their branch (each re-fetches full task detail itself from
+  // exp.id/mission.id, the same persisted row regardless of how it was
+  // produced), so this never duplicates that logic; it only decides WHICH of
+  // the two existing openers to call, from `res.domain`. Checkpoint E fix:
+  // this used to gate on `res.taskSource === "existing_verified"` only,
+  // which silently discarded every real generated/regenerated/fallback task
+  // as "no suitable task available" — the only real signal for "nothing to
+  // open" is a missing `task`, regardless of source.
+  // Deliberately additive: does not replace goToNextExperiment/
+  // goToNextMission above — those keep working exactly as before.
+  function goToCapabilityNextTask(domain, key) {
+    if (!key || capabilityLoading) return
+    setCapabilityLoading(true); setCapabilityError(null)
+    arenaCapabilityApi.getNextTask({ domain, key })
+      .then(res => {
+        if (!isOpenableCapabilityTask(res)) {
+          // An honest message — never a fabricated task.
+          setCapabilityError(res.selectionReason || "No suitable task available right now.")
+          return
+        }
+        if (res.domain === "college_stream") {
+          setSelectedStream(matchedStream)
+          openExperiment({ id: res.task.id })
+        } else {
+          if (domainMissions.length === 0) {
+            arenaDomainRoleApi.listMissions(roleConfig.id).then(r => setDomainMissions(r.missions || [])).catch(() => {})
+          }
+          openDomainMission({ id: res.task.id })
+        }
+      })
+      .catch(e => setCapabilityError(e.message || "Could not load a personalized task."))
+      .finally(() => setCapabilityLoading(false))
   }
 
   // "Open Workspace" on the landing portal cards — lands straight on the
@@ -1644,7 +1716,7 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
       flex: 1, minHeight: "100vh", overflowY: "auto", fontFamily: BODY,
       background: isWorkspaceActive ? T.cream : `radial-gradient(ellipse at 30% 40%, rgba(139,92,246,0.10) 0%, transparent 55%), radial-gradient(ellipse at 75% 15%, rgba(99,102,241,0.07) 0%, transparent 50%), ${T.cream}`,
     }}>
-      <div style={isWorkspaceActive ? { padding: "12px 20px 20px" } : { maxWidth: 1160, margin: "0 auto", padding: "32px 28px 60px" }}>
+      <div style={isWorkspaceActive ? { padding: "12px 20px 20px" } : { maxWidth: 1800, margin: "0 auto", padding: "32px 40px 60px" }}>
         {!isWorkspaceActive && level !== "landing" && (
           <>
             <div style={{ fontSize: 30, fontWeight: 800, color: T.ink, marginBottom: 4, letterSpacing: -0.5 }}>
@@ -1773,6 +1845,9 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
                     quota={nextMissionQuota}
                     planLabel={planLabel}
                     onContinue={goToNextMission}
+                    onPersonalizedPick={() => goToCapabilityNextTask("domain_role", roleConfig?.id)}
+                    personalizedLoading={capabilityLoading}
+                    personalizedError={capabilityError}
                   />
                 </div>
                 <Eyebrow color={T.ink3}>{domainLabel} Problems</Eyebrow>
@@ -1856,6 +1931,9 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
                   meta={nextExperimentMeta}
                   onContinue={goToNextExperiment}
                   onBrowse={openMatchedOrBrowse}
+                  onPersonalizedPick={matchedStream ? () => goToCapabilityNextTask("college_stream", matchedStream.slug) : undefined}
+                  personalizedLoading={capabilityLoading}
+                  personalizedError={capabilityError}
                 />
               </div>
             )}
@@ -1879,9 +1957,17 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
             {matchedStream && (
               <>
                 <Eyebrow color={T.green}>{matchedStream.name} Problems</Eyebrow>
-                <div style={{ fontSize: 12, color: T.ink3, marginBottom: 12 }}>
-                  Pick any experiment below. Once passed it locks — no resubmitting a completed one.
+                <div style={{ fontSize: 12, color: T.ink3, marginBottom: 8, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span>Pick any experiment below. Once passed it locks — no resubmitting a completed one.</span>
+                  <button
+                    onClick={() => goToCapabilityNextTask("college_stream", matchedStream.slug)}
+                    disabled={capabilityLoading}
+                    style={{ padding: "5px 12px", borderRadius: 8, border: `1px solid ${T.green}`, background: "transparent", color: T.green, fontWeight: 700, fontFamily: BODY, cursor: capabilityLoading ? "default" : "pointer", fontSize: 11 }}
+                  >
+                    🎯 {capabilityLoading ? "Finding…" : "Get my personalized pick"}
+                  </button>
                 </div>
+                {capabilityError && <div style={{ fontSize: 12, color: T.red || "#DC2626", marginBottom: 8 }}>{capabilityError}</div>}
 
                 {/* Category filter — only real categories that currently
                     have at least one experiment are shown, so every chip

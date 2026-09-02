@@ -141,6 +141,7 @@ import assessmentRoutes       from "./server/routes/assessment.js"
 import arenaCollegeStreamRoutes from "./server/routes/arenaCollegeStream.js"
 import arenaDomainRoleRoutes from "./server/routes/arenaDomainRole.js"
 import arenaActivityRoutes from "./server/routes/arenaActivity.js"
+import arenaCapabilityRoutes from "./server/routes/arenaCapability.js"
 import proofsRoutes           from "./server/routes/proofs.js"            // Portfolio redesign — public Engineering Proofs API: GET /:userId (grouped+filtered), GET /:userId/:proofId
 import educationRoutes        from "./server/routes/education.js"        // Education redesign Phase 1 — GET /profile/:userId (public), POST /profile (auth, own profile only)
 import verificationRoutes     from "./server/routes/verification.js"     // Trust & Verification Center Phase 1 — provider registry, hash-chained audit log, POST /verify
@@ -409,6 +410,7 @@ app.use("/api",              assessmentRoutes)   // generate-mcq, analyse-assess
 app.use("/api/arena/college-stream", arenaCollegeStreamRoutes)
 app.use("/api/arena/domain-role", arenaDomainRoleRoutes)
 app.use("/api/arena/activity", arenaActivityRoutes)
+app.use("/api/arena/capability", arenaCapabilityRoutes)
 app.use("/api/proofs",          proofsRoutes)            // Portfolio redesign — public Engineering Proofs API (no auth: portfolios are public pages)
 app.use("/api",                 portfolioPublicRoutes)    // Career OS Tranche 6 Priority 6A — portfolio/lookup/:identifier (no auth required; optional bearer for owner/session-fallback matching)
 app.use("/api/admin/ops",       opsDashboardRoutes)       // Career OS Tranche 11 — admin/ops/dashboard, requireAdmin-gated (dedicated namespace — see opsDashboard.js header for why NOT bare "/api/admin", same routing-shadow lesson as questionBankAdmin.js)

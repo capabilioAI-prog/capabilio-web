@@ -896,6 +896,20 @@ export const arenaDomainRoleApi = {
 }
 
 // ══════════════════════════════════════════
+// Arena — Capability Engine (Phase 2/3)
+// Sits above College Stream / Domain Role without merging them — the single
+// endpoint takes a domain ("college_stream"|"domain_role") + key (stream
+// slug or role id) and returns a ranked existing task, an AI-generated
+// fallback task when none exists (taskSource: "generated"|"regenerated"|
+// "fallback" — always a real, persisted, already-verified task), or an
+// honest no_suitable_task result.
+// ══════════════════════════════════════════
+export const arenaCapabilityApi = {
+  getNextTask: ({ domain, key }) =>
+    request("GET", `/arena/capability/next-task?domain=${encodeURIComponent(domain)}&key=${encodeURIComponent(key)}`),
+}
+
+// ══════════════════════════════════════════
 // Arena — cross-branch activity (Phase B)
 // Read-only: calendar/streak/week stats computed from both branches'
 // submission history. See backend/server/lib/activity/computeSummary.js.

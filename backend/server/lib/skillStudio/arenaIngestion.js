@@ -1,15 +1,32 @@
 /**
  * arenaIngestion.js — Skill Studio's consumer of Arena V2's real
  * AssessmentCompletedEvent (docs/skill-studio-v2-production-spec-2026-07-29.md
- * §7, Phase 3 wiring). Injected as a new dependency into
- * `submission-engine/service.js#submitChallenge`, called sequentially right
- * after `recordPortfolioOutcome` — exactly the extension point that file's
- * own docblock reserved for future consumers ("Analytics, Notifications,
- * Certificates, Recruiter feeds... takes the same event object").
+ * §7, Phase 3 wiring).
  *
- * Contract with the Arena pipeline (non-negotiable, per the standing
- * engineering rules and per service.js's own "fail loudly vs. fail soft"
- * distinction):
+ * STATUS (corrected 2026-09-01 — this header previously described the code
+ * below as live/wired-in; it was not, since at least commit c34d357
+ * 2026-08-26): `submission-engine/service.js`, the file this was written to
+ * be injected into, was deleted along with the rest of Arena V2. Nothing in
+ * the rebuilt Arena (backend/server/routes/arenaCollegeStream.js,
+ * arenaDomainRole.js) imports or calls `notifySkillStudio` below — confirmed
+ * via grep, zero call sites outside this file and its own test. Re-wiring
+ * this requires more than restoring a call site: `notifySkillStudio` and
+ * `resolvePassed` are written against the `{ assessment, instance,
+ * submission }` shape of Arena V2's own `av2_assessments`/
+ * `av2_challenge_instances` tables, which no longer exist at all, and it
+ * hard-requires `instance.skill` — a per-task skill tag neither live Arena
+ * branch's content model carries today (both use a coarser `domain`/`role`
+ * field instead, e.g. arenaDomainRole.js's `recordArenaHistory({ domain,
+ * role })` — a plausible coarse-grained stand-in for a future fix, not
+ * something this comment update invents unilaterally). See
+ * routes/skillStudioV2.js's header for the corresponding GET /arena/
+ * ingestion route note. The contract documented below still accurately
+ * describes what this function does WHEN called — it is simply not called
+ * by anything today.
+ *
+ * Original contract with the (now-deleted) Arena V2 pipeline (non-negotiable,
+ * per the standing engineering rules and per service.js's own "fail loudly
+ * vs. fail soft" distinction):
  *   - `notifySkillStudio` NEVER throws. Every code path returns a result
  *     object (`{ ok, ... }` or `{ ok: false, error }`). A Skill Studio bug
  *     must never turn into a 500 on a real Arena submission, and must never

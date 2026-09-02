@@ -19,7 +19,7 @@ import SkillJourneyPage from "./SkillJourneyPage"
 import ModuleRuntime from "./ModuleRuntime"
 import { skillStudioV2Api } from "../lib/api"
 
-export default function SkillStudioShell({ userData }) {
+export default function SkillStudioShell({ userData, onNavigate }) {
   const [view, setView] = useState("home")
   const [activeJourney, setActiveJourney] = useState(null)
   const [moduleRequest, setModuleRequest] = useState(null)
@@ -65,11 +65,16 @@ export default function SkillStudioShell({ userData }) {
 
   function onArenaGo() {
     // Hands the learner back to the existing Arena surface — Skill Studio
-    // does not generate/select a mission itself (spec §7). This app is a
-    // currentPage SPA; Skill Studio has no direct setCurrentPage prop, so
-    // the simplest safe handoff is a same-tab navigation the user can also
-    // reach from the main nav — avoids inventing an unverified deep link.
-    window.location.hash = "#arena"
+    // does not generate/select a mission itself (spec §7). Navigates to the
+    // Arena landing page via the app's real currentPage router (onNavigate,
+    // passed down from App.jsx — see 2026-09-01 fix). Not a deep link into a
+    // specific role/stream: the domainKey the handoff result carries doesn't
+    // map cleanly onto Arena's internal College Stream slug / Domain Role id
+    // space (two separate, independently-keyed resources — see
+    // backend/server/routes/arenaCollegeStream.js vs arenaDomainRole.js), so
+    // guessing that mapping here would risk landing the learner on the wrong
+    // thing. Landing on Arena's own picker is the honest, correct handoff.
+    onNavigate?.("arenaCollegeStream")
     setView("home")
   }
 
@@ -90,7 +95,7 @@ export default function SkillStudioShell({ userData }) {
           </div>
         )}
         {view === "journey" && activeJourney && (
-          <SkillJourneyPage journey={activeJourney} jobTitle={jobTitle} onOpenModule={openModule} onBack={() => setView("home")} recommendations={recommendations} />
+          <SkillJourneyPage journey={activeJourney} jobTitle={jobTitle} onOpenModule={openModule} onBack={() => setView("home")} onArenaGo={onArenaGo} recommendations={recommendations} />
         )}
         {view === "module" && moduleRequest && (
           <ModuleRuntime moduleRequest={moduleRequest} onArenaGo={onArenaGo} onExitToJourney={() => setView("journey")} recommendations={recommendations} />

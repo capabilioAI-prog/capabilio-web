@@ -1,0 +1,30 @@
+{
+  "backup_date": "2026-08-16",
+  "note": "Partial row backup of Arena V2 (av2_*) tables before DROP TABLE. Captures role→workstation mappings and grants in full. Does NOT capture full challenge template/prompt text (av2_challenge_templates: 17 rows, av2_challenge_template_versions: 17 rows, av2_scenario_packs: 13 rows, av2_skill_dependency_graphs: 14 rows, av2_challenge_instances: 4 rows, av2_challenge_analytics_events: 10 rows) — those were not captured before the drop due to tool output size limits. If any of that content is needed later, it will need to be restored from a Supabase point-in-time backup instead of this file.",
+  "av2_role_capabilities": [
+    {"id":"6fe0b583-7603-47c9-92db-64c614a8a350","career_family":"IT","role":"Data Analyst","workstations":["sql"],"validators":["ground_truth_compare"],"ui_modules":["sql_editor"]},
+    {"id":"0fc4b080-1590-460e-9c04-a523f3be9d71","career_family":"IT","role":"ML Engineer","workstations":["notebook"],"validators":["rubric_review"],"ui_modules":["notebook_cell","console_output"]},
+    {"id":"1a948efb-0697-4980-a9cd-c372fe78c87a","career_family":"IT","role":"Software Engineer","workstations":["code"],"validators":["rubric_review"],"ui_modules":["code_editor","console_output","file_explorer"]},
+    {"id":"9ff58abf-c8a7-40fe-ad74-4f18357b6134","career_family":"IT","role":"Cybersecurity Analyst","workstations":["terminal"],"validators":["rubric_review"],"ui_modules":["terminal","console_output"]},
+    {"id":"8ad501e5-21ab-472a-b1a6-858ab84c6515","career_family":"IT","role":"DevOps Engineer","workstations":["api"],"validators":["rubric_review"],"ui_modules":["api_client","console_output"]},
+    {"id":"067aab0e-2fec-4ba0-ad23-531f065df034","career_family":"IT","role":"Database Administrator","workstations":["dashboard"],"validators":["rubric_review"],"ui_modules":["dashboard_builder","sql_editor"]},
+    {"id":"99a5ee1b-bf45-4e96-807a-78e7aaa4893e","career_family":"ECE","role":"Electronics Engineer","workstations":["embedded"],"validators":["rubric_review"],"ui_modules":["code_editor","register_serial_panel","console_output"]},
+    {"id":"726d2824-96e1-4f9e-84ef-6ae9cc170279","career_family":"EEE","role":"Electrical Engineer","workstations":["system_design"],"validators":["rubric_review"],"ui_modules":["diagram_canvas","report_editor"]},
+    {"id":"5a1da9b2-ae4e-4258-bb92-f82f83ba31c4","career_family":"Civil","role":"Structural Engineer","workstations":["report"],"validators":["rubric_review"],"ui_modules":["report_editor"]},
+    {"id":"79b2622f-9645-4970-b0d2-97d7890f440b","career_family":"Mechanical","role":"Mechanical Engineer","workstations":["excel"],"validators":["rubric_review"],"ui_modules":["excel_grid"]},
+    {"id":"21c0a6b6-8eb1-448f-8afb-23748212f5c9","career_family":"Biotech","role":"Bioprocess Engineer","workstations":["react_frontend"],"validators":["rubric_review"],"ui_modules":["code_editor","file_explorer","browser_live_preview","console_output"]},
+    {"id":"7fdde43a-1783-4d0a-89f6-23ba4c806de5","career_family":"MedicalBiotech","role":"Medical Biotechnology Specialist","workstations":["full_stack"],"validators":["rubric_review"],"ui_modules":["code_editor","browser_live_preview","api_client","sql_editor"]},
+    {"id":"90c65044-c288-44ad-9ae1-0f67b1d25b4e","career_family":"ClinicalLab","role":"Clinical Laboratory Specialist","workstations":["calculator"],"validators":["rubric_review"],"ui_modules":["answer_panel"]},
+    {"id":"cd355629-d1b9-43df-9adb-fdd637b78e4a","career_family":"IT","role":"SAP FI/CO Consultant","workstations":["sap_console"],"validators":["rubric_review"],"ui_modules":["code_editor","terminal","answer_panel"]},
+    {"id":"1a0227d5-47b0-4a06-b974-bab6b854686a","career_family":"IT","role":"SAP MM/SD Consultant","workstations":["sap_console"],"validators":["rubric_review"],"ui_modules":["code_editor","terminal","answer_panel"]},
+    {"id":"631899ab-933a-4b12-af61-320c5159fb7e","career_family":"IT","role":"SAP ABAP Developer","workstations":["sap_console"],"validators":["rubric_review"],"ui_modules":["code_editor","terminal","answer_panel"]},
+    {"id":"6d3e159d-ef9d-46ca-9d19-c32da22dbac0","career_family":"IT","role":"Frontend Developer","workstations":["frontend_preview"],"validators":["rubric_review"],"ui_modules":["code_editor","browser_live_preview","console_output"]}
+  ],
+  "av2_domain_challenge_grants": [
+    {"id":"8312a68c-d3fb-48bd-a2ef-e1efed2f0ed7","user_id":"b139913d-ded1-420b-b849-670cb3ad7f0f","source":"admin_grant","granted_at":"2026-07-28T04:42:18.403856+00:00","expires_at":null,"revoked_at":null}
+  ],
+  "av2_datasets": [
+    {"dataset_id":"orders-v1","scenario_pack_id":"f5baf3e4-4c2e-40a9-a85e-13417ae59420","name":"Orders (Banking Fraud)","description":"Seed dataset for the SQL total-revenue challenge template"},
+    {"dataset_id":"customers-churn-v1","scenario_pack_id":"3fd8f50f-f017-4d5a-a5a4-6ff7bd6bc60a","name":"Customer Churn Snapshot","description":"Seed dataset for the ML Engineer churn-prediction pilot mission (Arena V2 pilot phase)"}
+  ]
+}

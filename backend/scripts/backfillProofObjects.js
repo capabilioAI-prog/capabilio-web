@@ -34,8 +34,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: resolve(__dirname, "../../.env") })
 
 import { supabaseAdmin } from "../server/lib/supabase.js"
-import { buildProofObjectFromArenaHistory } from "../server/lib/arena-v2/proofObjects/legacyBuilder.js"
-import * as proofRepo from "../server/lib/arena-v2/proofObjects/repository.js"
+import { buildProofObjectFromArenaHistory } from "../server/lib/proofObjects/legacyBuilder.js"
+import * as proofRepo from "../server/lib/proofObjects/repository.js"
 
 async function run() {
   console.log("[backfill] Fetching legacy arena_history rows…")

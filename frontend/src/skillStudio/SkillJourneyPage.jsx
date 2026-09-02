@@ -8,7 +8,7 @@ import ArenaGatePanel from "./ArenaGatePanel"
 import EvidencePanel from "./EvidencePanel"
 import NextSkillPanel from "./NextSkillPanel"
 
-export default function SkillJourneyPage({ journey, jobTitle, onOpenModule, onBack, recommendations = [] }) {
+export default function SkillJourneyPage({ journey, jobTitle, onOpenModule, onBack, onArenaGo, recommendations = [] }) {
   const node = journey.skill_graph_nodes || {}
   const skillLabel = node.label || "Skill"
 
@@ -40,7 +40,7 @@ export default function SkillJourneyPage({ journey, jobTitle, onOpenModule, onBa
         </div>
 
         <div style={{ ...cardStyle, padding: 20 }}>
-          <ArenaGatePanel skillJourneyId={journey.id} skillGraphNodeId={node.id} domainKey={node.domain_key} />
+          <ArenaGatePanel skillJourneyId={journey.id} skillGraphNodeId={node.id} domainKey={node.domain_key} onArenaGo={onArenaGo} />
         </div>
       </div>
 

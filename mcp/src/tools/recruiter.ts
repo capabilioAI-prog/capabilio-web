@@ -1,25 +1,27 @@
 /**
- * tools/recruiter.ts — Recruiter / Nexus domain (5 tools)
+ * tools/recruiter.ts — Recruiter / Nexus domain (3 working tools, 2 not yet implemented)
  *
  * Tools:
  *   recruiter.searchCandidates   — search students by name/role/domain
  *   recruiter.getCandidateProfile — full public profile of a candidate
- *   recruiter.getCandidateElo    — ELO + breakdown for a candidate
- *   recruiter.getCandidateVault  — public Vault artifacts for a candidate
+ *   recruiter.getCandidateElo    — NOT_IMPLEMENTED (no per-uid ELO read endpoint — see tools/elo.ts)
+ *   recruiter.getCandidateVault  — NOT_IMPLEMENTED (no recruiter-proof read endpoint on the rebuilt backend)
  *   recruiter.sendNexusRequest   — send a connection request via Nexus
  *
- * BACKEND WIRING NOTE (2026-07-14 fix): searchCandidates's path/verb were
- * already correct (/api/nexus/search) but the backend only reads q/role/domain
- * /page/limit — it does NOT support skills-array, ELO-range, or location
- * filtering (there IS a separate /api/arena/v2/recruiter/candidates endpoint
- * that filters by proof-artifact score/challenge_type, but its own min_elo/
- * domain query params are dead code in the backend itself, so switching to it
- * would trade one set of unsupported filters for another — left on
- * /api/nexus/search as the more honestly-documented option).
- * getCandidateProfile/getCandidateElo/getCandidateVault/sendNexusRequest all
- * had wrong paths — corrected to /api/nexus/profile/:uid,
- * /api/arena/v2/elo/:uid, /api/arena/v2/recruiter/proof/:uid, and
- * /api/nexus/connect respectively.
+ * BACKEND WIRING NOTE (2026-07-14 fix, updated 2026-09-01): searchCandidates's
+ * path/verb were already correct (/api/nexus/search) but the backend only
+ * reads q/role/domain/page/limit — it does NOT support skills-array,
+ * ELO-range, or location filtering. getCandidateProfile/sendNexusRequest were
+ * corrected to /api/nexus/profile/:uid and /api/nexus/connect respectively —
+ * both still live and unaffected by this update.
+ *
+ * getCandidateElo (was /api/arena/v2/elo/:uid) and getCandidateVault (was
+ * /api/arena/v2/recruiter/proof/:uid) both depended on Arena V2 endpoints
+ * deleted in commit c34d357 (2026-08-26). The rebuilt Arena backend has no
+ * per-uid ELO read endpoint (see tools/elo.ts) and no recruiter-facing proof
+ * endpoint at all — both now fail fast with a clear NOT_IMPLEMENTED error
+ * instead of a raw backend 404. Building real replacements is backend work,
+ * out of scope for this fix.
  *
  * Security: ALL tools in this file require role=recruiter or admin.
  * Students cannot call these tools. Data returned is scoped to the
@@ -132,7 +134,7 @@ export function registerRecruiterTools(server: McpServer): void {
   // ── recruiter.getCandidateElo ──────────────────────────────────────────────
   server.tool(
     "recruiter.getCandidateElo",
-    "Get a candidate's ELO score, rank, percentile, and domain breakdown (Arena, Interview, Skills). Returns only public ELO data.",
+    "NOT YET IMPLEMENTED — there is no per-uid ELO read endpoint on the rebuilt Arena backend (ELO is a flat profiles.elo_rating column with no dedicated read/rank/breakdown route — same gap as tools/elo.ts). Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       candidateUid:  UidSchema.describe("UID of the student candidate"),
@@ -146,21 +148,18 @@ export function registerRecruiterTools(server: McpServer): void {
       assertPermission(user, "recruiter")
       assertRecruiter(user)
 
-      try {
-        const data = await api.get(authorization, `/api/arena/v2/elo/${candidateUid}`)
-        log.success(t)
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No per-uid ELO read endpoint exists on the rebuilt backend", { candidateUid })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "recruiter.getCandidateElo has no backend implementation yet — ELO is a flat profiles.elo_rating column with no dedicated read endpoint on the rebuilt backend. Tracked as follow-up work."
+      )
     }
   )
 
   // ── recruiter.getCandidateVault ────────────────────────────────────────────
   server.tool(
     "recruiter.getCandidateVault",
-    "Get the public Vault artifacts for a candidate — projects, certifications, open source contributions (recruiter-visible-flagged only). NOTE: the backend returns the full list unpaginated — page/pageSize are accepted for forward-compat but ignored.",
+    "NOT YET IMPLEMENTED — the recruiter-facing proof-artifacts endpoint this tool depended on no longer exists on the rebuilt backend. recruiter.getCandidateProfile may include some public achievement data as a partial substitute. Tracked as follow-up work.",
     {
       authorization: z.string().describe("Bearer JWT"),
       candidateUid:  UidSchema.describe("UID of the student candidate"),
@@ -176,16 +175,11 @@ export function registerRecruiterTools(server: McpServer): void {
       assertPermission(user, "recruiter")
       assertRecruiter(user)
 
-      try {
-        // Real route: GET /api/arena/v2/recruiter/proof/:uid — returns only
-        // is_recruiter_visible=true artifacts, no pagination support.
-        const data = await api.get(authorization, `/api/arena/v2/recruiter/proof/${candidateUid}`)
-        log.success(t)
-        return { content: [{ type: "text", text: JSON.stringify(data) }] }
-      } catch (e: unknown) {
-        log.failure(t, "API_ERROR", e instanceof Error ? e.message : "Unknown")
-        throw e
-      }
+      log.failure(t, "NOT_IMPLEMENTED", "No recruiter-facing proof-artifacts endpoint exists on the rebuilt backend", { candidateUid })
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        "recruiter.getCandidateVault has no backend implementation yet — its backing endpoint was removed with Arena V2 and has no replacement. Tracked as follow-up work."
+      )
     }
   )
 

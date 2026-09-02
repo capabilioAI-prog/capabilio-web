@@ -2357,7 +2357,7 @@ function ExecutiveAura({ user, userData, onNavigate, onNavigatePricing }) {
       <input ref={photoInputRef} type="file" style={{ display:"none" }} onChange={handlePhotoUpload} accept="image/*"/>
       <input ref={bioInputRef}   type="file" style={{ display:"none" }} onChange={handleBioUpload} accept=".pdf,.doc,.docx,.txt"/>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 28px 80px" }}>
+      <div style={{ maxWidth: 1800, margin: "0 auto", padding: "80px 40px 80px" }}>
 
         {/* ── Hero Header ── */}
         <div style={{ background: `linear-gradient(135deg, ${Ex.dark} 0%, ${Ex.dark2} 50%, #1a1a35 100%)`, borderRadius: 20, padding: "40px 40px 36px", marginBottom: 28, position: "relative", overflow: "hidden", animation: "fadeUp 0.3s ease both", boxShadow: "0 20px 60px rgba(13,13,26,0.22)" }}>
@@ -4679,7 +4679,7 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
         })}
       </div>
 
-      <div style={{maxWidth:1160,margin:"0 auto",padding:"32px 28px 60px",position:"relative",zIndex:1}}>
+      <div style={{maxWidth:1800,margin:"0 auto",padding:"32px 40px 60px",position:"relative",zIndex:1}}>
 
         {/* ═══════════ DASHBOARD TAB ═══════════ */}
         {activeTab==="dashboard"&&(
