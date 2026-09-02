@@ -2715,6 +2715,34 @@ export default function Portfolio({ username: usernameProp }) {
                 )}
               </div>
 
+              {/* Headline Code DNA numbers (2026-09-03) — the canonical
+                  connection's denormalized summary (github_connections),
+                  same three figures Settings/Career & Vault already show,
+                  so this public view matches what the owner sees rather
+                  than presenting a differently-derived picture. Absent
+                  entirely for a profile that has capabilitySignals from an
+                  older analysis but no canonical connection yet. */}
+              {typeof ud.codeDna.score==="number" && (
+                <div style={{display:"flex",flexWrap:"wrap",gap:20,marginBottom:16,padding:"12px 16px",background:C.bgInner,border:`1px solid ${C.border}`,borderRadius:12}}>
+                  <div>
+                    <div style={{fontSize:22,fontWeight:800,color:C.green,lineHeight:1}}>{ud.codeDna.score}</div>
+                    <div style={{fontSize:9,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Code DNA Score</div>
+                  </div>
+                  {ud.codeDna.confidenceLevel&&(
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:C.ink2}}>{ud.codeDna.confidenceLevel==="high"?"High":ud.codeDna.confidenceLevel==="moderate"?"Moderate":"Low"}</div>
+                      <div style={{fontSize:9,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Confidence</div>
+                    </div>
+                  )}
+                  {typeof ud.codeDna.repositoriesAnalyzed==="number"&&(
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:C.ink2}}>{ud.codeDna.repositoriesAnalyzed}</div>
+                      <div style={{fontSize:9,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginTop:2}}>Repositories Analyzed</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {ud.codeDna.capabilitySignals?.length>0 && (
                 <div style={{marginBottom:ud.codeDna.repoInterview?18:4}}>
                   <div style={{fontSize:10,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>

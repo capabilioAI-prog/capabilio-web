@@ -101,6 +101,24 @@ export const profileApi = {
 // backend/server/routes/security.js — every one of these has a real,
 // tested server-side effect; none of them is a local-state-only toggle.
 // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// GITHUB CODE DNA — canonical connection (2026-09-03)
+// One connect/disconnect/status surface every UI (Settings, Career & Vault,
+// Portfolio, Profile Strength) reads from, instead of each computing its
+// own idea of "is GitHub connected" from a raw URL field. See
+// backend/server/routes/github.js's /connect, /disconnect, /connection.
+// ══════════════════════════════════════════
+export const githubApi = {
+  connect: (githubUrl, keyword) => request("POST", "/github/connect", { githubUrl, keyword }),
+  disconnect: () => request("POST", "/github/disconnect"),
+  connection: () => request("GET", "/github/connection"),
+  analyze: (githubUrl, keyword) => request("POST", "/github/analyze", { githubUrl, keyword }),
+  verificationCode: () => request("GET", "/github/verification-code"),
+  verifyOwnership: (githubUrl) => request("POST", "/github/verify-ownership", { githubUrl }),
+  visibility: () => request("GET", "/github/visibility"),
+  setVisibility: (patch) => request("POST", "/github/visibility", patch),
+}
+
 export const securityApi = {
   changePassword: (currentPassword, newPassword) => request("POST", "/security/password/change", { currentPassword, newPassword }),
 

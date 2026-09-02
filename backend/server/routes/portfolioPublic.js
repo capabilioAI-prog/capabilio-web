@@ -263,6 +263,29 @@ router.get("/portfolio/lookup/:identifier", async (req, res) => {
         .maybeSingle()
       if (codeDnaRow && (isOwner || codeDnaRow.is_portfolio_visible !== false)) {
         safe.codeDna = buildCodeDnaRecruiterView(codeDnaRow)
+
+        // Canonical-identity summary (2026-09-03) — the same three headline
+        // numbers Settings/Career & Vault already show, so the public
+        // portfolio's "GitHub & Code DNA" card matches what the owner sees,
+        // not a separately-derived presentation. Same visibility gate as
+        // codeDna above (github_connections has no visibility flag of its
+        // own — Code DNA's is_portfolio_visible is the one flag that
+        // controls whether ANY of this shows publicly, by design, so there
+        // is exactly one visibility switch to reason about, not two that
+        // could disagree).
+        const { data: connRow } = await supabaseAdmin
+          .from("github_connections")
+          .select("username, verification_state, code_dna_score, confidence_level, repositories_analyzed, last_scanned_at, disconnected_at")
+          .eq("user_id", row.id)
+          .maybeSingle()
+        if (connRow && !connRow.disconnected_at) {
+          safe.codeDna.username = connRow.username
+          safe.codeDna.verified = connRow.verification_state === "verified"
+          safe.codeDna.score = connRow.code_dna_score
+          safe.codeDna.confidenceLevel = connRow.confidence_level
+          safe.codeDna.repositoriesAnalyzed = connRow.repositories_analyzed
+          safe.codeDna.lastScannedAt = connRow.last_scanned_at
+        }
       }
     } catch (e) {
       console.error("[portfolio/lookup] codeDna fetch failed:", e.message)

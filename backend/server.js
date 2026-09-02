@@ -150,6 +150,7 @@ import skillStudioV2Routes    from "./server/routes/skillStudioV2.js"       // S
 import skillStudioContentAdminRoutes from "./server/routes/skillStudioContentAdmin.js" // Skill Studio V2 content/admin review queue — requireAuth+requireAdmin, dedicated namespace (see questionBankAdmin.js's 2026-07-24 routing-shadow fix for why NOT bare "/api")
 import chatRoutes             from "./server/routes/chat.js"
 import githubRoutes           from "./server/routes/github.js"
+import internalCodeDnaScanRoutes from "./server/routes/internalCodeDnaScan.js"
 import jobRoutes              from "./server/routes/jobs.js"
 import paymentRoutes          from "./server/routes/payments.js"
 import referralRoutes         from "./server/routes/referral.js"
@@ -422,7 +423,8 @@ app.use("/api/skill-studio", skillStudioRoutes)  // lesson, learning-path, youtu
 app.use("/api/skill-studio", skillStudioV2Routes) // Skill Studio V2 — home, graph, journeys, modules, quiz, memory, arena, interview, evidence, recommendations
 app.use("/api/admin/skill-studio-content", skillStudioContentAdminRoutes) // Skill Studio content/creator review queue — requireAuth+requireAdmin, dedicated namespace (see questionBankAdmin.js routing-shadow fix)
 app.use("/api/chat",         chatRoutes)         // chat
-app.use("/api/github",       githubRoutes)       // analyze
+app.use("/api/github",       githubRoutes)       // analyze, connect, disconnect, connection, verify-ownership, repo-interview, visibility, cross-verify
+app.use("/api/internal",     internalCodeDnaScanRoutes) // code-dna/scan-batch — server-to-server only, shared-secret authenticated (see requireCronSecret), called by a Render Cron Job on a schedule
 app.use("/api",              jobRoutes)          // jobs, markets/india
 app.use("/api",              paymentRoutes)      // create-order, verify-payment, theme/*, exec/thought-leadership
 app.use("/api/referral",     referralRoutes)     // validate, apply, profile, leaderboard
