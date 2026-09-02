@@ -88,13 +88,26 @@ function computeTierLocks(tieredExperiments, passedIds) {
 // deterministic score/passed/elo_delta from the rubric evaluator — never
 // the other way around. Returns null (silently) on any failure so a
 // submission never blocks or errors on this.
-async function generateAiFeedback({ prompt, answer, passed, score }) {
+// Settings/Security redesign (2026-09-02): AI Preferences' "Arena Feedback
+// Style" previously wrote to a nonexistent column (see ai_preferences
+// migration header) and was never read by anything — this is its first
+// real consumer. feedbackStyle is looked up by the caller (ai_preferences
+// table) and passed in; defaults to "detailed" (this function's original,
+// unchanged behavior) when absent, so a user who's never touched AI
+// Preferences sees no change at all.
+const FEEDBACK_STYLE_INSTRUCTION = {
+  concise: "In exactly 1 short sentence, explain the result plainly using ONLY the facts given.",
+  detailed: "In 2-3 short sentences, explain the result plainly using ONLY the facts given.",
+}
+
+async function generateAiFeedback({ prompt, answer, passed, score, feedbackStyle = "detailed" }) {
   if (!process.env.GROQ_API_KEY) return null
   try {
+    const styleInstruction = FEEDBACK_STYLE_INSTRUCTION[feedbackStyle] || FEEDBACK_STYLE_INSTRUCTION.detailed
     const text = await groq([
       {
         role: "system",
-        content: "You coach students on curriculum experiment attempts. In 2-3 short sentences, explain the result plainly using ONLY the facts given. Never invent a pass/fail verdict or a score; those are already decided and given to you as fact.",
+        content: `You coach students on curriculum experiment attempts. ${styleInstruction} Never invent a pass/fail verdict or a score; those are already decided and given to you as fact.`,
       },
       {
         role: "user",
@@ -735,8 +748,11 @@ router.post("/experiments/:id/submit", requireAuth, codeExecutionLimiter, async 
     }
     // Best-effort AI explanation layered on top — never blocks, never
     // changes score/passed/elo, which are already final by this point.
+    const { data: aiPrefsRow } = await supabaseAdmin
+      .from("ai_preferences").select("feedback_style").eq("user_id", req.user.id).maybeSingle()
     const aiFeedback = await generateAiFeedback({
       prompt: experiment.prompt, answer, passed: result.passed, score: result.score,
+      feedbackStyle: aiPrefsRow?.feedback_style,
     })
 
     const { data: submission, error: subErr } = await supabaseAdmin

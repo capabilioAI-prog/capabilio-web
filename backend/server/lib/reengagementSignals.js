@@ -61,15 +61,48 @@ async function alreadyNotifiedRecently(userId, type) {
   return (data || []).length > 0
 }
 
+// Settings/Security redesign (2026-09-02): notification_preferences is real,
+// dedicated storage (see that migration) — this is the one existing
+// notification writer in the codebase, so it's the first real consumer of
+// it. Each signal type maps to the closest real preference category; there
+// isn't a 1:1 field for every signal, so elo_decay_risk (an Arena
+// performance signal) shares arena_streak_reminders rather than inventing a
+// fourth near-duplicate toggle nobody asked to see in Settings.
+const PREFERENCE_KEY_BY_SIGNAL_TYPE = {
+  streak_break_risk: "arena_streak_reminders",
+  elo_decay_risk: "arena_streak_reminders",
+  skill_stale: "career_recommendations",
+}
+
+async function getPreferences(userId) {
+  const { data } = await supabaseAdmin
+    .from("notification_preferences").select("*").eq("user_id", userId).maybeSingle()
+  // No row yet = defaults apply (every category on except marketing) —
+  // matches the column defaults in the 2026-09-02 migration exactly, so a
+  // user who's never opened Notification Preferences still gets the same
+  // behavior as if their row existed with its defaults.
+  return data || {
+    arena_streak_reminders: true, career_recommendations: true,
+    channel_inapp: true, channel_email: true,
+  }
+}
+
 async function notify(userId, { type, title, body, email }) {
   if (await alreadyNotifiedRecently(userId, type)) return { skipped: true }
 
-  const { error } = await supabaseAdmin.from("notifications").insert({
-    user_id: userId, type, title, body,
-  })
-  if (error) { console.error(`[reengagement] insert failed for ${userId}/${type}:`, error.message); return { skipped: true, error: error.message } }
+  const prefs = await getPreferences(userId)
+  const prefKey = PREFERENCE_KEY_BY_SIGNAL_TYPE[type]
+  const categoryEnabled = prefKey ? prefs[prefKey] !== false : true
+  if (!categoryEnabled) return { skipped: true, reason: "category_disabled" }
 
-  if (email?.to) {
+  if (prefs.channel_inapp !== false) {
+    const { error } = await supabaseAdmin.from("notifications").insert({
+      user_id: userId, type, title, body,
+    })
+    if (error) console.error(`[reengagement] insert failed for ${userId}/${type}:`, error.message)
+  }
+
+  if (email?.to && prefs.channel_email !== false) {
     await sendEmail({
       to: email.to,
       subject: title,

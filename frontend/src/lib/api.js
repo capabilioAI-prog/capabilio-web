@@ -95,6 +95,39 @@ export const profileApi = {
 }
 
 // ══════════════════════════════════════════
+// SECURITY — Settings/Security/Privacy redesign (2026-09-02)
+// Password change, 2FA (Supabase native TOTP + our own recovery codes),
+// sessions, profile visibility, notification/AI preferences. See
+// backend/server/routes/security.js — every one of these has a real,
+// tested server-side effect; none of them is a local-state-only toggle.
+// ══════════════════════════════════════════
+export const securityApi = {
+  changePassword: (currentPassword, newPassword) => request("POST", "/security/password/change", { currentPassword, newPassword }),
+
+  mfaStatus:  () => request("GET", "/security/mfa/status"),
+  mfaEnroll:  (currentPassword) => request("POST", "/security/mfa/enroll", { currentPassword }),
+  mfaVerify:  (factorId, code) => request("POST", "/security/mfa/verify", { factorId, code }),
+  mfaDisable: (currentPassword, factorId, { code, recoveryCode } = {}) =>
+    request("POST", "/security/mfa/disable", { currentPassword, factorId, code, recoveryCode }),
+  regenerateRecoveryCodes: (currentPassword, code) => request("POST", "/security/mfa/recovery-codes/regenerate", { currentPassword, code }),
+  recoveryLogin: (email, password, recoveryCode) => request("POST", "/security/mfa/recovery-login", { email, password, recoveryCode }),
+
+  sessions: () => request("GET", "/security/sessions"),
+
+  setProfileVisibility: (profileVisibility) => request("POST", "/security/visibility", { profileVisibility }),
+
+  getNotificationPreferences: () => request("GET", "/security/notification-preferences"),
+  updateNotificationPreferences: (patch) => request("PUT", "/security/notification-preferences", patch),
+
+  getAiPreferences: () => request("GET", "/security/ai-preferences"),
+  updateAiPreferences: (patch) => request("PUT", "/security/ai-preferences", patch),
+
+  events: () => request("GET", "/security/events"),
+
+  deleteAccount: (currentPassword, reason) => request("POST", "/security/account/delete", { currentPassword, reason }),
+}
+
+// ══════════════════════════════════════════
 // ORG / INSTITUTION OS — server-side writes to PC-7-protected profiles columns
 // ══════════════════════════════════════════
 export const orgApi = {
