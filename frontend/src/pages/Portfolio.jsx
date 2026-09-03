@@ -1802,9 +1802,12 @@ export default function Portfolio({ username: usernameProp }) {
       `}</style>
 
       {/* ── Sticky nav ─────────────────────────────────────────────────────── */}
+      {/* PRODUCTION FIX (2026-09-03): background was rgba(10,15,30,0.92) — a
+          near-black bar — with C.ink/C.ink3 text, correct when those were
+          light colors, invisible now that they're dark. */}
       <nav className="np" style={{
         position:"sticky",top:0,zIndex:100,
-        background:scrolled?"rgba(10,15,30,0.92)":"transparent",
+        background:scrolled?"rgba(255,255,255,0.92)":"transparent",
         backdropFilter:scrolled?"blur(20px)":"none",
         borderBottom:scrolled?`1px solid ${C.border}`:"none",
         transition:"all 0.3s",
