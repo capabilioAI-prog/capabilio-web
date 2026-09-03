@@ -30,6 +30,7 @@
  * repository code, which it deliberately does not (keeps Portfolio
  * Decision's dependency surface small). See docs/future-improvements.md.
  */
+import { buildGithubEvidenceProfile } from "./codeDna/evidenceProfile.js"
 
 /**
  * @param {{ instance: object, assessment: object, verification: string }} input
@@ -78,64 +79,45 @@ const VERIFICATION_BY_PUBLISH_STATE = {
  *   'auto_published' or 'self_selected' in practice)
  * @returns {object} the recruiter-facing view
  */
-// Code DNA (2026-08-04, Phase 1): proof_type='code_dna_profile' rows
-// (source='github_code_dna') are shaped completely differently from Arena/
-// SkillStudio challenge proofs — no skill/score/validator_result the way a
-// challenge submission has. Recruiters must NEVER see raw GitHub analytics
-// (repo names, star counts, language %s) per product requirement — only
-// plain-language capability signals. Only signals we can honestly derive
-// from what's actually computed today (builder/documentation/consistency
-// heuristic scores, plus the AI Repository Interview added below — see
-// routes/github.js) are included; "can debug software", "can architect
-// software", "can learn independently" are still NOT included because
-// nothing in this codebase measures them yet (would require commit-message
-// intelligence / architecture intelligence — deferred, not built) —
-// fabricating those signals to fill out a checklist would be worse than
-// omitting them.
+// Code DNA / GitHub Evidence Profile (2026-08-04, extended 2026-09-03):
+// proof_type='code_dna_profile' rows (source='github_code_dna') are shaped
+// completely differently from Arena/SkillStudio challenge proofs — no
+// skill/score/validator_result the way a challenge submission has.
+//
+// 2026-09-03: this function now delegates the actual evidence-building to
+// lib/codeDna/evidenceProfile.js's buildGithubEvidenceProfile — the single
+// canonical builder also used directly by routes/partnerBridge.js's
+// candidate-detail endpoint (which used to build its OWN inline object
+// straight from proof_objects.source_ref, exposing raw repo names, star
+// counts, languages, bio, and avatar — exactly what this function's
+// original 2026-08-04 comment said recruiters must never see. Routing both
+// callers through one builder is what actually enforces that rule, rather
+// than stating it in a comment one of two call sites quietly didn't follow).
+//
+// capabilitySignals is kept for backward compatibility with any consumer
+// still reading the old 4-boolean shape; every new field the GitHub
+// Evidence Profile adds (overview, technicalFootprint, projectEvidence,
+// authorshipEvidence, originalityEvidence, engineeringPractice,
+// contributionConsistency, collaborationEvidence, recruiterSummary,
+// limitations) is additive alongside it, never a breaking rename.
 export function buildCodeDnaRecruiterView(proof) {
+  const evidenceProfile = buildGithubEvidenceProfile(proof)
+  if (!evidenceProfile) return null
+
   const scores = proof.source_ref?.scores || {}
-  const verified = proof.trust_level === "verified"
   const signal = (score, threshold=55) => typeof score === "number" ? score >= threshold : null
   const capabilitySignals = [
     { label: "Can build software",   value: signal(scores.builder) },
     { label: "Can document work",    value: signal(scores.documentation) },
     { label: "Can maintain software", value: signal(scores.consistency) },
-    // 2026-08-05: techBreadth/tooling are legitimately skill-relevant (real
-    // language/tool diversity, real CI/CD-and-config presence) so they're
-    // included here. Deliberately did NOT add a followers/stars-based
-    // signal — that's popularity, not skill, and would contradict this
-    // platform's skill-first evaluation principle.
     { label: "Works across multiple technologies", value: signal(scores.techBreadth) },
     { label: "Uses professional tooling (CI/CD, config)", value: signal(scores.tooling) },
   ].filter(s => s.value !== null)
 
-  // AI Repository Interview (2026-08-04): a text Q&A comprehension check —
-  // see routes/github.js's /repo-interview/* routes. Surfaced as its own
-  // labeled field rather than folded into capabilitySignals' true/false
-  // checklist, because it's a richer plain-language verdict + summary a
-  // recruiter can actually read, not a binary. Always carries aiAssessed:
-  // true so it's never confused with the (also-unverified, but at least
-  // deterministic-formula) heuristic scores above — this is a probabilistic
-  // LLM judgment, not a measurement.
-  const ri = proof.source_ref?.repoInterview
-  const repoInterview = ri?.evaluation ? {
-    verdict: ri.evaluation.overallVerdict || null,
-    summary: ri.evaluation.summary || null,
-    aiAssessed: true,
-  } : null
-
   return {
-    kind: "code_dna",
-    verification: verified ? "Verified (GitHub ownership confirmed)" : "Self-Selected (GitHub ownership unconfirmed)",
+    ...evidenceProfile,
+    kind: "code_dna", // kept for backward compatibility; evidenceProfile.kind is "github_evidence_profile"
     capabilitySignals,
-    repoInterview,
-    // 2026-08-05: prefer source_ref.analyzedAt — codeDnaRepo.upsertProfile
-    // (lib/codeDna/repository.js) never explicitly sets completed_at, so it
-    // could be null/stale for this proof_type; analyzedAt is set fresh on
-    // every successful /analyze and is the field that actually reflects
-    // "when was this last real".
-    createdAt: proof.source_ref?.analyzedAt || proof.completed_at || null,
-    title: proof.title || null,
   }
 }
 

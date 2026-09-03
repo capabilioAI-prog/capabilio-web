@@ -2693,8 +2693,8 @@ export default function Portfolio({ username: usernameProp }) {
         {ud.codeDna&&(
           <div ref={refs.codeDna} className="ps">
             <Card accent={C.green}>
-              <SectionTitle icon="⌥" title="GitHub Verification"
-                sub="What we check, and why it matters more than stars or followers"
+              <SectionTitle icon="⌥" title="GitHub Evidence"
+                sub="What was analyzed, and what it does — and doesn't — show"
                 accent={C.green}/>
 
               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:16}}>
@@ -2758,8 +2758,56 @@ export default function Portfolio({ username: usernameProp }) {
                 </div>
               )}
 
+              {/* Technical Footprint (GitHub Evidence Profile, 2026-09-03) —
+                  areas grouped from actually-detected languages/tech-stack
+                  tags, never an invented skill. */}
+              {ud.codeDna.technicalFootprint?.length>0 && (
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:10,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Technical Footprint</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                    {ud.codeDna.technicalFootprint.map((f,i)=>(
+                      <div key={i} style={{background:C.bgInner,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.ink2}}>
+                        <span style={{fontWeight:700}}>{f.area}</span>{f.technologies.length>0 && <span style={{color:C.ink4}}> — {f.technologies.join(", ")}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Project Evidence — up to 3 repositories, never ranked by
+                  stars alone (that ranking happens upstream); each card
+                  shows why it's evidence, not just that it exists. */}
+              {ud.codeDna.projectEvidence?.length>0 && (
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:10,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Project Evidence</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {ud.codeDna.projectEvidence.map((p,i)=>(
+                      <div key={i} style={{background:C.bgInner,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+                          {p.url ? (
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{fontSize:13,fontWeight:700,color:C.blue,textDecoration:"none"}}>{p.name} ↗</a>
+                          ) : <span style={{fontSize:13,fontWeight:700,color:C.ink}}>{p.name}</span>}
+                          <span style={{fontSize:10,color:C.ink4}}>{p.maturity}</span>
+                        </div>
+                        <div style={{fontSize:12,color:C.ink3,marginTop:4,lineHeight:1.5}}>{p.summary}</div>
+                        {p.techStack?.length>0 && <div style={{fontSize:11,color:C.ink4,marginTop:6}}>{p.techStack.join(" · ")}</div>}
+                        <div style={{fontSize:11,fontWeight:700,marginTop:6,color:p.authorshipEvidence?.tone==="positive"?C.green:p.authorshipEvidence?.tone==="caution"?C.amber:C.ink4}}>
+                          {p.authorshipEvidence?.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {ud.codeDna.collaborationEvidence && (
+                <div style={{marginBottom:16,fontSize:12,color:C.ink3}}>
+                  <span style={{fontWeight:700,color:C.ink2}}>Collaboration: </span>{ud.codeDna.collaborationEvidence.detail}
+                </div>
+              )}
+
               {ud.codeDna.repoInterview&&(
-                <div style={{background:C.bgInner,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
+                <div style={{background:C.bgInner,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                     <span style={{fontSize:13}}>🎤</span>
                     <span style={{fontSize:12,fontWeight:800,color:C.ink}}>Can explain their own code</span>
@@ -2772,8 +2820,20 @@ export default function Portfolio({ username: usernameProp }) {
                 </div>
               )}
 
-              <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${C.border}`,fontSize:11,color:C.ink4,lineHeight:1.7}}>
-                We deliberately don't show star counts, follower numbers, or activity graphs here — those measure popularity and luck, not skill. What's shown above is: confirmed ownership, real engineering practice (documentation, CI/CD, working tooling) detected in the actual code, and whether the candidate can genuinely explain what they built.
+              {ud.codeDna.recruiterSummary && (
+                <div style={{fontSize:13,color:C.ink2,lineHeight:1.6,fontStyle:"italic",marginBottom:16,paddingLeft:12,borderLeft:`2px solid ${C.green}`}}>
+                  {ud.codeDna.recruiterSummary}
+                </div>
+              )}
+
+              <div style={{marginTop:4,paddingTop:14,borderTop:`1px solid ${C.border}`,fontSize:11,color:C.ink4,lineHeight:1.7}}>
+                {Array.isArray(ud.codeDna.limitations) && ud.codeDna.limitations.length>0 ? (
+                  <ul style={{margin:0,paddingLeft:16}}>
+                    {ud.codeDna.limitations.map((l,i)=><li key={i} style={{marginBottom:4}}>{l}</li>)}
+                  </ul>
+                ) : (
+                  "We deliberately don't show star counts, follower numbers, or activity graphs here — those measure popularity and luck, not skill."
+                )}
               </div>
             </Card>
           </div>

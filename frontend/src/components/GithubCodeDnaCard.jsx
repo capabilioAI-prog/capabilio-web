@@ -14,6 +14,10 @@
 //
 // `variant`: "full" (Settings — connect/disconnect actions, verification
 // flow) | "compact" (Career & Vault — status + link out, never a dashboard).
+// Both variants carry the "Refresh GitHub Evidence" action — there is no
+// background scheduler; POST /api/github/refresh (user-initiated only) is
+// the sole rescan trigger besides the initial connect. A normal page load
+// always shows the last saved result and never re-hits GitHub.
 import { useEffect, useState } from "react"
 import { githubApi } from "../lib/api"
 
@@ -39,24 +43,55 @@ function timeAgo(iso) {
 }
 function timeUntil(iso) {
   if (!iso) return null
-  const mins = Math.floor((new Date(iso).getTime() - Date.now()) / 60000)
-  if (mins <= 0) return "due now"
-  if (mins < 60) return `in ${mins}m`
+  const mins = Math.ceil((new Date(iso).getTime() - Date.now()) / 60000)
+  if (mins <= 0) return null
+  if (mins < 60) return `${mins}m`
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `in ${hrs}h`
-  return `in ${Math.floor(hrs / 24)}d`
+  if (hrs < 24) return `${hrs}h`
+  return `${Math.floor(hrs / 24)}d`
 }
 
 export default function GithubCodeDnaCard({ variant = "full", onConnectClick }) {
   const [conn, setConn] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshMessage, setRefreshMessage] = useState(null) // { tone: 'error'|'info', text }
 
-  useEffect(() => {
-    githubApi.connection()
+  function load() {
+    return githubApi.connection()
       .then(setConn)
       .catch(() => setConn({ connected: false }))
-      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load().finally(() => setLoading(false))
   }, [])
+
+  // Local "requesting" state covers the gap before the atomic backend claim
+  // resolves — the real concurrency guard is server-side (tryStartManualScan),
+  // this just stops an eager double-click from firing a second request.
+  const [requesting, setRequesting] = useState(false)
+  const isScanning = requesting || conn?.scanStatus === "scanning"
+  const cooldownLeft = !isScanning ? timeUntil(conn?.refreshAvailableAt) : null
+  const canRefresh = !!conn?.connected && !isScanning && !cooldownLeft
+
+  async function handleRefresh() {
+    if (!canRefresh) return
+    setRequesting(true)
+    setRefreshMessage(null)
+    try {
+      const result = await githubApi.refresh()
+      if (result?.refreshed === false) {
+        setRefreshMessage({ tone: "error", text: "That refresh didn't complete — showing your last successful analysis instead." })
+      } else {
+        setRefreshMessage(null)
+      }
+    } catch (e) {
+      setRefreshMessage({ tone: "error", text: e.message || "That refresh didn't complete — showing your last successful analysis instead." })
+    } finally {
+      await load()
+      setRequesting(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -114,19 +149,30 @@ export default function GithubCodeDnaCard({ variant = "full", onConnectClick }) 
       )}
 
       {variant === "full" && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 12, fontSize: 11, color: T.ink4 }}>
-          {conn.lastScannedAt && <span>Last scan: {timeAgo(conn.lastScannedAt)}</span>}
-          {conn.nextScanAt && <span>Next scan: {timeUntil(conn.nextScanAt)}</span>}
-          {conn.scanStatus === "scanning" && <span style={{ color: T.amber, fontWeight: 700 }}>Analyzing your coding history…</span>}
-          {conn.scanStatus === "failed" && <span style={{ color: T.red }}>We couldn't complete the latest analysis. Your previous Code DNA remains available.</span>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 8, fontSize: 11, color: T.ink4 }}>
+          {conn.lastScannedAt && <span>Last analyzed: {timeAgo(conn.lastScannedAt)}</span>}
+          {isScanning && <span style={{ color: T.amber, fontWeight: 700 }}>Analyzing your coding history…</span>}
         </div>
       )}
 
-      {variant === "compact" && conn.lastScannedAt && (
-        <div style={{ fontSize: 11, color: T.ink4, marginBottom: 10 }}>Updated {timeAgo(conn.lastScannedAt)}</div>
+      {variant === "compact" && (
+        <div style={{ fontSize: 11, color: T.ink4, marginBottom: 10 }}>
+          {isScanning ? <span style={{ color: T.amber, fontWeight: 700 }}>Analyzing…</span> : conn.lastScannedAt ? `Updated ${timeAgo(conn.lastScannedAt)}` : null}
+        </div>
       )}
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {conn.lastScanFailed && !isScanning && !refreshMessage && (
+        <div style={{ fontSize: 11, color: T.red, marginBottom: 10 }}>
+          Your last refresh didn&apos;t complete — showing your previous successful analysis.
+        </div>
+      )}
+      {refreshMessage && (
+        <div style={{ fontSize: 11, color: refreshMessage.tone === "error" ? T.red : T.ink4, marginBottom: 10 }}>
+          {refreshMessage.text}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <a href="#code-dna" onClick={e => { e.preventDefault(); document.dispatchEvent(new CustomEvent("capabilio:navigate-tab", { detail: "fingerprint" })) }}
           style={{ fontSize: 12, fontWeight: 700, color: T.indigo, textDecoration: "none" }}>
           View Code DNA →
@@ -136,6 +182,20 @@ export default function GithubCodeDnaCard({ variant = "full", onConnectClick }) 
             View GitHub ↗
           </a>
         )}
+        <button
+          onClick={handleRefresh}
+          disabled={!canRefresh}
+          title={cooldownLeft ? `You can refresh again in ${cooldownLeft}` : undefined}
+          style={{
+            marginLeft: "auto", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+            border: `1px solid ${canRefresh ? T.indigo : T.border}`,
+            background: canRefresh ? T.indigo3 : "transparent",
+            color: canRefresh ? T.indigo : T.ink3,
+            cursor: canRefresh ? "pointer" : "default",
+          }}
+        >
+          {isScanning ? "Refreshing…" : cooldownLeft ? `Refresh in ${cooldownLeft}` : "Refresh GitHub Evidence"}
+        </button>
       </div>
     </div>
   )

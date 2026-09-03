@@ -1,28 +1,56 @@
 /**
- * Regression guard (2026-09-03) for the GitHub Code DNA canonical-identity
- * redesign — source-scan style, consistent with security.test.js and the
- * other regression tests in this directory: asserts the contract at the
- * file-content level (auth required, no raw provider errors leaked, no
- * client-supplied user id trusted, evidence-graded ownership language,
- * shared-secret-gated internal scanner) so a future edit can't silently
- * weaken any of these.
+ * Regression guard (2026-09-03, revised same day) for the GitHub Code DNA
+ * canonical-identity system — source-scan style, consistent with
+ * security.test.js and the other regression tests in this directory:
+ * asserts the contract at the file-content level so a future edit can't
+ * silently weaken any of it.
+ *
+ * Revision note: the original version of this file also covered a Render
+ * Cron Job batch scanner (routes/internalCodeDnaScan.js, connection.js's
+ * claimEligibleForScan + exponential backoff). That infrastructure was
+ * removed the same day, before ever being deployed — Code DNA rescanning is
+ * now user-initiated only (POST /connect for the first analysis, POST
+ * /refresh for every rescan after). This file was rewritten to match; there
+ * is intentionally no test left referencing claimEligibleForScan,
+ * requireCronSecret, or INTERNAL_CRON_SECRET because none of that code
+ * exists anymore.
  */
 import { test, describe } from "node:test"
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { readFileSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const routesDir = path.join(__dirname, "..")
 const githubSrc = readFileSync(path.join(routesDir, "github.js"), "utf8")
-const internalSrc = readFileSync(path.join(routesDir, "internalCodeDnaScan.js"), "utf8")
 const connectionSrc = readFileSync(path.join(routesDir, "../lib/codeDna/connection.js"), "utf8")
 const serverSrc = readFileSync(path.join(routesDir, "../../server.js"), "utf8")
+const partnerBridgeSrc = readFileSync(path.join(routesDir, "partnerBridge.js"), "utf8")
+const recruiterEvidenceSrc = readFileSync(path.join(routesDir, "../lib/recruiterEvidence.js"), "utf8")
 
-describe("github.js — canonical connection routes exist and require auth", () => {
-  for (const route of ['router.post("/connect"', 'router.post("/disconnect"', 'router.get("/connection"']) {
-    test(`${route} ...) is present, behind router.use(requireAuth)`, () => {
+describe("No background scheduler exists", () => {
+  test("the internal batch-scan route file was removed, not just unmounted", () => {
+    assert.ok(!existsSync(path.join(routesDir, "internalCodeDnaScan.js")))
+  })
+  test("server.js no longer imports or mounts it", () => {
+    assert.ok(!serverSrc.includes("internalCodeDnaScan"))
+    assert.ok(!serverSrc.includes("/api/internal"))
+  })
+  test("connection.js has no batch-claim function and no actual timer/scheduler mechanism", () => {
+    assert.ok(!connectionSrc.includes("claimEligibleForScan"))
+    assert.ok(!/setInterval|setTimeout|node-cron|node-schedule/.test(connectionSrc))
+  })
+  test("nothing in the repo still references INTERNAL_CRON_SECRET or the old header", () => {
+    assert.ok(!githubSrc.includes("INTERNAL_CRON_SECRET"))
+    assert.ok(!githubSrc.includes("X-Internal-Cron-Secret"))
+    assert.ok(!connectionSrc.includes("INTERNAL_CRON_SECRET"))
+  })
+})
+
+describe("github.js — canonical connection + refresh routes exist and require auth", () => {
+  for (const route of ['router.post("/connect"', 'router.post("/disconnect"', 'router.get("/connection"', 'router.post("/refresh"']) {
+    test(`${route} ...) is present`, () => {
       assert.ok(githubSrc.includes(route))
     })
   }
@@ -32,14 +60,14 @@ describe("github.js — canonical connection routes exist and require auth", () 
 })
 
 describe("analyzeGithubProfile is a single shared implementation", () => {
-  test("exported and used by both the HTTP route and (indirectly) the batch scanner", () => {
+  test("exported and used by the /analyze, /connect, and /refresh routes", () => {
     assert.ok(githubSrc.includes("export async function analyzeGithubProfile"))
-    assert.ok(githubSrc.includes('router.post("/analyze", async (req, res) => {'))
-    assert.ok(internalSrc.includes("analyzeGithubProfile"))
-    assert.ok(internalSrc.includes('import { analyzeGithubProfile } from "./github.js"'))
+    const analyzeCallSites = githubSrc.match(/analyzeGithubProfile\(\{/g) || []
+    // /analyze, /connect, /refresh — three call sites into the one shared implementation
+    assert.ok(analyzeCallSites.length >= 3, `expected at least 3 call sites, found ${analyzeCallSites.length}`)
   })
   test("the HTTP /analyze route is a thin wrapper, not a second implementation", () => {
-    const idx = githubSrc.indexOf('router.post("/analyze", async (req, res) => {')
+    const idx = githubSrc.indexOf('router.post("/analyze"')
     const body = githubSrc.slice(idx, idx + 300)
     assert.ok(body.includes("analyzeGithubProfile({"))
     assert.ok(body.includes("res.status(result.status).json(result.body)"))
@@ -47,17 +75,25 @@ describe("analyzeGithubProfile is a single shared implementation", () => {
 })
 
 describe("No client-supplied user id ever substitutes for the verified JWT's own id", () => {
-  test("/connect, /disconnect, /connection all act on req.user.id, never req.body", () => {
-    for (const route of ["/connect", "/disconnect", "/connection"]) {
-      const idx = githubSrc.indexOf(`router.${route === "/connection" ? "get" : "post"}("${route}"`)
-      assert.notEqual(idx, -1, `route ${route} not found`)
-      const body = githubSrc.slice(idx, idx + 1600)
-      assert.ok(body.includes("req.user.id"), `${route} must act on req.user.id`)
+  test("/connect, /disconnect, /connection, /refresh all act on req.user.id, never req.body", () => {
+    const routes = [
+      ['router.post("/connect"', "post"],
+      ['router.post("/disconnect"', "post"],
+      ['router.get("/connection"', "get"],
+      ['router.post("/refresh"', "post"],
+    ]
+    for (const [needle] of routes) {
+      const idx = githubSrc.indexOf(needle)
+      assert.notEqual(idx, -1, `route ${needle} not found`)
+      const body = githubSrc.slice(idx, idx + 1800)
+      assert.ok(body.includes("req.user.id"), `${needle} must act on req.user.id`)
     }
   })
-  test("recovery of eligible-for-scan users never trusts a caller-supplied id — it's server-selected", () => {
-    assert.ok(connectionSrc.includes("export async function claimEligibleForScan"))
-    assert.ok(!/claimEligibleForScan\([^)]*req\.body/.test(internalSrc))
+  test("tryStartManualScan takes only a userId, never trusts a request body for who to scan", () => {
+    const idx = connectionSrc.indexOf("export async function tryStartManualScan")
+    assert.notEqual(idx, -1)
+    const signatureLine = connectionSrc.slice(idx, connectionSrc.indexOf("\n", idx))
+    assert.ok(/tryStartManualScan\(userId\)/.test(signatureLine))
   })
 })
 
@@ -72,6 +108,7 @@ describe("Ownership/originality signals use evidence-graded language, never abso
   const forbidden = [
     "100% verified owner", "Guaranteed original author", "Not copied",
     "definitely your original code", "definitely not copied", "sole author",
+    "proves every line", "perfectly prove",
   ]
   for (const phrase of forbidden) {
     test(`never claims "${phrase}"`, () => {
@@ -98,44 +135,121 @@ describe("Raw provider errors never reach the client", () => {
     assert.ok(body.includes("We couldn't find that GitHub profile"))
     assert.ok(body.includes("Unable to reach GitHub right now"))
   })
-})
-
-describe("Internal batch scanner is shared-secret gated, fails closed", () => {
-  test("requireCronSecret fails closed when INTERNAL_CRON_SECRET is unset", () => {
-    const idx = internalSrc.indexOf("function requireCronSecret")
-    const body = internalSrc.slice(idx, idx + 400)
-    assert.ok(body.includes("if (!expected)"))
-    assert.ok(body.includes("503"))
-  })
-  test("scan-batch route is behind requireCronSecret", () => {
-    assert.ok(internalSrc.includes('router.post("/code-dna/scan-batch", requireCronSecret'))
-  })
-  test("batch size is bounded regardless of what the caller requests", () => {
-    assert.ok(internalSrc.includes("Math.min(Number(req.body?.batchSize)"))
+  test("/refresh never echoes a raw analyzeGithubProfile error straight through without a safe fallback", () => {
+    const idx = githubSrc.indexOf('router.post("/refresh"')
+    const body = githubSrc.slice(idx, githubSrc.indexOf('router.get("/connection"'))
+    assert.ok(body.includes("your previous results are still shown"))
   })
 })
 
-describe("Recovery-code-style backoff and scheduling are real, not fixed intervals", () => {
-  test("markScanFailed increases consecutive_failures and backs off next_scan_at", () => {
+describe("User-initiated refresh: no duplicate/concurrent scans, sensible cooldown", () => {
+  test("tryStartManualScan claims atomically in one UPDATE (idle + no active cooldown), not select-then-update", () => {
+    const idx = connectionSrc.indexOf("export async function tryStartManualScan")
+    const body = connectionSrc.slice(idx, connectionSrc.indexOf("\n}", idx + 50) + 50)
+    assert.ok(body.includes('.eq("scan_status", "idle")'))
+    assert.ok(body.includes('.update({ scan_status: "scanning"'))
+  })
+  test("a claim failure is diagnosed into a specific, user-facing reason (not_connected / in_progress / cooldown)", () => {
+    assert.ok(connectionSrc.includes('reason: "not_connected"'))
+    assert.ok(connectionSrc.includes('reason: "in_progress"'))
+    assert.ok(connectionSrc.includes('reason: "cooldown"'))
+  })
+  test("/refresh maps each reason to a distinct HTTP status (409 in-progress, 429 cooldown)", () => {
+    const idx = githubSrc.indexOf('router.post("/refresh"')
+    const body = githubSrc.slice(idx, githubSrc.indexOf('router.get("/connection"'))
+    assert.ok(/in_progress[\s\S]{0,80}409/.test(body) || /409[\s\S]{0,120}in_progress/.test(body))
+    assert.ok(/cooldown[\s\S]{0,120}429/.test(body) || /429[\s\S]{0,150}cooldown/.test(body))
+  })
+  test("/refresh is also covered by an IP-level rate limiter as defense in depth", () => {
+    const idx = githubSrc.indexOf('router.post("/refresh"')
+    const line = githubSrc.slice(idx, githubSrc.indexOf("\n", idx))
+    assert.ok(line.includes("strictLimiter"))
+  })
+  test("a failed scan never touches the previous denormalized score/confidence/repo-count", () => {
     const idx = connectionSrc.indexOf("export async function markScanFailed")
     const body = connectionSrc.slice(idx, connectionSrc.indexOf("\n}", idx))
-    assert.ok(body.includes("consecutive_failures"))
-    assert.ok(body.includes("backoffMultiplier"))
-  })
-  test("claimEligibleForScan claims atomically (re-checks scan_status at update time, not just select time)", () => {
-    const idx = connectionSrc.indexOf("export async function claimEligibleForScan")
-    const body = connectionSrc.slice(idx, connectionSrc.indexOf("\n}", idx + 50) + 50)
-    const updateCalls = body.match(/\.eq\("scan_status", "idle"\)/g) || []
-    assert.ok(updateCalls.length >= 2, "expected scan_status='idle' checked both at select and at claim-update time")
+    assert.ok(!body.includes("code_dna_score"))
+    assert.ok(!body.includes("confidence_level"))
+    assert.ok(!body.includes("repositories_analyzed"))
   })
   test("only a fixed, safe error-category vocabulary is ever persisted (never a raw provider message)", () => {
     assert.ok(connectionSrc.includes('new Set(["not_found", "rate_limited", "network_error", "unknown"])'))
   })
+  test("cooldown is a short, fixed window — not the old 24h+ exponential scheduler backoff", () => {
+    assert.ok(!/backoffMultiplier|MAX_CONSECUTIVE_FAILURES/.test(connectionSrc))
+    assert.ok(connectionSrc.includes("REFRESH_COOLDOWN_MINUTES"))
+  })
+})
+
+describe("GET /connection never frames state in scheduler language", () => {
+  test("response uses refreshAvailableAt, not a nextScanAt/scheduled-scan field name", () => {
+    const idx = githubSrc.indexOf('router.get("/connection"')
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n})", idx) + 3)
+    assert.ok(body.includes("refreshAvailableAt"))
+    assert.ok(!body.includes("nextScanAt"))
+  })
 })
 
 describe("Mounted correctly in server.js", () => {
-  test("github routes and the internal scanner are both mounted", () => {
+  test("github routes are mounted and no internal-scanner route remains", () => {
     assert.ok(serverSrc.includes('app.use("/api/github",       githubRoutes)'))
-    assert.ok(serverSrc.includes('app.use("/api/internal",     internalCodeDnaScanRoutes)'))
+  })
+})
+
+// ── GitHub Evidence Profile (2026-09-03) ────────────────────────────────────
+describe("Collaboration evidence is real, unauthenticated public data, never fabricated", () => {
+  test("getCollaborationEvidence exists and is wired into analyzeGithubProfile", () => {
+    assert.ok(githubSrc.includes("async function getCollaborationEvidence"))
+    assert.ok(githubSrc.includes("getCollaborationEvidence(user.login)"))
+    assert.ok(githubSrc.includes("collaboration,")) // stored on responseBody
+  })
+  test("uses the public Search API author: qualifier, not an authenticated/OAuth-scoped endpoint", () => {
+    const idx = githubSrc.indexOf("async function getCollaborationEvidence")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx + 50) + 1)
+    assert.ok(body.includes("api.github.com/search/issues"))
+    assert.ok(body.includes("author:"))
+  })
+  test("a search failure degrades to skipped:true rather than throwing or faking zero", () => {
+    const idx = githubSrc.indexOf("async function getCollaborationEvidence")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx + 50) + 1)
+    assert.ok(body.includes("skipped: true"))
+  })
+})
+
+describe("Template-vs-fork detection is a real, mechanical signal, never an accusation", () => {
+  test("classifyOwnership flags a single-commit non-fork repo as insufficient evidence, not 'template-generated' as fact", () => {
+    const idx = githubSrc.indexOf("function classifyOwnership")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx))
+    assert.ok(body.includes("commitCount <= 1"))
+    assert.ok(!/this repository was generated from a template/i.test(body))
+    assert.ok(body.includes("may be newly created or generated from a template"))
+  })
+})
+
+describe("Test-directory signal costs zero extra API calls", () => {
+  test("hasTestDir is derived from the same root-listing call as hasReadme/techStack", () => {
+    const idx = githubSrc.indexOf("async function inspectRepoRoot")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx))
+    assert.ok(body.includes("hasTestDir"))
+    // Only one fetch() call in the whole function — confirms no new API cost.
+    const fetchCalls = body.match(/fetch\(/g) || []
+    assert.equal(fetchCalls.length, 1)
+  })
+})
+
+describe("One canonical GitHub Evidence Profile builder — no more inconsistent recruiter views", () => {
+  test("recruiterEvidence.js's buildCodeDnaRecruiterView delegates to lib/codeDna/evidenceProfile.js", () => {
+    assert.ok(recruiterEvidenceSrc.includes('import { buildGithubEvidenceProfile } from "./codeDna/evidenceProfile.js"'))
+    assert.ok(recruiterEvidenceSrc.includes("buildGithubEvidenceProfile(proof)"))
+  })
+  test("partnerBridge.js no longer builds its own inline codeDna object from raw source_ref", () => {
+    assert.ok(partnerBridgeSrc.includes('import { buildCodeDnaRecruiterView } from "../lib/recruiterEvidence.js"'))
+    assert.ok(partnerBridgeSrc.includes("buildCodeDnaRecruiterView(codeDnaRow)"))
+    // The old raw fields must be gone from this file entirely — if any of
+    // these reappear, someone re-introduced the raw-analytics leak.
+    assert.ok(!partnerBridgeSrc.includes("ref.analysis?.avatar"))
+    assert.ok(!partnerBridgeSrc.includes("ref.analysis?.bio"))
+    assert.ok(!partnerBridgeSrc.includes("ref.analysis?.topRepos"))
+    assert.ok(!partnerBridgeSrc.includes("ref.analysis?.followers"))
   })
 })
