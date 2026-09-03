@@ -53,6 +53,7 @@ import crypto from "crypto"
 import { supabaseAdmin } from "../lib/supabase.js"
 import { fetchLinkStudents, performanceTier, canonicalElo, resolveCareerBySlug, resolveCareerName } from "../lib/orgStudentVisibility.js"
 import * as auditLog from "../lib/verification/auditLog.js"
+import { buildCodeDnaRecruiterView } from "../lib/recruiterEvidence.js"
 
 const router = Router()
 
@@ -555,7 +556,7 @@ router.get("/candidates/:id", async (req, res) => {
         .select("id, artifact_type, storage_url, created_at")
         .eq("user_id", id).eq("publish_state", "published").order("created_at", { ascending: false }),
       supabaseAdmin.from("proof_objects")
-        .select("source_ref, score, completed_at")
+        .select("source_ref, score, completed_at, trust_level, title")
         .eq("user_id", id).eq("source", "github_code_dna").eq("proof_type", "code_dna_profile")
         .eq("is_recruiter_visible", true).maybeSingle(),
     ])
@@ -564,22 +565,19 @@ router.get("/candidates/:id", async (req, res) => {
     const elo = canonicalElo(profile)
     const { skill_graph: profileSkillGraph, experiences, ...profileRest } = profile
 
-    const ref = codeDnaRow?.source_ref || null
-    const codeDna = ref ? {
-      username: ref.username || null,
-      avatar: ref.analysis?.avatar || null,
-      bio: ref.analysis?.bio || null,
-      publicRepos: ref.analysis?.publicRepos ?? null,
-      followers: ref.analysis?.followers ?? null,
-      totalCommits: ref.analysis?.totalCommits ?? null,
-      languages: ref.analysis?.languages || [],
-      topRepos: ref.analysis?.topRepos || [],
-      scores: ref.scores || null,
-      standoutFact: ref.analysis?.standoutFact || null,
-      specialization: ref.analysis?.specialization || null,
-      score: codeDnaRow.score ?? null,
-      analyzedAt: ref.analyzedAt || codeDnaRow.completed_at || null,
-    } : null
+    // 2026-09-03: this used to build its own inline object straight from
+    // proof_objects.source_ref — username, avatar, bio, follower count,
+    // exact commit count, the full languages[] array, and the ENTIRE raw
+    // topRepos[] array (names, stars, forks, URLs) were sent straight to the
+    // recruiter product. That directly contradicted recruiterEvidence.js's
+    // own stated policy ("Recruiters must NEVER see raw GitHub analytics").
+    // Now uses the same canonical, safe builder portfolioPublic.js uses —
+    // one evidence contract, enforced in one place instead of stated in a
+    // comment one of two call sites didn't follow. Also adds the candidate's
+    // GitHub username separately (buildCodeDnaRecruiterView omits it, same
+    // as it always has) since the recruiter product needs a "View on
+    // GitHub" link, not because raw analytics should follow it.
+    const codeDna = codeDnaRow ? { ...buildCodeDnaRecruiterView(codeDnaRow), username: codeDnaRow.source_ref?.username || null } : null
 
     res.json({
       candidate: {

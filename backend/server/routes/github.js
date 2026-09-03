@@ -1,5 +1,9 @@
 // Routes: POST /api/github/analyze, GET /api/github/verification-code,
-// POST /api/github/verify-ownership
+// POST /api/github/verify-ownership, POST /api/github/connect,
+// POST /api/github/disconnect, GET /api/github/connection,
+// POST /api/github/refresh — user-initiated Code DNA rescan, the ONLY
+// rescan trigger (no background scheduler exists), plus repo-interview,
+// visibility, and cross-verify further down.
 //
 // Code DNA (Aura.jsx, activeTab==="fingerprint") — Phase 1.
 //
@@ -21,6 +25,7 @@ import { requireAuth } from "../lib/auth.js"
 import * as codeDnaRepo from "../lib/codeDna/repository.js"
 import * as connectionRepo from "../lib/codeDna/connection.js"
 import { supabaseAdmin } from "../lib/supabase.js"
+import { strictLimiter } from "../lib/rateLimiters.js"
 // makeSlug is the same normalization skillGraph.js's own routes use for
 // user_skills.slug — reused here (not reimplemented) so cross-verify's
 // matching logic can't silently drift from how that table's slugs are
@@ -81,6 +86,11 @@ const TECH_SIGNALS = [
 ]
 
 const README_NAMES = new Set(["readme.md","readme","readme.rst","readme.txt"])
+// Top-level-only signal (root listing has no recursion) — presence of a
+// conventional test directory. Deliberately NOT a claim about test coverage
+// or quality, just "a place for tests exists at the root," same honesty
+// bar as hasReadme below.
+const TEST_DIR_NAMES = new Set(["test","tests","__tests__","spec","specs"])
 
 // Returns { techStack, hasReadme, skipped } from ONE root-listing call —
 // README detection piggybacks on the same response already fetched for tech
@@ -104,28 +114,29 @@ const README_NAMES = new Set(["readme.md","readme","readme.rst","readme.txt"])
 // whoever has Render log access can see WHY (rate limit vs bad token vs
 // GitHub outage) instead of guessing.
 async function inspectRepoRoot(fullName) {
-  if (!fullName) return { techStack: [], hasReadme: false, skipped: false }
+  if (!fullName) return { techStack: [], hasReadme: false, hasTestDir: false, skipped: false }
   try {
     const r = await fetch(`https://api.github.com/repos/${fullName}/contents`, { headers: ghHeaders() })
     if (!r.ok) {
       console.error(`[github/analyze] inspectRepoRoot(${fullName}) failed: HTTP ${r.status} ${r.statusText}`)
-      return { techStack: [], hasReadme: false, skipped: true }
+      return { techStack: [], hasReadme: false, hasTestDir: false, skipped: true }
     }
     const items = await r.json()
     if (!Array.isArray(items)) {
       console.error(`[github/analyze] inspectRepoRoot(${fullName}) failed: non-array response`)
-      return { techStack: [], hasReadme: false, skipped: true }
+      return { techStack: [], hasReadme: false, hasTestDir: false, skipped: true }
     }
     const names = new Set(items.map(i => i.name))
     const lowerNames = new Set(items.map(i => (i.name||"").toLowerCase()))
     return {
       techStack: TECH_SIGNALS.filter(sig => names.has(sig.file)).map(sig => sig.tag),
       hasReadme: [...lowerNames].some(n => README_NAMES.has(n)),
+      hasTestDir: [...lowerNames].some(n => TEST_DIR_NAMES.has(n)),
       skipped: false,
     }
   } catch (e) {
     console.error(`[github/analyze] inspectRepoRoot(${fullName}) threw:`, e.message)
-    return { techStack: [], hasReadme: false, skipped: true }
+    return { techStack: [], hasReadme: false, hasTestDir: false, skipped: true }
   }
 }
 
@@ -246,13 +257,72 @@ async function getFirstCommitSignal(fullName) {
   }
 }
 
+// ── Collaboration evidence (2026-09-03, GitHub Evidence Profile) ───────────
+// Real, public, unauthenticated GitHub data — no OAuth scope needed. Every
+// public pull request the account has ever opened, anywhere on GitHub (not
+// just its own repos), is discoverable via the Search API's `author:`
+// qualifier: this is the only signal in the whole file that reflects work
+// on OTHER people's repositories, i.e. actual collaboration rather than
+// solo output. Two calls total per analysis (not per repo): one for the
+// count of PRs authored, one for the subset that were merged.
+//
+// COST NOTE: the Search API has its OWN, much stricter rate limit than the
+// core API this file otherwise uses — 10 req/min unauthenticated, 30/min
+// authenticated (GITHUB_TOKEN) — completely separate budget from the
+// 60/hr-or-5000/hr core-API limit tracked elsewhere in this file. A search
+// failure must never fail the whole analysis; it degrades to
+// `skipped: true` exactly like the other detectors above.
+async function getCollaborationEvidence(username) {
+  if (!username) return { pullRequestsAuthored: null, mergedPullRequests: null, distinctRepositories: null, skipped: true }
+  try {
+    const [allRes, mergedRes] = await Promise.all([
+      fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(`author:${username} type:pr`)}&per_page=30`, { headers: ghHeaders() }),
+      fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(`author:${username} type:pr is:merged`)}&per_page=1`, { headers: ghHeaders() }),
+    ])
+    if (!allRes.ok || !mergedRes.ok) {
+      console.error(`[github/analyze] getCollaborationEvidence(${username}) failed: HTTP ${allRes.status}/${mergedRes.status}`)
+      return { pullRequestsAuthored: null, mergedPullRequests: null, distinctRepositories: null, skipped: true }
+    }
+    const all = await allRes.json()
+    const merged = await mergedRes.json()
+    const items = Array.isArray(all?.items) ? all.items : []
+    // repository_url looks like ".../repos/{owner}/{repo}" — distinct owner/repo
+    // pairs across this page is a real (if partial, capped at 30) lower bound
+    // on "how many different projects has this account sent PRs to."
+    const distinctRepositories = new Set(
+      items.map(i => (i.repository_url || "").split("/repos/")[1]).filter(Boolean)
+    ).size
+    return {
+      pullRequestsAuthored: typeof all?.total_count === "number" ? all.total_count : null,
+      mergedPullRequests: typeof merged?.total_count === "number" ? merged.total_count : null,
+      distinctRepositories,
+      skipped: false,
+    }
+  } catch (e) {
+    console.error(`[github/analyze] getCollaborationEvidence(${username}) threw:`, e.message)
+    return { pullRequestsAuthored: null, mergedPullRequests: null, distinctRepositories: null, skipped: true }
+  }
+}
+
 // Careful, evidence-graded language — never "verified owner" or "not
 // copied" (see the design report's Phase 5/6 language requirements). Every
 // branch here is reachable and each one names the specific evidence (or
 // lack of it) that produced the label, so the label is always explainable.
-function classifyOwnership({ isFork, parentFullName, authorShare, firstCommitSignal, detectionSkipped }) {
+function classifyOwnership({ isFork, parentFullName, authorShare, firstCommitSignal, detectionSkipped, commitCount }) {
   if (detectionSkipped) {
     return { label: "Repository activity could not be fully verified", detail: "GitHub data for this repository couldn't be fully retrieved this run.", tone: "neutral" }
+  }
+  // Real, mechanical distinction (verified via research, not inferred): a
+  // GitHub "Use this template" repo starts with exactly one fresh commit and
+  // no inherited history, whereas an actual fork carries the parent's full
+  // commit history. A single-commit, non-fork repo is therefore genuine
+  // evidence of "insufficient original history to assess," not an
+  // accusation that it WAS template-generated (a brand-new from-scratch repo
+  // looks identical at this point) — checked before the other branches so a
+  // one-commit repo never gets misread as "Strong ownership evidence" purely
+  // because that one commit happens to be authored by the connected account.
+  if (!isFork && typeof commitCount === "number" && commitCount <= 1) {
+    return { label: "Insufficient evidence", detail: "This repository has only one commit, which is not enough history to assess original authorship — it may be newly created or generated from a template.", tone: "neutral" }
   }
   if (isFork && authorShare && authorShare.sampledCommits > 0 && authorShare.byConnectedUser === 0) {
     return { label: "Limited contribution evidence", detail: `This is a fork of ${parentFullName || "another repository"}, and none of the most recently sampled commits were authored by this account.`, tone: "caution" }
@@ -301,13 +371,14 @@ router.post("/verify-ownership", async (req, res) => {
   } catch (e) { console.error("[github/verify-ownership]", e.message); res.status(500).json({ error: e.message }) }
 })
 
-// Core analysis engine — callable both from the HTTP /analyze route (below)
-// and from the internal 24-hour batch scanner (routes/internalCodeDnaScan.js),
-// so a scheduled scan and a manual "Refresh" run the exact same real logic,
-// never a second parallel implementation that could drift. Returns
-// { status, body } instead of writing to a response object directly, since
-// the batch scanner has no `res` to write to — the HTTP route below is a
-// thin wrapper that just forwards this to res.status().json().
+// Core analysis engine — callable from the HTTP /analyze route, /connect
+// (first-time analysis), and /refresh (user-initiated rescan), so every
+// entry point runs the exact same real logic, never a second parallel
+// implementation that could drift. There is no background scheduler — this
+// only ever runs in direct response to a user action. Returns { status,
+// body } instead of writing to a response object directly, so callers that
+// aren't Express routes (there are none today, but this keeps the option
+// open) aren't forced to fake a `res`.
 export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "Developer" }) {
   const username = parseUsername(githubUrl)
   if (!username) return { status: 400, body: { error: "Invalid GitHub URL" } }
@@ -320,6 +391,10 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
     if (!ur.ok) return { status: ur.status === 403 ? 429 : 502, body: { error: ur.status === 403 ? "GitHub API rate limit reached — try again shortly" : "GitHub API error" }, errorCategory: ur.status === 403 ? "rate_limited" : "network_error" }
     const user  = await ur.json()
     const repos = rr.ok ? await rr.json() : []
+    // Kicked off now, awaited just before responseBody is assembled below —
+    // its own separate Search-API rate-limit budget means it should run
+    // concurrently with everything else, not add its own latency on top.
+    const collaborationPromise = getCollaborationEvidence(user.login)
 
     // Coarse fallback (one vote per repo for GitHub's single "primary
     // language" guess) — used only for repos OUTSIDE the top 3 that get a
@@ -368,7 +443,7 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
     // about the repos had changed) down to near-zero on repeat use.
     let prevByRepoName = {}
     try {
-      const prevRow = await codeDnaRepo.getProfile(req.user.id)
+      const prevRow = await codeDnaRepo.getProfile(userId)
       const prevTopRepos = prevRow?.source_ref?.analysis?.topRepos
       if (Array.isArray(prevTopRepos)) {
         prevByRepoName = Object.fromEntries(prevTopRepos.filter(r=>r?.name).map(r => [r.name, r]))
@@ -385,6 +460,7 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
       if (cacheValid) {
         r.techStack = cached.techStack || []
         r.hasReadme = !!cached.hasReadme
+        r.hasTestDir = !!cached.hasTestDir
         r.detectionSkipped = false
         r.fromCache = true
         if (typeof cached._commitCount === "number") { verifiedCommitTotal += cached._commitCount; anyVerifiedCommitCount = true }
@@ -398,6 +474,7 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
       ])
       r.techStack = rootInfo.techStack
       r.hasReadme = rootInfo.hasReadme
+      r.hasTestDir = rootInfo.hasTestDir
       // BUG FIX (2026-08-04, real-world test #2): detectionSkipped used to
       // only reflect inspectRepoRoot's own outcome — a real repo could have
       // its commit-count and language-bytes calls BOTH fail (bad/expired
@@ -440,7 +517,7 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
       r.parentFullName = parentFullName
       r.authorShare = authorShare
       r.firstCommitSignal = firstCommitSignal
-      r.ownership = classifyOwnership({ isFork: r.isFork, parentFullName, authorShare, firstCommitSignal, detectionSkipped: r.detectionSkipped })
+      r.ownership = classifyOwnership({ isFork: r.isFork, parentFullName, authorShare, firstCommitSignal, detectionSkipped: r.detectionSkipped, commitCount: r._commitCount })
     }))
     // Persist the internal cache fields on cached hits too (so they survive
     // into the next save unchanged), then strip fullName + underscore-
@@ -621,6 +698,8 @@ Return JSON exactly matching this schema:
     // honesty discipline as the scores above.
     const repoTimeline = repos.map(r => ({ name: r.name, createdAt: r.created_at||null, pushedAt: r.pushed_at||null, stars: r.stargazers_count||0, language: r.language||null }))
 
+    const collaboration = await collaborationPromise
+
     const responseBody = {
       username: user.login,
       // 2026-08-05: GitHub's own profile "name" field (distinct from the
@@ -654,6 +733,7 @@ Return JSON exactly matching this schema:
       topRepos: topReposForClient,
       fingerprint,
       scores,
+      collaboration,
     }
 
     // Persist as the user's current Code DNA snapshot. Stores the FULL
@@ -700,7 +780,12 @@ Return JSON exactly matching this schema:
   }
 }
 
-router.post("/analyze", async (req, res) => {
+// strictLimiter here is IP-level defense-in-depth, not the primary abuse
+// guard — this route predates the canonical connection (Aura.jsx's Code DNA
+// tab still calls it directly for its own client-cached preview, a
+// deliberately unchanged legacy pathway; see 2026-09-03 design notes). The
+// canonical, per-user atomic cooldown lives on POST /refresh below.
+router.post("/analyze", strictLimiter, async (req, res) => {
   const result = await analyzeGithubProfile({ userId: req.user.id, githubUrl: req.body.githubUrl, keyword: req.body.keyword })
   res.status(result.status).json(result.body)
 })
@@ -712,7 +797,7 @@ router.post("/analyze", async (req, res) => {
 // same analyzeGithubProfile used by /analyze and the 24-hour batch scanner)
 // so the user sees real data right away instead of an empty "connected, but
 // no data yet" state.
-router.post("/connect", async (req, res) => {
+router.post("/connect", strictLimiter, async (req, res) => {
   const { githubUrl = "" } = req.body || {}
   const username = parseUsername(githubUrl)
   if (!username) return res.status(400).json({ error: "Enter a valid GitHub profile URL, like https://github.com/username" })
@@ -736,6 +821,11 @@ router.post("/connect", async (req, res) => {
       username: resolvedLogin,
       profileUrl: `https://github.com/${resolvedLogin}`,
     })
+    // Reflects "Analyzing…" immediately for anyone watching /connection
+    // (e.g. a second open tab) during the synchronous first analysis below —
+    // purely a status signal, upsertConnectionIdentity already left the row
+    // idle/claimable so this can't race with a concurrent /refresh.
+    await connectionRepo.markScanning(req.user.id)
   } catch (e) {
     console.error("[github/connect] persist failed:", e.message)
     return res.status(500).json({ error: "Couldn't save your GitHub connection. Please try again." })
@@ -753,7 +843,7 @@ router.post("/connect", async (req, res) => {
 
   const result = await analyzeGithubProfile({ userId: req.user.id, githubUrl: `https://github.com/${resolvedLogin}`, keyword: req.body.keyword })
   if (result.status !== 200) {
-    try { await connectionRepo.markScanFailed(req.user.id, { errorCategory: result.errorCategory }) } catch {}
+    try { await connectionRepo.markScanFailed(req.user.id, { errorCategory: result.errorCategory }) } catch { /* best-effort; already logged inside analyzeGithubProfile */ }
   }
   res.status(result.status === 200 ? 200 : 207).json({
     connected: true,
@@ -773,6 +863,53 @@ router.post("/disconnect", async (req, res) => {
   }
 })
 
+// ─── User-initiated refresh (2026-09-03, revised) ──────────────────────────
+// There is no automatic rescanning — this is the ONLY way (besides the
+// initial /connect) a scan ever runs. tryStartManualScan is the sole,
+// atomic gate: it prevents two concurrent refreshes for the same user (a
+// double-click, two open tabs) and enforces a short cooldown against
+// accidental spam, on top of the IP-level strictLimiter below. The previous
+// successful score/confidence/repo-count are never touched by a failed
+// scan (see markScanFailed), so a failed refresh always leaves the last
+// good result exactly as it was.
+router.post("/refresh", strictLimiter, async (req, res) => {
+  const userId = req.user.id
+  let claim
+  try {
+    claim = await connectionRepo.tryStartManualScan(userId)
+  } catch (e) {
+    console.error("[github/refresh] claim failed:", e.message)
+    return res.status(500).json({ error: "Unable to start analysis right now. Please try again." })
+  }
+
+  if (!claim.started) {
+    if (claim.reason === "not_connected") {
+      return res.status(400).json({ error: "Connect your GitHub account first." })
+    }
+    if (claim.reason === "in_progress") {
+      return res.status(409).json({ error: "Your GitHub analysis is already in progress." })
+    }
+    if (claim.reason === "cooldown") {
+      return res.status(429).json({
+        error: "Please wait a bit before refreshing again.",
+        retryAfterSeconds: claim.retryAfterSeconds,
+      })
+    }
+    return res.status(500).json({ error: "Unable to start analysis right now. Please try again." })
+  }
+
+  const { username, profile_url: profileUrl } = claim.connection
+  const result = await analyzeGithubProfile({ userId, githubUrl: profileUrl || `https://github.com/${username}` })
+  if (result.status !== 200) {
+    try { await connectionRepo.markScanFailed(userId, { errorCategory: result.errorCategory }) } catch { /* best-effort; already logged inside analyzeGithubProfile */ }
+    return res.status(207).json({
+      refreshed: false,
+      error: result.body?.error || "Analysis couldn't be completed right now — your previous results are still shown.",
+    })
+  }
+  res.json({ refreshed: true, analysis: result.body })
+})
+
 // Canonical status object every UI surface (Settings, Career & Vault,
 // Portfolio, Profile Strength) should read from, instead of each computing
 // its own idea of "is GitHub connected" from profiles.github_url alone.
@@ -787,7 +924,10 @@ router.get("/connection", async (req, res) => {
       verificationState: conn.verification_state,
       scanStatus: conn.scan_status,
       lastScannedAt: conn.last_scanned_at,
-      nextScanAt: conn.next_scan_at,
+      // Earliest time a manual refresh is allowed again (abuse-prevention
+      // cooldown) — never framed to the user as a scheduled/automatic scan.
+      refreshAvailableAt: conn.next_scan_at,
+      lastScanFailed: !!conn.last_scan_error,
       codeDnaScore: conn.code_dna_score,
       confidenceLevel: conn.confidence_level,
       repositoriesAnalyzed: conn.repositories_analyzed,

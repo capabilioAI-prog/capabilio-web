@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { buildRecruiterEvidence, buildRecruiterEvidenceView, buildRecruiterEvidenceViewFromProof } from "./recruiterEvidence.js"
+import { buildRecruiterEvidence, buildRecruiterEvidenceView, buildRecruiterEvidenceViewFromProof, buildCodeDnaRecruiterView } from "./recruiterEvidence.js"
 
 test("builds the recruiter evidence shape matching the spec's worked example fields", () => {
   const evidence = buildRecruiterEvidence({
@@ -76,4 +76,59 @@ test("buildRecruiterEvidenceViewFromProof degrades gracefully when validator_res
   assert.deepEqual(view.strengths, [])
   assert.equal(view.recruiterReadiness, null)
   assert.equal(view.eloDelta, null)
+})
+
+// Regression guard (2026-09-03): buildCodeDnaRecruiterView is now the ONE
+// canonical builder both portfolioPublic.js AND routes/partnerBridge.js call
+// — partnerBridge.js used to build its own inline object straight from
+// proof_objects.source_ref, leaking raw repo names/stars/languages/bio/
+// avatar to the external recruiter product. This test locks in that the
+// shared builder never does that, regardless of which caller invokes it.
+function fakeCodeDnaProof() {
+  return {
+    trust_level: "verified",
+    title: "Code DNA — octocat",
+    source_ref: {
+      username: "octocat",
+      analyzedAt: "2026-09-03T00:00:00Z",
+      scores: { builder: 90, documentation: 80, consistency: 70, techBreadth: 60, tooling: 50 },
+      analysis: {
+        publicRepos: 5,
+        followers: 12345,
+        avatar: "https://avatars.example/octocat.png",
+        bio: "I like tacos",
+        languages: [{ lang: "JavaScript", pct: 100 }],
+        fingerprint: { authenticityScore: 90 },
+        repoTimeline: [],
+        collaboration: { skipped: true },
+        topRepos: [{
+          name: "Spoon-Knife", url: "https://github.com/octocat/Spoon-Knife", desc: "demo repo", stars: 14000,
+          techStack: [], hasReadme: true, hasTestDir: false, isFork: false, pushedAtIso: new Date().toISOString(),
+          authorShare: { sampledCommits: 3, byConnectedUser: 3 },
+          ownership: { label: "Strong ownership evidence", detail: "An original (non-fork) repository...", tone: "positive" },
+        }],
+      },
+    },
+  }
+}
+
+test("buildCodeDnaRecruiterView delegates to the shared GitHub Evidence Profile builder", () => {
+  const view = buildCodeDnaRecruiterView(fakeCodeDnaProof())
+  assert.equal(view.kind, "code_dna")
+  assert.ok(Array.isArray(view.capabilitySignals))
+  assert.ok(view.overview)
+  assert.ok(Array.isArray(view.projectEvidence))
+  assert.equal(view.verification, "Verified (GitHub ownership confirmed)")
+})
+
+test("buildCodeDnaRecruiterView never leaks raw follower count, avatar URL, or bio text", () => {
+  const view = buildCodeDnaRecruiterView(fakeCodeDnaProof())
+  const text = JSON.stringify(view)
+  assert.ok(!text.includes("12345"))
+  assert.ok(!text.includes("avatars.example"))
+  assert.ok(!text.includes("tacos"))
+})
+
+test("buildCodeDnaRecruiterView returns null (not a crash) when the proof has no analysis yet", () => {
+  assert.equal(buildCodeDnaRecruiterView({ source_ref: {} }), null)
 })

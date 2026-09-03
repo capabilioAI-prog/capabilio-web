@@ -1,20 +1,34 @@
-// ─── GitHub canonical connection — identity + scheduling state ───────────────
+// ─── GitHub canonical connection — identity + user-initiated scan state ──────
 // Deliberately separate from lib/codeDna/repository.js: that module owns the
 // rich analysis snapshot (proof_objects, unchanged); this module owns the
-// small, indexed, queryable "is this user due for a scan" state a JSONB blob
-// can't serve efficiently. See the 2026-09-03 migration's header for the
-// full reasoning. Every write here is backend-only (no client RLS policy),
-// so every function in this file is the actual authorization boundary —
-// callers must already have verified the acting user via requireAuth (or,
-// for the batch scanner, be iterating server-selected rows, never a
-// client-supplied id).
+// small, indexed, queryable connection/scan state a JSONB blob can't serve
+// efficiently. See the 2026-09-03 migration's header for the schema
+// reasoning. Every write here is backend-only (no client RLS policy), so
+// every function in this file is the actual authorization boundary —
+// callers must already have verified the acting user via requireAuth.
+//
+// 2026-09-03 (revised): there is NO automatic background rescanning — no
+// Render Cron Job, no GitHub Actions schedule, nothing polling this table on
+// a timer. A scan only ever runs from a real user action: connecting GitHub
+// for the first time, or clicking "Refresh Code DNA" (routes/github.js's
+// POST /connect and POST /refresh — see tryStartManualScan below). The
+// `next_scan_at` column is repurposed accordingly: it no longer means "an
+// automatic scan is due at this time," it means "the earliest time this
+// user is allowed to trigger another manual refresh" — a short abuse-
+// prevention cooldown, not a scheduling deadline. The column/index were kept
+// as-is (no migration needed) rather than dropped, since repurposing the
+// existing field is the smallest safe change and nothing else in the schema
+// depends on its old meaning.
 import { supabaseAdmin } from "../supabase.js"
 
-const SCAN_INTERVAL_HOURS = 24
-const MAX_CONSECUTIVE_FAILURES_BEFORE_LONG_BACKOFF = 3
+// How long a user must wait between manual "Refresh Code DNA" clicks —
+// generous enough to stop accidental double-clicks/spam from burning through
+// GitHub's rate limit, short enough that it never feels like the feature is
+// unavailable. Applied after both a successful and a failed scan.
+const REFRESH_COOLDOWN_MINUTES = 15
 
-function hoursFromNow(hours) {
-  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
+function minutesFromNow(minutes) {
+  return new Date(Date.now() + minutes * 60 * 1000).toISOString()
 }
 
 export async function getConnection(userId) {
@@ -77,9 +91,10 @@ export async function markScanning(userId) {
   if (error) throw error
 }
 
-/** Successful scan: clears failure backoff, schedules the next run exactly
- *  SCAN_INTERVAL_HOURS out, and refreshes the denormalized summary columns
- *  every other surface (Career & Vault, Portfolio, Profile Strength) reads. */
+/** Successful scan: clears the failure counter, opens a short cooldown
+ *  before the next manual refresh is allowed, and refreshes the
+ *  denormalized summary columns every other surface (Career & Vault,
+ *  Portfolio, Profile Strength) reads. */
 export async function markScanCompleted(userId, { codeDnaScore, confidenceLevel, repositoriesAnalyzed }) {
   const { error } = await supabaseAdmin
     .from("github_connections")
@@ -88,7 +103,7 @@ export async function markScanCompleted(userId, { codeDnaScore, confidenceLevel,
       last_scan_error: null,
       consecutive_failures: 0,
       last_scanned_at: new Date().toISOString(),
-      next_scan_at: hoursFromNow(SCAN_INTERVAL_HOURS),
+      next_scan_at: minutesFromNow(REFRESH_COOLDOWN_MINUTES),
       code_dna_score: codeDnaScore ?? null,
       confidence_level: confidenceLevel ?? null,
       repositories_analyzed: repositoriesAnalyzed ?? null,
@@ -98,21 +113,20 @@ export async function markScanCompleted(userId, { codeDnaScore, confidenceLevel,
   if (error) throw error
 }
 
-/** Failed scan: exponential-ish backoff so a user whose GitHub account was
- *  renamed/deleted, or who's hitting a persistent error, doesn't get
- *  retried every scan cycle forever — errorCategory must be one of a fixed,
- *  safe, internal vocabulary (never a raw provider message) so nothing
- *  provider-specific ever reaches a stored column a UI might render. */
+/** Failed scan: same short cooldown as a success (not a growing backoff —
+ *  that only made sense for an automatic scheduler retrying unattended;
+ *  here a human just clicked "Refresh" and failed, so there's no reason to
+ *  lock them out longer than the normal abuse-prevention window). The
+ *  denormalized score/confidence/repo-count columns are deliberately left
+ *  untouched, so the previous successful result keeps showing everywhere.
+ *  errorCategory must be one of a fixed, safe, internal vocabulary (never a
+ *  raw provider message) so nothing provider-specific ever reaches a stored
+ *  column a UI might render. */
 const SAFE_ERROR_CATEGORIES = new Set(["not_found", "rate_limited", "network_error", "unknown"])
 export async function markScanFailed(userId, { errorCategory = "unknown" } = {}) {
   const category = SAFE_ERROR_CATEGORIES.has(errorCategory) ? errorCategory : "unknown"
   const current = await getConnection(userId)
   const failures = (current?.consecutive_failures || 0) + 1
-  // 1x, 1x, 1x normal interval for the first 3 failures, then double the
-  // interval per additional failure (capped implicitly by scan_status
-  // staying 'idle' and being re-evaluated every batch run, never literally
-  // "stop forever") — a simple, real backoff, not a fixed retry-forever loop.
-  const backoffMultiplier = failures <= MAX_CONSECUTIVE_FAILURES_BEFORE_LONG_BACKOFF ? 1 : Math.min(failures - MAX_CONSECUTIVE_FAILURES_BEFORE_LONG_BACKOFF + 1, 7)
   const { error } = await supabaseAdmin
     .from("github_connections")
     .update({
@@ -120,40 +134,45 @@ export async function markScanFailed(userId, { errorCategory = "unknown" } = {})
       last_scan_error: category,
       consecutive_failures: failures,
       last_scanned_at: new Date().toISOString(),
-      next_scan_at: hoursFromNow(SCAN_INTERVAL_HOURS * backoffMultiplier),
+      next_scan_at: minutesFromNow(REFRESH_COOLDOWN_MINUTES),
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", userId)
   if (error) throw error
 }
 
-/** Selects up to `limit` connections due for a scan right now, and
- *  immediately marks them 'queued' (a real claim, not just a read) so two
- *  overlapping batch invocations can never double-process the same user —
- *  the UPDATE...WHERE scan_status='idle' only succeeds for rows still idle
- *  at the moment it runs. */
-export async function claimEligibleForScan(limit = 20) {
-  const { data: candidates, error: selectErr } = await supabaseAdmin
+/** The only place a scan is ever started. Atomically claims the row for
+ *  scanning — UPDATE ... WHERE scan_status='idle' AND (no active cooldown)
+ *  — so two overlapping requests from the same user (a double-click, two
+ *  open tabs) can never both start a scan: exactly one UPDATE affects a row,
+ *  the other affects zero and is told why. This is the single source of
+ *  truth for "can this user refresh right now," used by both POST /connect
+ *  (first-time analysis) and POST /refresh (user-initiated rescan). */
+export async function tryStartManualScan(userId) {
+  const nowIso = new Date().toISOString()
+  const { data, error } = await supabaseAdmin
     .from("github_connections")
-    .select("user_id, username")
+    .update({ scan_status: "scanning", updated_at: nowIso })
+    .eq("user_id", userId)
     .eq("scan_status", "idle")
     .is("disconnected_at", null)
-    .lte("next_scan_at", new Date().toISOString())
-    .order("next_scan_at", { ascending: true })
-    .limit(limit)
-  if (selectErr) throw selectErr
-  if (!candidates?.length) return []
+    .or(`next_scan_at.is.null,next_scan_at.lte.${nowIso}`)
+    .select("user_id, username, profile_url")
+    .maybeSingle()
+  if (error) throw error
+  if (data) return { started: true, connection: data }
 
-  const claimed = []
-  for (const c of candidates) {
-    const { data, error } = await supabaseAdmin
-      .from("github_connections")
-      .update({ scan_status: "queued", updated_at: new Date().toISOString() })
-      .eq("user_id", c.user_id)
-      .eq("scan_status", "idle") // re-check at claim time, not just at select time
-      .select("user_id, username")
-      .maybeSingle()
-    if (!error && data) claimed.push(data)
+  // Not claimed — figure out why, so the route can return an accurate,
+  // user-facing reason instead of a generic failure.
+  const current = await getConnection(userId)
+  if (!current || current.disconnected_at) return { started: false, reason: "not_connected" }
+  if (current.scan_status !== "idle") return { started: false, reason: "in_progress" }
+  if (current.next_scan_at && new Date(current.next_scan_at) > new Date()) {
+    return {
+      started: false,
+      reason: "cooldown",
+      retryAfterSeconds: Math.max(1, Math.ceil((new Date(current.next_scan_at) - new Date()) / 1000)),
+    }
   }
-  return claimed
+  return { started: false, reason: "unknown" }
 }

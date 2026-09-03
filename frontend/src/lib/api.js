@@ -112,6 +112,7 @@ export const githubApi = {
   connect: (githubUrl, keyword) => request("POST", "/github/connect", { githubUrl, keyword }),
   disconnect: () => request("POST", "/github/disconnect"),
   connection: () => request("GET", "/github/connection"),
+  refresh: () => request("POST", "/github/refresh"),
   analyze: (githubUrl, keyword) => request("POST", "/github/analyze", { githubUrl, keyword }),
   verificationCode: () => request("GET", "/github/verification-code"),
   verifyOwnership: (githubUrl) => request("POST", "/github/verify-ownership", { githubUrl }),
