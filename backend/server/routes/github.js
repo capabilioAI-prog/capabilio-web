@@ -396,29 +396,63 @@ function verificationCodeFor(userId) {
   return "capabilio-verify-" + crypto.createHash("sha256").update(String(userId)).digest("hex").slice(0, 10)
 }
 
-router.get("/verification-code", (req, res) => {
-  res.json({ code: verificationCodeFor(req.user.id) })
+// PRODUCTION FIX (2026-09-03): both routes below used to accept a
+// client-supplied `githubUrl` (or, on the frontend side, resolve one from an
+// ambiguous three-way fallback across a local component's ephemeral state,
+// profiles.github_url, and personalInfo.githubUrl) to decide WHICH GitHub
+// account to check — meaning the identity being verified could silently
+// drift from the canonical connection, or even from whatever account's
+// analysis was actually on screen. Ownership verification must never be
+// ambiguous about which account it's checking, so both routes now read the
+// canonical identity from github_connections exclusively; any githubUrl in
+// the request body is ignored.
+router.get("/verification-code", async (req, res) => {
+  const code = verificationCodeFor(req.user.id)
+  let connection = null
+  try { connection = await connectionRepo.getConnection(req.user.id) } catch (e) { console.error("[github/verification-code]", e.message) }
+  const connected = !!(connection && !connection.disconnected_at)
+  res.json({
+    code,
+    connected,
+    username: connected ? connection.username : null,
+    profileUrl: connected ? connection.profile_url : null,
+    verified: connected && connection.verification_state === "verified",
+  })
 })
 
-router.post("/verify-ownership", async (req, res) => {
-  const { githubUrl="" } = req.body
-  const username = parseUsername(githubUrl)
-  if (!username) return res.status(400).json({ error: "Invalid GitHub URL" })
+router.post("/verify-ownership", strictLimiter, async (req, res) => {
   try {
+    const connection = await connectionRepo.getConnection(req.user.id)
+    if (!connection || connection.disconnected_at) {
+      return res.status(400).json({ error: "Connect your GitHub account first." })
+    }
+    const username = connection.username
     const ur = await fetch(`https://api.github.com/users/${username}`, { headers: ghHeaders() })
-    if (ur.status === 404) return res.status(404).json({ error: "GitHub user not found" })
+    if (ur.status === 404) return res.status(404).json({ error: "We couldn't find that GitHub profile anymore. Please reconnect in Settings." })
     if (!ur.ok) { const c = classifyGithubHttpError(ur, "verify-ownership"); return res.status(c.status).json({ error: c.message }) }
     const user = await ur.json()
     const code = verificationCodeFor(req.user.id)
     const verified = !!(user.bio && user.bio.includes(code))
     if (!verified) {
-      return res.json({ verified: false, code, message: `Add "${code}" to your GitHub bio, save, then try again. You can remove it afterwards.` })
+      return res.json({
+        verified: false, code, username,
+        message: `We couldn't find the verification code in @${username}'s GitHub bio yet. Add it, save your GitHub profile, then try again.`,
+      })
     }
-    const row = await codeDnaRepo.markVerified(req.user.id)
-    if (!row) return res.status(400).json({ error: "Analyze this profile at least once before verifying ownership." })
-    try { await connectionRepo.markVerified(req.user.id) } catch (e) { console.error("[github/verify-ownership] connection sync failed:", e.message) }
-    return res.json({ verified: true })
-  } catch (e) { console.error("[github/verify-ownership]", e.message); res.status(500).json({ error: e.message }) }
+    // The canonical identity is the authoritative write — if this fails,
+    // verification has NOT succeeded, regardless of what happens next.
+    await connectionRepo.markVerified(req.user.id)
+    // Best-effort sync onto the analysis record too, so Code DNA's own
+    // display reflects "verified" immediately without a second round trip.
+    // Not requiring an existing analysis here (unlike before) — ownership
+    // verification is meaningful on its own; codeDnaRepo.markVerified is a
+    // safe no-op (returns null) when there's nothing to update yet.
+    try { await codeDnaRepo.markVerified(req.user.id) } catch (e) { console.error("[github/verify-ownership] proof_objects sync failed:", e.message) }
+    return res.json({ verified: true, username, verifiedAt: new Date().toISOString() })
+  } catch (e) {
+    console.error("[github/verify-ownership]", e.message)
+    res.status(500).json({ error: "We couldn't verify GitHub ownership right now. Please try again." })
+  }
 })
 
 // Core analysis engine — callable from the HTTP /analyze route, /connect
@@ -441,6 +475,30 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
     if (!ur.ok) { const c = classifyGithubHttpError(ur, "analyze"); return { status: c.status, body: { error: c.message }, errorCategory: c.errorCategory } }
     const user  = await ur.json()
     const repos = rr.ok ? await rr.json() : []
+
+    // PRODUCTION FIX (2026-09-03): the direct Code DNA "Analyze" flow (as
+    // opposed to Settings' explicit "Connect GitHub") never established a
+    // canonical github_connections identity at all — a user who only ever
+    // used this box could get a fully-analyzed, even verified, Code DNA
+    // report while Settings/Career & Vault simultaneously showed "not
+    // connected" for the very same account. Fixed by establishing the
+    // canonical identity here too, but ONLY when none already exists — an
+    // already-connected user exploring someone else's profile through this
+    // same box (the UI ships two "try an example" links to well-known
+    // accounts) must never have their own verified identity silently
+    // reassigned to whatever they just previewed. Genuinely changing GitHub
+    // accounts remains an explicit action via /connect, which resets
+    // verification for the new identity (see upsertConnectionIdentity).
+    try {
+      const existingConnection = await connectionRepo.getConnection(userId)
+      if (!existingConnection || existingConnection.disconnected_at) {
+        await connectionRepo.upsertConnectionIdentity(userId, { username: user.login, profileUrl: `https://github.com/${user.login}` })
+        try { await supabaseAdmin.from("profiles").update({ github_url: `https://github.com/${user.login}` }).eq("id", userId) } catch (e) { console.error("[github/analyze] profiles.github_url sync failed:", e.message) }
+      }
+    } catch (e) {
+      console.error("[github/analyze] connection identity sync failed:", e.message)
+    }
+
     // Kicked off now, awaited just before responseBody is assembled below —
     // its own separate Search-API rate-limit budget means it should run
     // concurrently with everything else, not add its own latency on top.

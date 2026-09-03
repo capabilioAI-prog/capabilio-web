@@ -38,26 +38,60 @@ export async function getConnection(userId) {
   return data
 }
 
-/** Creates or re-points the canonical identity (Settings/Career & Vault/
- *  Onboarding all funnel through this). Resets scan state for the new
- *  identity — a changed username is a different account, not a continuation
- *  of the old one's scan history. */
+/** Creates or re-points the canonical identity — the ONE place any code path
+ *  (Settings' "Connect GitHub", the direct Code DNA analyze flow, Onboarding)
+ *  is allowed to establish or change whose GitHub account this user is
+ *  connected to. This is the authoritative boundary that decides whether a
+ *  given call is "the same account being re-confirmed" or "a genuinely
+ *  different account" — everything downstream (verification, Code DNA
+ *  evidence) depends on getting this distinction right.
+ *
+ *  PRODUCTION FIX (2026-09-03): this used to unconditionally reset
+ *  verification_state/scan_status/the denormalized score columns on EVERY
+ *  call — including a call that just re-confirms the SAME already-verified
+ *  username (e.g. clicking "Connect GitHub" again without changing
+ *  anything). That silently wiped a user's verified status for no reason.
+ *  Now only resets identity-scoped state when the username actually
+ *  changes (case-insensitive) or the connection was previously
+ *  disconnected/never existed — a genuinely new identity never inherits the
+ *  old one's verification, but re-confirming the same identity is a no-op
+ *  on everything except the timestamp. Supabase's upsert only touches
+ *  columns present in this payload — omitting the reset fields on a
+ *  same-identity call leaves whatever is already there untouched (and a
+ *  brand-new row still gets the table's real defaults: 'unverified'/'idle').
+ */
 export async function upsertConnectionIdentity(userId, { username, profileUrl }) {
+  const existing = await getConnection(userId)
+  const isIdentityChange = !existing
+    || !!existing.disconnected_at
+    || (existing.username || "").toLowerCase() !== (username || "").toLowerCase()
+
+  const row = {
+    user_id: userId, username, profile_url: profileUrl,
+    connection_method: "public_url",
+    updated_at: new Date().toISOString(),
+  }
+  if (isIdentityChange) {
+    row.verification_state = "unverified"
+    row.scan_status = "idle"
+    row.consecutive_failures = 0
+    row.last_scan_error = null
+    row.disconnected_at = null
+    // A different GitHub account's Code DNA evidence must never be shown
+    // under a new identity's summary before it has actually been analyzed.
+    row.code_dna_score = null
+    row.confidence_level = null
+    row.repositories_analyzed = null
+    row.last_scanned_at = null
+    row.next_scan_at = null
+  }
+
   const { data, error } = await supabaseAdmin
     .from("github_connections")
-    .upsert({
-      user_id: userId, username, profile_url: profileUrl,
-      connection_method: "public_url",
-      verification_state: "unverified",
-      scan_status: "idle",
-      consecutive_failures: 0,
-      last_scan_error: null,
-      disconnected_at: null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" })
+    .upsert(row, { onConflict: "user_id" })
     .select().single()
   if (error) throw error
-  return data
+  return { connection: data, isIdentityChange }
 }
 
 export async function markVerified(userId) {
