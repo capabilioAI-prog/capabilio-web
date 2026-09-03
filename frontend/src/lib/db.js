@@ -71,6 +71,14 @@ const CAMEL_TO_SNAKE = {
   portfolioUrl:         'portfolio_url',          // same class of bug — was unmapped, no duplicate
                                                    // quoted column existed for this one, so every
                                                    // portfolioUrl save has likely been silently failing.
+  // BUG FIX (2026-09-03): same failure class as githubUrl/portfolioUrl above
+  // — leetcodeUrl (SettingsPanel.jsx's Proof & Portfolio form) had no
+  // mapping and no column existed at all, so PostgREST rejected the ENTIRE
+  // save with PGRST204 whenever this field was present — not just this
+  // field, every field in the same save. Real column added via
+  // 2026-09-03_profiles_leetcode_url.sql; deliberately snake_case, no
+  // duplicate quoted camelCase column created.
+  leetcodeUrl:          'leetcode_url',
   // Portfolio/vault
   vaultFiles:           'vault_files',
   purchasedThemes:      'purchased_themes',
@@ -207,6 +215,7 @@ const toCompat = (data) => {
     linkedInUrl:          data.linkedin_url         || data.linkedInUrl         || '',
     githubUrl:            data.github_url           || data.githubUrl           || '',
     portfolioUrl:         data.portfolio_url        || data.portfolioUrl        || '',
+    leetcodeUrl:          data.leetcode_url         || data.leetcodeUrl         || '',
     // Portfolio/vault
     vaultFiles:           data.vault_files          || data.vaultFiles          || [],
     purchasedThemes:      data.purchased_themes     || data.purchasedThemes     || {},

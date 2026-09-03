@@ -28,6 +28,9 @@ const connectionSrc = readFileSync(path.join(routesDir, "../lib/codeDna/connecti
 const serverSrc = readFileSync(path.join(routesDir, "../../server.js"), "utf8")
 const partnerBridgeSrc = readFileSync(path.join(routesDir, "partnerBridge.js"), "utf8")
 const recruiterEvidenceSrc = readFileSync(path.join(routesDir, "../lib/recruiterEvidence.js"), "utf8")
+const portfolioPublicSrc = readFileSync(path.join(routesDir, "portfolioPublic.js"), "utf8")
+const dbJsSrc = readFileSync(path.join(routesDir, "../../../frontend/src/lib/db.js"), "utf8")
+const auraSrc = readFileSync(path.join(routesDir, "../../../frontend/src/pages/Aura.jsx"), "utf8")
 
 describe("No background scheduler exists", () => {
   test("the internal batch-scan route file was removed, not just unmounted", () => {
@@ -301,5 +304,108 @@ describe("GitHub upstream error classification (production incident fix)", () =>
     assert.ok(!githubSrc.includes("body: { error: e.message }"))
     assert.ok(githubSrc.includes("Could not connect to GitHub right now"))
     assert.ok(githubSrc.includes('console.error("[github/analyze] network failure reaching GitHub:", e.message)'))
+  })
+})
+
+// ── Production incident (2026-09-03): Save Changes failure + fragmented
+// GitHub identity ────────────────────────────────────────────────────────
+describe("leetcode_url: root cause fixed at both the schema and mapping level", () => {
+  test("CAMEL_TO_SNAKE maps leetcodeUrl to the real snake_case column", () => {
+    assert.ok(dbJsSrc.includes("leetcodeUrl:          'leetcode_url',"))
+  })
+  test("toCompat() aliases leetcode_url back onto leetcodeUrl for reads", () => {
+    assert.ok(dbJsSrc.includes("leetcodeUrl:          data.leetcode_url"))
+  })
+  test("no new quoted camelCase duplicate column was created for it (the anti-pattern this bug class kept repeating)", () => {
+    assert.ok(!dbJsSrc.includes('"leetcodeUrl"'))
+  })
+})
+
+describe("Canonical GitHub identity: github_connections is authoritative, never silently reset or bypassed", () => {
+  test("upsertConnectionIdentity only resets verification/scan state on an actual identity change", () => {
+    const idx = connectionSrc.indexOf("export async function upsertConnectionIdentity")
+    const body = connectionSrc.slice(idx, connectionSrc.indexOf("\n}", idx + 50) + 1)
+    assert.ok(body.includes("isIdentityChange"))
+    assert.ok(body.includes('(existing.username || "").toLowerCase() !== (username || "").toLowerCase()'))
+    // The reset fields must be applied conditionally (inside the if), not
+    // unconditionally on every call — that was the exact bug (re-confirming
+    // the same account wiped verified status).
+    assert.ok(/if\s*\(isIdentityChange\)\s*{[\s\S]*verification_state = "unverified"/.test(body))
+  })
+  test("a genuine identity change also clears the denormalized Code DNA summary, so stale evidence never appears to belong to a new account", () => {
+    const idx = connectionSrc.indexOf("export async function upsertConnectionIdentity")
+    const body = connectionSrc.slice(idx, connectionSrc.indexOf("\n}", idx + 50) + 1)
+    assert.ok(body.includes("code_dna_score = null"))
+    assert.ok(body.includes("repositories_analyzed = null"))
+  })
+  test("/verify-ownership reads the canonical connection and ignores any client-supplied githubUrl", () => {
+    const idx = githubSrc.indexOf('router.post("/verify-ownership"')
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n})", idx) + 3)
+    assert.ok(body.includes("connectionRepo.getConnection(req.user.id)"))
+    assert.ok(!body.includes("req.body"))
+    assert.ok(!/const\s*{\s*githubUrl/.test(body))
+  })
+  test("/verify-ownership never claims success without writing the canonical connection first", () => {
+    const idx = githubSrc.indexOf('router.post("/verify-ownership"')
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n})", idx) + 3)
+    const connIdx = body.indexOf("connectionRepo.markVerified")
+    const proofIdx = body.indexOf("codeDnaRepo.markVerified")
+    assert.ok(connIdx !== -1 && proofIdx !== -1 && connIdx < proofIdx, "canonical connection must be marked verified before (or without depending on) the proof_objects sync")
+    // The canonical write is awaited directly (fails loudly); the
+    // proof_objects sync is explicitly best-effort (wrapped in its own try/catch).
+    assert.ok(/await connectionRepo\.markVerified\(req\.user\.id\)\s*\n\s*\/\//.test(body) || body.includes("await connectionRepo.markVerified(req.user.id)"))
+  })
+  test("/verification-code returns canonical connection status, not just the bare code", () => {
+    const idx = githubSrc.indexOf('router.get("/verification-code"')
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n})", idx) + 3)
+    assert.ok(body.includes("connectionRepo.getConnection(req.user.id)"))
+    assert.ok(body.includes("username:"))
+    assert.ok(body.includes("verified:"))
+  })
+  test("the direct /analyze flow establishes a canonical identity only when none already exists — never overwrites an existing connection", () => {
+    const idx = githubSrc.indexOf("export async function analyzeGithubProfile")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("collaborationPromise", idx))
+    assert.ok(body.includes("connectionRepo.getConnection(userId)"))
+    assert.ok(/if\s*\(!existingConnection \|\| existingConnection\.disconnected_at\)\s*{/.test(body))
+  })
+})
+
+describe("Verification UX is proactive and unambiguous about which account is being checked", () => {
+  test("Aura.jsx fetches canonical verification status on mount, not just after a failed verify click", () => {
+    assert.ok(auraSrc.includes("loadGhVerification"))
+    assert.ok(auraSrc.includes("/api/github/verification-code"))
+    assert.ok(/useEffect\(\(\) => { loadGhVerification\(\) }/.test(auraSrc))
+  })
+  test("the verify call no longer sends a client-supplied githubUrl", () => {
+    const idx = auraSrc.indexOf("const verifyGithubOwnership")
+    const body = auraSrc.slice(idx, idx + 1200)
+    assert.ok(!body.includes("body:JSON.stringify({githubUrl"))
+  })
+  test("the displayed username/code come from the canonical ghVerification state, not local component state", () => {
+    assert.ok(auraSrc.includes("ghVerification.username"))
+    assert.ok(auraSrc.includes("ghVerification.code"))
+  })
+  test("verified status is read from the canonical fetch, not a same-session-only local flag (the refresh-persistence bug)", () => {
+    assert.ok(auraSrc.includes("ghVerification?.verified || githubVerifyMsg?.verified"))
+  })
+  test("a copy action exists for the verification code", () => {
+    assert.ok(auraSrc.includes("navigator.clipboard"))
+  })
+  test("duplicate verify clicks are prevented (button disabled + an explicit re-entrancy guard)", () => {
+    const idx = auraSrc.indexOf("const verifyGithubOwnership")
+    const body = auraSrc.slice(idx, idx + 400)
+    assert.ok(body.includes("if (githubVerifying) return"))
+  })
+})
+
+describe("Portfolio recruiter view: one verification representation, not two that can disagree", () => {
+  test("no separate boolean 'verified' field is set alongside the 'verification' string anymore", () => {
+    assert.ok(!portfolioPublicSrc.includes("safe.codeDna.verified = connRow.verification_state"))
+  })
+  test("github_connections.verification_state is the source of truth for the one verification field consumers actually read", () => {
+    const idx = portfolioPublicSrc.indexOf('if (connRow && !connRow.disconnected_at)')
+    const body = portfolioPublicSrc.slice(idx, portfolioPublicSrc.indexOf("\n        }", idx) + 10)
+    assert.ok(body.includes('safe.codeDna.verification = "Verified (GitHub ownership confirmed)"'))
+    assert.ok(body.includes('safe.codeDna.verification = "Self-Selected (GitHub ownership unconfirmed)"'))
   })
 })

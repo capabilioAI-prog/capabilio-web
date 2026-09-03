@@ -3315,6 +3315,16 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
   const [githubUrl, setGithubUrl]             = useState("")
   const [githubVerifying, setGithubVerifying] = useState(false)
   const [githubVerifyMsg, setGithubVerifyMsg] = useState(null) // {verified, code, message}
+  // Canonical GitHub connection/verification status (2026-09-03) — fetched
+  // from GET /api/github/verification-code, which now reads
+  // github_connections (the one canonical identity table) rather than
+  // anything derived from this component's own local githubUrl state. This
+  // is what makes "which account is being verified" unambiguous: it's
+  // always whatever Settings' "Connect GitHub" (or a first-time direct
+  // analyze) established, never whatever happens to be typed in the box
+  // above right now.
+  const [ghVerification, setGhVerification]   = useState(null) // {code, connected, username, profileUrl, verified}
+  const [codeCopied, setCodeCopied]           = useState(false)
   // AI Repository Interview (2026-08-04) — text-based, grounded in the real
   // analyzed repo. repoInterview holds a COMPLETED result (from a past run,
   // loaded lazily, or just-submitted); riQuestions/riAnswers/riStep drive an
@@ -4132,21 +4142,40 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
     setGithubLoading(false)
   }
 
-  // Ownership verification (Phase 1): the user adds a deterministic code to
-  // their GitHub bio, then we confirm it's there via the public API. On
-  // success the backend flips the stored proof_objects row to
-  // trust_level='verified' — the local `verified` flag below is just so the
-  // UI can show "Verified" immediately without a full re-analyze.
+  // Loads the canonical connection/verification status proactively — shown
+  // BEFORE the user ever clicks Verify, so the code and instructions are
+  // never something they only discover by accident after a first "failed"
+  // attempt. Re-fetched after every verify attempt so the displayed status
+  // (connected/verified/username) always reflects the canonical source.
+  const loadGhVerification = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/github/verification-code`, { headers: await vHeaders() })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data) setGhVerification(data)
+    } catch { /* non-fatal — instructions just stay hidden until it loads */ }
+  }, [])
+  useEffect(() => { loadGhVerification() }, [loadGhVerification])
+
+  // Ownership verification: the user adds a deterministic code to their
+  // GitHub bio, then we confirm it's there via the public API. The account
+  // checked is ALWAYS the canonical github_connections identity — this
+  // never sends a client-supplied githubUrl, and never depends on this
+  // component's own local `githubUrl` (analyze-box) state, so it can never
+  // be ambiguous about which account is being verified. On success the
+  // backend updates github_connections (canonical) and best-effort syncs
+  // proof_objects — the local `verified` flag below is just so the UI can
+  // show "Verified" immediately without a full re-analyze.
   const verifyGithubOwnership = async () => {
-    const ghUrl=(githubUrl||userData?.githubUrl||userData?.personalInfo?.githubUrl||"").trim()
-    if(!ghUrl){ setGithubVerifyMsg({verified:false,message:"Analyze a GitHub profile first."}); return }
+    if (githubVerifying) return // belt-and-suspenders — the button is also disabled while true
+    if (!ghVerification?.connected) { setGithubVerifyMsg({verified:false,message:"Connect your GitHub account first."}); return }
     setGithubVerifying(true)
     try {
-      const res=await fetch(`${API}/api/github/verify-ownership`,{method:"POST",headers:await vHeaders(),body:JSON.stringify({githubUrl:ghUrl})})
+      const res=await fetch(`${API}/api/github/verify-ownership`,{method:"POST",headers:await vHeaders()})
       const data=await res.json().catch(()=>({}))
-      if(!res.ok) throw new Error(data?.error||`Verification failed (${res.status})`)
+      if(!res.ok) throw new Error(data?.error||"We couldn't verify GitHub ownership right now. Please try again.")
       setGithubVerifyMsg(data)
       if(data.verified) setGithubData(prev => prev ? {...prev, verified:true} : prev)
+      await loadGhVerification()
     } catch(e) {
       setGithubVerifyMsg({verified:false, message:e.message})
     }
@@ -6081,18 +6110,49 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                         {(fp.patterns||[]).map((p,i)=><Badge key={i} color={T.green} bg={T.green2}>{p}</Badge>)}
                       </div>
                       {fp.standoutFact&&<div style={{background:T.amber2,border:`1px solid rgba(184,98,10,0.15)`,borderRadius:10,padding:"10px 14px",fontSize:12,color:T.amber,lineHeight:1.5,marginBottom:githubData.isExampleData||githubData.verified?0:12}}>⭐ {fp.standoutFact}</div>}
-                      {!githubData.isExampleData&&!githubData.verified&&(
-                        <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`}}>
-                          <button onClick={verifyGithubOwnership} disabled={githubVerifying} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:700,color:T.ink2,cursor:githubVerifying?"default":"pointer"}}>
-                            {githubVerifying?"Checking…":"🔒 Verify GitHub ownership"}
-                          </button>
-                          {githubVerifyMsg&&(
-                            <div style={{fontSize:11,color:githubVerifyMsg.verified?T.green:T.ink3,marginTop:8,lineHeight:1.6}}>
-                              {githubVerifyMsg.verified?"✓ Ownership confirmed.":githubVerifyMsg.message}
+                      {!githubData.isExampleData && (() => {
+                        // Canonical source (github_connections, via
+                        // ghVerification) decides whether to show "verified"
+                        // — not githubData.verified, which was only ever a
+                        // same-session React state flag that never survived
+                        // a page refresh (it was never persisted). Falling
+                        // back to a just-completed githubVerifyMsg covers
+                        // the brief moment before the post-verify refetch
+                        // resolves.
+                        const isVerified = ghVerification?.verified || githubVerifyMsg?.verified
+                        if (isVerified) {
+                          return (
+                            <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,fontSize:11,color:T.green,fontWeight:700}}>
+                              ✓ GitHub ownership confirmed{ghVerification?.username?` for @${ghVerification.username}`:""}.
                             </div>
-                          )}
-                        </div>
-                      )}
+                          )
+                        }
+                        if (!ghVerification?.connected) return null // nothing canonical to verify yet
+                        return (
+                          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`}}>
+                            <div style={{fontSize:11,color:T.ink3,marginBottom:8,lineHeight:1.6}}>
+                              Verifying <strong style={{color:T.ink}}>@{ghVerification.username}</strong>. Add this verification code to your GitHub profile bio, save it on GitHub, then click Verify.
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                              <code style={{background:T.bgInner||"rgba(0,0,0,0.04)",border:`1px solid ${T.border}`,borderRadius:6,padding:"6px 10px",fontSize:11,color:T.ink,fontFamily:"monospace"}}>{ghVerification.code}</code>
+                              <button
+                                onClick={()=>{navigator.clipboard?.writeText(ghVerification.code); setCodeCopied(true); setTimeout(()=>setCodeCopied(false),2000)}}
+                                style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:6,padding:"5px 10px",fontSize:10,fontWeight:700,color:T.ink3,cursor:"pointer"}}
+                              >
+                                {codeCopied?"Copied ✓":"Copy"}
+                              </button>
+                            </div>
+                            <button onClick={verifyGithubOwnership} disabled={githubVerifying} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:700,color:T.ink2,cursor:githubVerifying?"default":"pointer"}}>
+                              {githubVerifying?"Checking…":"🔒 Verify GitHub ownership"}
+                            </button>
+                            {githubVerifyMsg&&!githubVerifyMsg.verified&&(
+                              <div style={{fontSize:11,color:T.ink3,marginTop:8,lineHeight:1.6}}>
+                                {githubVerifyMsg.message}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </Card>
                     <div style={{display:"flex",flexDirection:"column",gap:14}}>
                       <Card style={{borderTop:`3px solid ${authCol}`}}>

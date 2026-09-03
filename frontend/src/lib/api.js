@@ -114,8 +114,12 @@ export const githubApi = {
   connection: () => request("GET", "/github/connection"),
   refresh: () => request("POST", "/github/refresh"),
   analyze: (githubUrl, keyword) => request("POST", "/github/analyze", { githubUrl, keyword }),
+  // verification-code now also returns the canonical connection/verification
+  // status (connected/username/verified) — not just the raw code.
   verificationCode: () => request("GET", "/github/verification-code"),
-  verifyOwnership: (githubUrl) => request("POST", "/github/verify-ownership", { githubUrl }),
+  // 2026-09-03: no longer takes a githubUrl — the backend always checks the
+  // canonical github_connections identity, never a client-supplied one.
+  verifyOwnership: () => request("POST", "/github/verify-ownership"),
   visibility: () => request("GET", "/github/visibility"),
   setVisibility: (patch) => request("POST", "/github/visibility", patch),
 }

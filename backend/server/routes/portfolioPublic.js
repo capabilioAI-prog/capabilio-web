@@ -280,7 +280,27 @@ router.get("/portfolio/lookup/:identifier", async (req, res) => {
           .maybeSingle()
         if (connRow && !connRow.disconnected_at) {
           safe.codeDna.username = connRow.username
-          safe.codeDna.verified = connRow.verification_state === "verified"
+          // PRODUCTION FIX (2026-09-03): this used to also set a separate
+          // `verified` BOOLEAN here, sourced from github_connections,
+          // alongside the `verification` STRING buildCodeDnaRecruiterView
+          // already set above from proof_objects.trust_level — two
+          // independently-sourced representations of the same fact, able to
+          // disagree (verify-ownership updates both tables, but a persist
+          // failure on one, or data from before that write existed, could
+          // leave them out of sync). github_connections is now the
+          // canonical identity/verification source of truth end-to-end, so
+          // the ONE field every consumer actually reads (`verification`,
+          // the string Portfolio.jsx renders) is overwritten here to match
+          // it whenever a connection exists — no second field, no second
+          // source, nothing left for the two to disagree about.
+          if (connRow.verification_state === "verified") {
+            safe.codeDna.verification = "Verified (GitHub ownership confirmed)"
+          } else if (safe.codeDna.verification?.startsWith("Verified")) {
+            // Canonical connection says unverified but the analysis record
+            // still says verified (stale, pre-dates this fix, or the
+            // connection was reset by an identity change) — canonical wins.
+            safe.codeDna.verification = "Self-Selected (GitHub ownership unconfirmed)"
+          }
           safe.codeDna.score = connRow.code_dna_score
           safe.codeDna.confidenceLevel = connRow.confidence_level
           safe.codeDna.repositoriesAnalyzed = connRow.repositories_analyzed
