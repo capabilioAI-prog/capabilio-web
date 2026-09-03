@@ -173,7 +173,7 @@ describe("User-initiated refresh: no duplicate/concurrent scans, sensible cooldo
     assert.ok(!body.includes("repositories_analyzed"))
   })
   test("only a fixed, safe error-category vocabulary is ever persisted (never a raw provider message)", () => {
-    assert.ok(connectionSrc.includes('new Set(["not_found", "rate_limited", "network_error", "unknown"])'))
+    assert.ok(connectionSrc.includes('new Set(["not_found", "rate_limited", "network_error", "auth_failed", "access_denied", "unknown"])'))
   })
   test("cooldown is a short, fixed window — not the old 24h+ exponential scheduler backoff", () => {
     assert.ok(!/backoffMultiplier|MAX_CONSECUTIVE_FAILURES/.test(connectionSrc))
@@ -251,5 +251,55 @@ describe("One canonical GitHub Evidence Profile builder — no more inconsistent
     assert.ok(!partnerBridgeSrc.includes("ref.analysis?.bio"))
     assert.ok(!partnerBridgeSrc.includes("ref.analysis?.topRepos"))
     assert.ok(!partnerBridgeSrc.includes("ref.analysis?.followers"))
+  })
+})
+
+// ── Production incident (2026-09-03): invalid GITHUB_TOKEN → every request
+// got a 401 from GitHub, which fell into a generic, unlogged "GitHub API
+// error" 502. Root-caused by replaying the exact production request and
+// then testing the exact configured token directly against GitHub — see
+// the session's diagnosis. This locks in the fix so a future edit can't
+// silently reintroduce the same blind spot.
+describe("GitHub upstream error classification (production incident fix)", () => {
+  test("classifyGithubHttpError exists and distinguishes 401/403/429/5xx", () => {
+    const idx = githubSrc.indexOf("function classifyGithubHttpError")
+    assert.notEqual(idx, -1)
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx))
+    assert.ok(body.includes("status === 401"))
+    assert.ok(body.includes("status === 403 || status === 429"))
+    assert.ok(body.includes("status >= 500"))
+    assert.ok(body.includes("x-ratelimit-remaining"))
+  })
+  test("a 401 (bad credentials) is never surfaced to the caller as if it were their own auth problem", () => {
+    const idx = githubSrc.indexOf("function classifyGithubHttpError")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx))
+    // Must not return HTTP 401 to the client — that would wrongly imply the
+    // signed-in user is unauthenticated, when it's actually this server's
+    // own GitHub credentials that are bad.
+    assert.ok(!/status:\s*401/.test(body))
+    assert.ok(body.includes("could not be authenticated"))
+  })
+  test("every classification branch logs the real GitHub status server-side, never the token", () => {
+    const idx = githubSrc.indexOf("function classifyGithubHttpError")
+    const body = githubSrc.slice(idx, githubSrc.indexOf("\n}", idx))
+    assert.ok(body.includes("console.error"))
+    assert.ok(!/GITHUB_TOKEN\}/.test(body)) // never interpolates the token value into a log line
+    assert.ok(!body.includes("headers.get(\"authorization\")"))
+  })
+  test("all three call sites (verify-ownership, analyze, connect) use the shared classifier, not their own ad-hoc 403-only branch", () => {
+    const occurrences = githubSrc.match(/classifyGithubHttpError\(ur,/g) || []
+    assert.equal(occurrences.length, 3, `expected 3 call sites, found ${occurrences.length}`)
+    assert.ok(githubSrc.includes('classifyGithubHttpError(ur, "verify-ownership")'))
+    assert.ok(githubSrc.includes('classifyGithubHttpError(ur, "analyze")'))
+    assert.ok(githubSrc.includes('classifyGithubHttpError(ur, "connect")'))
+  })
+  test("no remaining literal 'GitHub API error' generic message reachable in a response body (comments referencing the old bug are fine)", () => {
+    const codeOnly = githubSrc.split("\n").filter(l => !l.trim().startsWith("//")).join("\n")
+    assert.ok(!codeOnly.includes("GitHub API error"))
+  })
+  test("a thrown network/timeout error never echoes the raw exception message to the client", () => {
+    assert.ok(!githubSrc.includes("body: { error: e.message }"))
+    assert.ok(githubSrc.includes("Could not connect to GitHub right now"))
+    assert.ok(githubSrc.includes('console.error("[github/analyze] network failure reaching GitHub:", e.message)'))
   })
 })

@@ -122,7 +122,11 @@ export async function markScanCompleted(userId, { codeDnaScore, confidenceLevel,
  *  errorCategory must be one of a fixed, safe, internal vocabulary (never a
  *  raw provider message) so nothing provider-specific ever reaches a stored
  *  column a UI might render. */
-const SAFE_ERROR_CATEGORIES = new Set(["not_found", "rate_limited", "network_error", "unknown"])
+// 2026-09-03: added auth_failed/access_denied — a production incident (an
+// invalid GITHUB_TOKEN causing every request to fail with 401) revealed
+// these two failure modes weren't distinguished from a generic
+// network_error, which made the actual cause invisible in this column too.
+const SAFE_ERROR_CATEGORIES = new Set(["not_found", "rate_limited", "network_error", "auth_failed", "access_denied", "unknown"])
 export async function markScanFailed(userId, { errorCategory = "unknown" } = {}) {
   const category = SAFE_ERROR_CATEGORIES.has(errorCategory) ? errorCategory : "unknown"
   const current = await getConnection(userId)
