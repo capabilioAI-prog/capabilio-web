@@ -20,56 +20,80 @@ import {
 } from "recharts"
 
 // ─── Design tokens — GenZ premium dark ───────────────────────────────────────
+// PRODUCTION FIX (2026-09-03): this was Portfolio.jsx's own, entirely
+// separate dark theme (near-black bg, light purple-tinted text) — unrelated
+// to and inconsistent with the rest of Capabilio, which uses a warm
+// cream/white light theme with indigo brand accents (see Aura.jsx's `T`
+// token object — every value below is either reused directly from there or
+// derived to the same standard). Every color in this file already funnels
+// through this one object, so redefining the values here (keeping the same
+// token NAMES) restheme the whole page correctly without needing to touch
+// each of the hundreds of individual usage sites. A handful of literal
+// rgba(255,255,255,...) "frosted glass on dark" surfaces that bypassed this
+// object entirely (hero CTA pills, progress-bar tracks) are fixed at their
+// own call sites separately — see the PRODUCTION FIX comments there.
 const C = {
-  bg:      "#07080F",           // near-black with deep indigo tint
-  bgCard:  "rgba(255,255,255,0.04)",
-  bgCard2: "rgba(255,255,255,0.07)",
-  bgInner: "rgba(0,0,0,0.3)",
-  ink:     "#F4F1FF",           // slight purple-tinted white
-  ink2:    "#C8C4D8",
-  ink3:    "#7E7A8F",
-  ink4:    "#4A4658",
-  border:  "rgba(255,255,255,0.08)",
-  border2: "rgba(255,255,255,0.14)",
-  borderStr:"rgba(255,255,255,0.24)",
-  blue:    "#4F8EF7",
-  blue2:   "#7FB3FF",
-  blue3:   "rgba(79,142,247,0.14)",
-  teal:    "#00D4FF",
-  teal2:   "#44E4FF",
-  teal3:   "rgba(0,212,255,0.12)",
-  green:   "#00E5A0",
-  green2:  "rgba(0,229,160,0.12)",
-  amber:   "#FFB800",
-  amber2:  "rgba(255,184,0,0.12)",
-  red:     "#FF4757",
-  red2:    "rgba(255,71,87,0.12)",
-  purple:  "#A855F7",
-  purple2: "rgba(168,85,247,0.14)",
-  brand:   "#7C3AED",           // deep violet — GenZ brand
-  brand2:  "rgba(124,58,237,0.15)",
-  pink:    "#EC4899",
-  pink2:   "rgba(236,72,153,0.12)",
-  shadow:  "0 4px 16px rgba(0,0,0,0.5)",
-  shadow2: "0 20px 60px rgba(0,0,0,0.7)",
-  shadowGlow: (col) => `0 0 32px ${col}35, 0 4px 16px rgba(0,0,0,0.5)`,
-  glass:   "rgba(255,255,255,0.04)",
-  glassBorder: "rgba(255,255,255,0.10)",
+  bg:      "#FAF7F2",           // Capabilio's page background (Aura.jsx T.cream)
+  bgCard:  "#FFFFFF",
+  bgCard2: "#FFFFFF",
+  bgInner: "rgba(0,0,0,0.035)",
+  ink:     "#1A1714",           // Aura.jsx T.ink
+  ink2:    "#475569",           // Aura.jsx T.ink2
+  ink3:    "#94A3B8",
+  ink4:    "#6B6560",           // Aura.jsx T.ink4
+  border:  "rgba(0,0,0,0.08)",  // Aura.jsx T.border weight
+  border2: "rgba(0,0,0,0.14)",
+  borderStr:"rgba(0,0,0,0.24)",
+  blue:    "#3B82F6",           // Aura.jsx T.blue
+  blue2:   "#60A5FA",
+  blue3:   "rgba(59,130,246,0.12)",
+  teal:    "#0891B2",           // darkened from the original bright cyan — #00D4FF fails contrast on a light background
+  teal2:   "#22B8D6",
+  teal3:   "rgba(8,145,178,0.12)",
+  green:   "#10B981",           // Aura.jsx T.green
+  green2:  "rgba(16,185,129,0.12)",
+  amber:   "#F59E0B",           // Aura.jsx T.amber
+  amber2:  "rgba(245,158,11,0.12)",
+  red:     "#F43F5E",           // Aura.jsx T.red
+  red2:    "rgba(244,63,94,0.12)",
+  purple:  "#9333EA",           // darkened from the original bright violet for contrast on light
+  purple2: "rgba(147,51,234,0.12)",
+  brand:   "#6366F1",           // Capabilio's actual primary indigo (Aura.jsx T.indigo)
+  brand2:  "rgba(99,102,241,0.12)",
+  pink:    "#DB2777",           // darkened from the original bright pink for contrast on light
+  pink2:   "rgba(219,39,119,0.12)",
+  shadow:  "0 4px 12px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.06)",
+  shadow2: "0 8px 24px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
+  shadowGlow: (col) => `0 0 20px ${col}25, 0 4px 12px rgba(0,0,0,0.08)`,
+  glass:   "#FFFFFF",
+  glassBorder: "rgba(0,0,0,0.08)",
   // legacy aliases
-  surface: "rgba(255,255,255,0.04)",
-  surface2:"rgba(255,255,255,0.07)",
+  surface: "#FFFFFF",
+  surface2:"#FFFFFF",
 }
 
+// PRODUCTION FIX (2026-09-03): heroBg used to end in #07080F (near-black) with
+// bold 0.4-0.7 opacity radial washes — designed for the page's old dark
+// theme, where the hero's own text was plain white. That text is now dark
+// ink (matching the rest of Capabilio's light theme — see the C object's
+// header comment), so the background had to become light too, or the two
+// fixes would cancel out into dark-on-dark. Same per-path hue arrangement
+// for visual variety, ending in C.bg (cream) instead of black, with opacity
+// cut roughly 5x — the loud, moody-glow opacities only read as intended
+// against black; on a light base the same values would wash out the page
+// in solid color instead of the subtle tint actually wanted here. `accent`
+// is darkened to the same values as the C object's purple/teal/pink (that
+// object's own comments explain why) for contrast on the new light hero.
 const PATH_CONFIG = {
   student:      { label:"Student",      icon:"🎓",
-    heroBg:"radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.65) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.4) 0%, transparent 45%), radial-gradient(ellipse at 60% 80%, rgba(236,72,153,0.25) 0%, transparent 40%), #07080F",
-    accent:"#A855F7" },
+    heroBg:`radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(8,145,178,0.08) 0%, transparent 45%), radial-gradient(ellipse at 60% 80%, rgba(219,39,119,0.06) 0%, transparent 40%), ${C.bg}`,
+    accent:C.purple },
   professional: { label:"Professional", icon:"💼",
-    heroBg:"radial-gradient(ellipse at 15% 50%, rgba(0,212,255,0.55) 0%, transparent 50%), radial-gradient(ellipse at 85% 30%, rgba(0,229,160,0.35) 0%, transparent 45%), radial-gradient(ellipse at 50% 85%, rgba(79,142,247,0.3) 0%, transparent 40%), #07080F",
-    accent:"#00D4FF" },
+    heroBg:`radial-gradient(ellipse at 15% 50%, rgba(8,145,178,0.10) 0%, transparent 50%), radial-gradient(ellipse at 85% 30%, rgba(16,185,129,0.08) 0%, transparent 45%), radial-gradient(ellipse at 50% 85%, rgba(59,130,246,0.07) 0%, transparent 40%), ${C.bg}`,
+    accent:C.teal },
   authority:    { label:"Expert",       icon:"⭐",
-    heroBg:"radial-gradient(ellipse at 25% 40%, rgba(168,85,247,0.7) 0%, transparent 50%), radial-gradient(ellipse at 75% 60%, rgba(236,72,153,0.45) 0%, transparent 45%), radial-gradient(ellipse at 55% 15%, rgba(0,212,255,0.2) 0%, transparent 40%), #07080F",
-    accent:"#EC4899" },
+    heroBg:`radial-gradient(ellipse at 25% 40%, rgba(147,51,234,0.13) 0%, transparent 50%), radial-gradient(ellipse at 75% 60%, rgba(219,39,119,0.09) 0%, transparent 45%), radial-gradient(ellipse at 55% 15%, rgba(8,145,178,0.05) 0%, transparent 40%), ${C.bg}`,
+    accent:C.pink },
 }
 
 // ─── Skill icon mapping (skillicons.dev slugs) ────────────────────────────────
@@ -176,7 +200,7 @@ function GeneratedSkillIcon({ name, size=22 }) {
         0 2px 6px rgba(0,0,0,0.45),
         0 1px 0px rgba(255,255,255,0.08)
       `,
-      border:`1px solid rgba(255,255,255,0.14)`,
+      border:`1px solid ${C.border}`,
     }}>
       {/* Top specular gleam */}
       <div style={{
@@ -222,7 +246,7 @@ function SkillIconEl({ name, size=22 }) {
         0 6px 18px rgba(0,0,0,0.55),
         0 2px 5px rgba(0,0,0,0.4)
       `,
-      border:"1px solid rgba(255,255,255,0.10)",
+      border:`1px solid ${C.border}`,
     }}>
       <img src={src} alt={name} style={{width:size,height:size,display:"block"}}
         onError={()=>setFailed(true)}/>
@@ -317,13 +341,20 @@ function ScoreRing({ score, size=48 }) {
 
 function Card({ children, style={}, accent=null }) {
   return (
+    // PRODUCTION FIX (2026-09-03): background was C.bgInner (correct — a
+    // subtle, slightly-recessed panel), but the shadow was a heavy 60px
+    // black halo plus a white inset bevel — designed to make a card visibly
+    // "float" off a near-black page. The same shadow on Capabilio's actual
+    // cream background just reads as a muddy dark smudge; every other
+    // Capabilio surface (see Aura.jsx's T.shadow) uses a much subtler,
+    // closer, lower-opacity shadow instead. Backdrop blur is also dropped —
+    // it did nothing meaningful once the background is solid rather than
+    // glass-on-a-photographic/gradient backdrop.
     <div className="pf-card" style={{
-      background: "rgba(255,255,255,0.04)",
-      backdropFilter: "blur(24px)",
-      WebkitBackdropFilter: "blur(24px)",
+      background:C.bgCard,
       borderRadius: 24,
-      border: `1px solid rgba(255,255,255,0.10)`,
-      boxShadow: "0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
+      border:`1px solid ${C.border}`,
+      boxShadow: C.shadow,
       padding: "28px 32px",
       position: "relative",
       overflow: "hidden",
@@ -360,11 +391,11 @@ function StatChip({ icon, value, label, color=C.blue }) {
   return (
     <div style={{
       textAlign:"center", padding:"20px 16px",
-      background:"rgba(255,255,255,0.05)",
+      background:C.bgInner,
       backdropFilter:"blur(20px)",
       WebkitBackdropFilter:"blur(20px)",
       borderRadius:18,
-      border:`1px solid rgba(255,255,255,0.10)`,
+      border:`1px solid ${C.border}`,
       borderTop:`2px solid ${color}`,
       boxShadow:`0 8px 32px rgba(0,0,0,0.4), 0 0 0 0 ${color}00`,
       minWidth:90,
@@ -393,8 +424,8 @@ function SkillBadge({ label, pct, color=C.blue }) {
     <div style={{
       display:"flex", alignItems:"center", gap:12,
       background:"linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)",
-      border:`1px solid rgba(255,255,255,0.12)`,
-      borderTop:`1px solid rgba(255,255,255,0.20)`,
+      border:`1px solid ${C.border}`,
+      borderTop:`1px solid ${C.border}`,
       borderRadius:16, padding:"11px 14px", marginBottom:8,
       backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
       position:"relative", overflow:"hidden",
@@ -445,7 +476,7 @@ function SkillBadge({ label, pct, color=C.blue }) {
             boxShadow:`0 2px 8px ${color}40, inset 0 1px 0 rgba(255,255,255,0.2)`,
           }}>{p}%</span>
         </div>
-        <div style={{ height:4, background:"rgba(255,255,255,0.06)", borderRadius:99,
+        <div style={{ height:4, background:C.bgInner, borderRadius:99,
           boxShadow:"inset 0 1px 2px rgba(0,0,0,0.3)" }}>
           <div style={{ height:"100%", width:`${p}%`,
             background:`linear-gradient(90deg, ${color}77, ${color})`,
@@ -485,7 +516,7 @@ function SkillGrid({ skills, aConfig, max=12 }) {
       {hasMore && (
         <button onClick={() => setExpanded(e=>!e)} style={{
           marginTop:12, width:"100%", padding:"9px 0",
-          background:"rgba(255,255,255,0.04)", border:`1px solid rgba(255,255,255,0.10)`,
+          background:C.bgInner, border:`1px solid ${C.border}`,
           borderRadius:10, color:C.ink3, fontSize:12, fontWeight:700,
           cursor:"pointer", fontFamily:"'DM Sans',sans-serif", letterSpacing:0.3,
         }}>
@@ -809,7 +840,7 @@ function ArenaChallengesSection({ tasks, commonTasks, domainTasks, avgScore, aCo
         style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px",
           borderRadius:8, cursor:"pointer", borderLeft:`3px solid ${dc.color}`,
           transition:"background 0.15s", marginBottom:2 }}
-        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+        onMouseEnter={e => e.currentTarget.style.background = C.bgInner}
         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
       >
         <div style={{ flex:1, minWidth:0 }}>
@@ -892,7 +923,7 @@ function ArenaChallengesSection({ tasks, commonTasks, domainTasks, avgScore, aCo
             <span style={{ fontSize:12, fontWeight:700, color:C.ink3 }}>Academic Tasks — DSA / Algorithms</span>
             <span style={{ fontSize:11, color:C.ink4 }}>· {remainingCommon.length} more</span>
           </div>
-          <div style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${C.border}`, borderRadius:12, padding:"6px 6px 2px" }}>
+          <div style={{ background:C.bgInner, border:`1px solid ${C.border}`, borderRadius:12, padding:"6px 6px 2px" }}>
             {(showAllCommon ? remainingCommon : remainingCommon.slice(0, ROWS_PREVIEW)).map((t, i) => (
               <CompactRow key={t.id+i} t={t}/>
             ))}
@@ -931,9 +962,9 @@ function ArenaChallengesSection({ tasks, commonTasks, domainTasks, avgScore, aCo
                   <div
                     onClick={() => toggleDomain(domain)}
                     style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 16px",
-                      cursor:"pointer", background:"rgba(255,255,255,0.03)", transition:"background 0.15s" }}
-                    onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
-                    onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+                      cursor:"pointer", background:C.bgInner, transition:"background 0.15s" }}
+                    onMouseEnter={e=>e.currentTarget.style.background = C.bgInner}
+                    onMouseLeave={e=>e.currentTarget.style.background = C.bgInner}
                   >
                     <div style={{ width:10, height:10, borderRadius:"50%", background:dc.color, flexShrink:0 }}/>
                     <div style={{ flex:1 }}>
@@ -1307,7 +1338,7 @@ function PerformanceSummary({ ud, skills, tasks, interviews, accent }) {
             <div style={{fontSize:20,marginBottom:6}}>{m.icon}</div>
             <div style={{fontSize:22,fontWeight:900,color:m.color,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{m.value}</div>
             <div style={{fontSize:11,color:C.ink4,marginTop:4,fontWeight:500}}>{m.sub}</div>
-            <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:99,marginTop:10}}>
+            <div style={{height:4,background:C.bgInner,borderRadius:99,marginTop:10}}>
               <div style={{height:"100%",width:`${m.bar}%`,background:m.color,borderRadius:99,boxShadow:`0 0 6px ${m.color}66`}}/>
             </div>
             <div style={{fontSize:9,color:C.ink4,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginTop:5}}>{m.label}</div>
@@ -1344,7 +1375,7 @@ function PerformanceSummary({ ud, skills, tasks, interviews, accent }) {
             <span style={{fontSize:13,fontWeight:700,color:tier.color}}>● {tier.label} <span style={{fontWeight:500,color:C.ink4}}>· ELO {ud.eloRating}</span></span>
             <span style={{fontSize:12,color:C.ink4}}>Next tier: <strong style={{color:tierNext.color}}>{tierNext.label}</strong></span>
           </div>
-          <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+          <div style={{height:8,background:C.bgInner,borderRadius:99,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${tierProg}%`,
               background:`linear-gradient(90deg,${tier.color},${tierNext.color})`,
               borderRadius:99,transition:"width 1.2s ease",
@@ -1771,9 +1802,12 @@ export default function Portfolio({ username: usernameProp }) {
       `}</style>
 
       {/* ── Sticky nav ─────────────────────────────────────────────────────── */}
+      {/* PRODUCTION FIX (2026-09-03): background was rgba(10,15,30,0.92) — a
+          near-black bar — with C.ink/C.ink3 text, correct when those were
+          light colors, invisible now that they're dark. */}
       <nav className="np" style={{
         position:"sticky",top:0,zIndex:100,
-        background:scrolled?"rgba(10,15,30,0.92)":"transparent",
+        background:scrolled?"rgba(255,255,255,0.92)":"transparent",
         backdropFilter:scrolled?"blur(20px)":"none",
         borderBottom:scrolled?`1px solid ${C.border}`:"none",
         transition:"all 0.3s",
@@ -1863,7 +1897,7 @@ export default function Portfolio({ username: usernameProp }) {
               <h1 style={{
                 fontSize:clamp(36,5.8,68),fontWeight:900,
                 margin:"0 0 8px",lineHeight:1.0,letterSpacing:"-0.03em",
-                color:"rgba(255,255,255,0.92)",
+                color:C.ink,
               }}>
                 Hi, I'm <span style={{
                   background:`linear-gradient(135deg, ${aConfig?.palette?.accent||C.purple}, ${pc.accent||C.teal})`,
@@ -1876,7 +1910,7 @@ export default function Portfolio({ username: usernameProp }) {
               {/* Full name subtitle */}
               {(ud.displayName||"").split(" ").length>1&&(
                 <div style={{fontSize:clamp(18,2.5,28),fontWeight:700,
-                  color:"rgba(255,255,255,0.45)",marginBottom:16,letterSpacing:"-0.01em"}}>
+                  color:C.ink2,marginBottom:16,letterSpacing:"-0.01em"}}>
                   {ud.displayName}
                 </div>
               )}
@@ -1884,14 +1918,14 @@ export default function Portfolio({ username: usernameProp }) {
               {/* Archetype tagline */}
               {aConfig?.heroTagline&&(
                 <p style={{fontSize:14,fontStyle:"italic",
-                  color:"rgba(255,255,255,0.4)",marginBottom:8,fontWeight:500}}>
+                  color:C.ink2,marginBottom:8,fontWeight:500}}>
                   {aConfig.heroTagline}
                 </p>
               )}
 
               {/* Bio summary */}
               <p style={{
-                fontSize:14,color:"rgba(255,255,255,0.5)",
+                fontSize:14,color:C.ink2,
                 lineHeight:1.9,maxWidth:480,margin:"0 0 24px",
               }}>
                 {summary||archetypeSummary||`${pc.label} building real skills on Capabilio Arena.`}
@@ -1902,9 +1936,9 @@ export default function Portfolio({ username: usernameProp }) {
                 <div style={{
                   display:"inline-flex",alignItems:"center",gap:5,
                   marginBottom:20,
-                  background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.10)",
+                  background:C.bgInner,border:`1px solid ${C.border}`,
                   padding:"4px 14px",borderRadius:99,fontSize:12,
-                  color:"rgba(255,255,255,0.45)",fontWeight:500,
+                  color:C.ink2,fontWeight:500,
                 }}>
                   📍 {ud.location}
                 </div>
@@ -1924,14 +1958,20 @@ export default function Portfolio({ username: usernameProp }) {
                     <span style={{fontWeight:900}}>in</span> LinkedIn ↗
                   </a>
                 )}
+                {/* PRODUCTION FIX (2026-09-03): these two secondary CTAs used to be a
+                    near-transparent white "frosted glass" pill with white text —
+                    correct on the old dark hero background, invisible once the
+                    page background is light. Now a plain bordered pill matching
+                    Capabilio's secondary-button convention (white surface,
+                    C.border outline, C.ink2 text). */}
                 {(ud.githubUrl||ud.githubUsername)&&(
                   <a href={ud.githubUrl||`https://github.com/${ud.githubUsername}`} target="_blank" rel="noreferrer" style={{
                     display:"inline-flex",alignItems:"center",gap:8,
                     padding:"11px 22px",borderRadius:99,
-                    background:"rgba(255,255,255,0.07)",
-                    border:"1.5px solid rgba(255,255,255,0.20)",
-                    color:"#fff",fontSize:13,fontWeight:700,textDecoration:"none",
-                    backdropFilter:"blur(10px)",
+                    background:C.bgCard,
+                    border:`1.5px solid ${C.border}`,
+                    color:C.ink2,fontSize:13,fontWeight:700,textDecoration:"none",
+                    boxShadow:C.shadow,
                   }}>
                     ⌥ GitHub ↗
                   </a>
@@ -1940,10 +1980,10 @@ export default function Portfolio({ username: usernameProp }) {
                   <a href={ud.portfolioUrl||ud.websiteUrl} target="_blank" rel="noreferrer" style={{
                     display:"inline-flex",alignItems:"center",gap:8,
                     padding:"11px 22px",borderRadius:99,
-                    background:"rgba(255,255,255,0.07)",
-                    border:"1.5px solid rgba(255,255,255,0.18)",
-                    color:"#fff",fontSize:13,fontWeight:700,textDecoration:"none",
-                    backdropFilter:"blur(10px)",
+                    background:C.bgCard,
+                    border:`1.5px solid ${C.border}`,
+                    color:C.ink2,fontSize:13,fontWeight:700,textDecoration:"none",
+                    boxShadow:C.shadow,
                   }}>
                     🌐 Website ↗
                   </a>
@@ -1953,7 +1993,7 @@ export default function Portfolio({ username: usernameProp }) {
               {/* Tech stack icons strip */}
               {skills.length>0&&(
                 <div>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.3)",
+                  <div style={{fontSize:10,fontWeight:800,color:C.ink3,
                     textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>
                     Technologies I work with
                   </div>
@@ -2023,15 +2063,15 @@ export default function Portfolio({ username: usernameProp }) {
                   context under it, not a substitute for the number. */}
               {!isPro ? (
                 <div style={{
-                  background:"rgba(255,255,255,0.06)",
+                  background:C.bgInner,
                   backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                  border:`1px solid rgba(255,255,255,0.12)`,
+                  border:`1px solid ${C.border}`,
                   borderTop:`2px solid ${aConfig?.palette?.accent||C.purple}`,
                   borderRadius:16,padding:"14px 24px",textAlign:"center",
                   boxShadow:`0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.04)`,
                   minWidth:180,
                 }}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",
+                  <div style={{fontSize:10,fontWeight:800,color:C.ink3,
                     textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Arena Rating</div>
                   <div style={{fontSize:26,fontWeight:900,color:"#fff",fontFamily:"'DM Mono',monospace",lineHeight:1}}>
                     {ud.eloRating}
@@ -2041,24 +2081,24 @@ export default function Portfolio({ username: usernameProp }) {
                       {tier.label} Tier
                     </div>
                   ) : (
-                    <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)",marginTop:4}}>
+                    <div style={{fontSize:12,fontWeight:700,color:C.ink2,marginTop:4}}>
                       Not started
                     </div>
                   )}
                 </div>
               ) : (
                 <div style={{
-                  background:"rgba(255,255,255,0.06)",
+                  background:C.bgInner,
                   backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                  border:`1px solid rgba(255,255,255,0.12)`,
+                  border:`1px solid ${C.border}`,
                   borderTop:`2px solid ${aConfig?.palette?.accent||C.blue}`,
                   borderRadius:16,padding:"14px 24px",textAlign:"center",
                   boxShadow:`0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.04)`,
                   minWidth:180,
                 }}>
-                  <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",
+                  <div style={{fontSize:10,fontWeight:800,color:C.ink3,
                     textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Verification</div>
-                  <div style={{fontSize:13,fontWeight:800,color:ud.uanVerified?C.green:"rgba(255,255,255,0.4)"}}>
+                  <div style={{fontSize:13,fontWeight:800,color:ud.uanVerified?C.green:C.ink3}}>
                     {ud.uanVerified ? "✓ Employment Verified" : "Not yet verified"}
                   </div>
                   {ud.verifiedCertsCount>0 && (
@@ -2074,10 +2114,10 @@ export default function Portfolio({ username: usernameProp }) {
 
         {/* ── STATS BAR — horizontal chips below hero ──────────────────────── */}
         <div style={{
-          background:"rgba(7,8,15,0.92)",
+          background:C.bgCard,
           backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
-          borderBottom:`1px solid rgba(255,255,255,0.07)`,
-          borderTop:`1px solid rgba(255,255,255,0.05)`,
+          borderBottom:`1px solid ${C.border}`,
+          borderTop:`1px solid ${C.border}`,
           padding:"20px 40px",
         }}>
           <div style={{maxWidth:1100,margin:"0 auto",display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
@@ -2132,14 +2172,14 @@ export default function Portfolio({ username: usernameProp }) {
 
               {/* LEFT: Identity */}
               <div style={{display:"flex",alignItems:"flex-start",gap:20,flex:"1 1 300px",
-                paddingRight:32, borderRight:`1px solid rgba(255,255,255,0.08)`, marginRight:0}}>
+                paddingRight:32, borderRight:`1px solid ${C.border}`, marginRight:0}}>
                 {/* 3D icon — floats */}
                 <div style={{
                   width:64, height:64, borderRadius:20, flexShrink:0,
                   background:`linear-gradient(145deg,${aConfig.palette.accent},${aConfig.palette.tag||aConfig.palette.accent}99)`,
                   display:"flex", alignItems:"center", justifyContent:"center", fontSize:30,
                   boxShadow:`inset 0 1px 2px rgba(255,255,255,0.3), inset 0 -2px 4px rgba(0,0,0,0.3), 0 8px 24px ${aConfig.palette.accent}55, 0 0 0 1px ${aConfig.palette.accent}30`,
-                  border:`1px solid rgba(255,255,255,0.15)`,
+                  border:`1px solid ${C.border}`,
                   position:"relative", overflow:"hidden",
                   animation:"archetypeFloat 3s ease-in-out infinite",
                 }}>
@@ -2176,7 +2216,7 @@ export default function Portfolio({ username: usernameProp }) {
                   <div style={{
                     fontSize:12,color:C.ink2,lineHeight:1.8,
                     background:"rgba(0,0,0,0.2)",borderRadius:10,
-                    padding:"10px 14px",border:`1px solid rgba(255,255,255,0.06)`,
+                    padding:"10px 14px",border:`1px solid ${C.border}`,
                   }}>
                     💡 <strong style={{color:C.ink}}>What this means:</strong> {isPro
                       ? "Capabilio's AI analyzed your real skills, work experience, and Weekly Skill Pulse assessments to assign this professional persona. Recruiters use it to instantly understand your specialization — like a headline, but backed by verified signals instead of a self-written bio."
@@ -2199,8 +2239,8 @@ export default function Portfolio({ username: usernameProp }) {
                     {aConfig.proofElements.slice(0,4).map((pe,i)=>(
                       <div key={i} style={{
                         padding:"6px 14px",
-                        background: i===0 ? `${aConfig.palette.accent}18` : "rgba(255,255,255,0.05)",
-                        border:`1px solid ${i===0 ? aConfig.palette.accent+"40" : "rgba(255,255,255,0.10)"}`,
+                        background: i===0 ? `${aConfig.palette.accent}18` : C.bgInner,
+                        border:`1px solid ${i===0 ? aConfig.palette.accent+"40" : C.border}`,
                         borderRadius:99, fontSize:11, fontWeight:700,
                         color:i===0 ? aConfig.palette.accent : C.ink2,
                       }}>
@@ -2216,8 +2256,8 @@ export default function Portfolio({ username: usernameProp }) {
                   // Arena reference, no ELO tier, nothing fabricated.
                   <div style={{
                     display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
-                    background:"rgba(255,255,255,0.04)",borderRadius:12,
-                    padding:"10px 14px",border:"1px solid rgba(255,255,255,0.07)",
+                    background:C.bgInner,borderRadius:12,
+                    padding:"10px 14px",border:`1px solid ${C.border}`,
                   }}>
                     <span style={{fontSize:11,color:C.ink3,fontWeight:600}}>Career stage:</span>
                     <span style={{fontSize:12,fontWeight:900,color:aConfig?.palette?.accent||C.blue}}>
@@ -2242,8 +2282,8 @@ export default function Portfolio({ username: usernameProp }) {
                 ) : (
                   <div style={{
                     display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",
-                    background:"rgba(255,255,255,0.04)",borderRadius:12,
-                    padding:"10px 14px",border:"1px solid rgba(255,255,255,0.07)",
+                    background:C.bgInner,borderRadius:12,
+                    padding:"10px 14px",border:`1px solid ${C.border}`,
                   }}>
                     <span style={{fontSize:11,color:C.ink3,fontWeight:600}}>Your level:</span>
                     <span style={{
@@ -2348,8 +2388,8 @@ export default function Portfolio({ username: usernameProp }) {
             <div style={{
               borderRadius:28,
               background:"linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 60%, rgba(0,0,0,0.1) 100%)",
-              border:`1px solid rgba(255,255,255,0.14)`,
-              borderTop:`1px solid rgba(255,255,255,0.22)`,
+              border:`1px solid ${C.border}`,
+              borderTop:`1px solid ${C.border}`,
               backdropFilter:"blur(32px)", WebkitBackdropFilter:"blur(32px)",
               boxShadow:`
                 0 32px 80px rgba(0,0,0,0.6),
@@ -2377,7 +2417,7 @@ export default function Portfolio({ username: usernameProp }) {
                   {radarData.length>=3&&(
                     <div style={{
                       background:"rgba(0,0,0,0.25)",borderRadius:18,padding:"18px 16px",
-                      border:"1px solid rgba(255,255,255,0.07)",
+                      border:`1px solid ${C.border}`,
                       boxShadow:"inset 0 2px 8px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3)",
                     }}>
                       <div style={{fontSize:10,fontWeight:800,color:aConfig?.palette?.accent||C.teal,textTransform:"uppercase",letterSpacing:2,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
@@ -2386,7 +2426,7 @@ export default function Portfolio({ username: usernameProp }) {
                       </div>
                       <ResponsiveContainer key={printKey} width="100%" height={220}>
                         <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
-                          <PolarGrid stroke="rgba(255,255,255,0.08)"/>
+                          <PolarGrid stroke={C.border}/>
                           <PolarAngleAxis dataKey="subject" tick={{fill:C.ink3,fontSize:10,fontWeight:600}}/>
                           <PolarRadiusAxis domain={[0,100]} tick={false} axisLine={false}/>
                           <Radar name="Score" dataKey="score"
@@ -2395,7 +2435,7 @@ export default function Portfolio({ username: usernameProp }) {
                             fillOpacity={0.18} strokeWidth={2.5}
                             dot={{fill:aConfig?.palette?.accent||C.teal,r:3}}/>
                           <Tooltip
-                            contentStyle={{background:"rgba(7,8,15,0.95)",border:`1px solid ${aConfig?.palette?.accent||C.teal}40`,borderRadius:10,fontSize:12,color:C.ink,backdropFilter:"blur(12px)"}}
+                            contentStyle={{background:C.bgCard,border:`1px solid ${aConfig?.palette?.accent||C.teal}40`,borderRadius:10,fontSize:12,color:C.ink,boxShadow:C.shadow}}
                             formatter={v=>[`${v}%`,"Score"]}/>
                         </RadarChart>
                       </ResponsiveContainer>
@@ -2403,7 +2443,7 @@ export default function Portfolio({ username: usernameProp }) {
                   )}
                   <div style={{
                     background:"rgba(0,0,0,0.2)",borderRadius:18,padding:"18px 16px",
-                    border:"1px solid rgba(255,255,255,0.06)",
+                    border:`1px solid ${C.border}`,
                     boxShadow:"inset 0 2px 8px rgba(0,0,0,0.35)",
                   }}>
                     <div style={{fontSize:10,fontWeight:800,color:aConfig?.palette?.accent||C.teal,textTransform:"uppercase",letterSpacing:2,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
@@ -2811,7 +2851,7 @@ export default function Portfolio({ username: usernameProp }) {
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                     <span style={{fontSize:13}}>🎤</span>
                     <span style={{fontSize:12,fontWeight:800,color:C.ink}}>Can explain their own code</span>
-                    <span style={{fontSize:9,color:C.ink4,fontWeight:700,background:"rgba(255,255,255,0.06)",borderRadius:6,padding:"2px 7px"}}>AI-ASSESSED</span>
+                    <span style={{fontSize:9,color:C.ink4,fontWeight:700,background:C.bgInner,borderRadius:6,padding:"2px 7px"}}>AI-ASSESSED</span>
                   </div>
                   <div style={{fontSize:13,fontWeight:700,color:ud.codeDna.repoInterview.verdict==="Genuine understanding"?C.green:ud.codeDna.repoInterview.verdict==="Doesn't match stated project"?C.red:C.amber,marginBottom:4}}>
                     {ud.codeDna.repoInterview.verdict}

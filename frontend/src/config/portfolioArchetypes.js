@@ -138,7 +138,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "🎨",
 
     palette: {
-      hero:       "linear-gradient(135deg,#1E3A8A 0%,#2563EB 50%,#4F46E5 100%)",
+      hero:       "linear-gradient(135deg,#EFF6FF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#2563EB",
       accentSoft: "#EFF6FF",
       tag:        "#3B82F6",
@@ -209,7 +209,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "🏗️",
 
     palette: {
-      hero:       "linear-gradient(135deg,#0F172A 0%,#134E4A 60%,#065F46 100%)",
+      hero:       "linear-gradient(135deg,#ECFDF5 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#10B981",
       accentSoft: "#ECFDF5",
       tag:        "#059669",
@@ -281,7 +281,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "⚙️",
 
     palette: {
-      hero:       "linear-gradient(135deg,#0F172A 0%,#1E1B4B 50%,#312E81 100%)",
+      hero:       "linear-gradient(135deg,#FFFBEB 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#F59E0B",
       accentSoft: "#FFFBEB",
       tag:        "#D97706",
@@ -354,7 +354,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "📊",
 
     palette: {
-      hero:       "linear-gradient(135deg,#164E63 0%,#0F766E 50%,#0E7490 100%)",
+      hero:       "linear-gradient(135deg,#ECFEFF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#0891B2",
       accentSoft: "#ECFEFF",
       tag:        "#0E7490",
@@ -428,7 +428,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "✦",
 
     palette: {
-      hero:       "linear-gradient(135deg,#1E1B4B 0%,#4C1D95 50%,#7C3AED 100%)",
+      hero:       "linear-gradient(135deg,#F5F3FF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#7C3AED",
       accentSoft: "#F5F3FF",
       tag:        "#6D28D9",
@@ -498,7 +498,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "📋",
 
     palette: {
-      hero:       "linear-gradient(135deg,#0C4A6E 0%,#0369A1 60%,#0284C7 100%)",
+      hero:       "linear-gradient(135deg,#F0F9FF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#0284C7",
       accentSoft: "#F0F9FF",
       tag:        "#0369A1",
@@ -565,7 +565,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "🏛️",
 
     palette: {
-      hero:       "linear-gradient(135deg,#18181B 0%,#27272A 50%,#3F3F46 100%)",
+      hero:       "linear-gradient(135deg,#FFFBEB 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#F59E0B",
       accentSoft: "#FFFBEB",
       tag:        "#B45309",
@@ -633,7 +633,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "🌱",
 
     palette: {
-      hero:       "linear-gradient(135deg,#7C2D12 0%,#EA580C 50%,#F97316 100%)",
+      hero:       "linear-gradient(135deg,#FFF7ED 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#EA580C",
       accentSoft: "#FFF7ED",
       tag:        "#C2410C",
@@ -704,7 +704,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "⚡",
 
     palette: {
-      hero:       "linear-gradient(135deg,#1E1B4B 0%,#312E81 50%,#1E3A8A 100%)",
+      hero:       "linear-gradient(135deg,#EEF2FF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#6366F1",
       accentSoft: "#EEF2FF",
       tag:        "#4F46E5",
@@ -771,7 +771,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "📱",
 
     palette: {
-      hero:       "linear-gradient(135deg,#0C4A6E 0%,#1D4ED8 50%,#1E3A8A 100%)",
+      hero:       "linear-gradient(135deg,#EFF6FF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#3B82F6",
       accentSoft: "#EFF6FF",
       tag:        "#2563EB",
@@ -837,7 +837,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "⚙️",
 
     palette: {
-      hero:       "linear-gradient(135deg,#064E3B 0%,#065F46 50%,#0F766E 100%)",
+      hero:       "linear-gradient(135deg,#ECFDF5 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#10B981",
       accentSoft: "#ECFDF5",
       tag:        "#059669",
@@ -908,7 +908,7 @@ export const ARCHETYPE_CONFIG = {
     icon:      "🎯",
 
     palette: {
-      hero:       "linear-gradient(135deg,#1E1B4B 0%,#4C1D95 50%,#7C3AED 100%)",
+      hero:       "linear-gradient(135deg,#F5F3FF 0%,#FFFFFF 55%,#FAF7F2 100%)",
       accent:     "#8B5CF6",
       accentSoft: "#F5F3FF",
       tag:        "#7C3AED",
