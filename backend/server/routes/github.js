@@ -257,6 +257,56 @@ async function getFirstCommitSignal(fullName) {
   }
 }
 
+// ── GitHub upstream error classification (2026-09-03, production incident) ─
+// PRODUCTION INCIDENT: an invalid GITHUB_TOKEN on Render caused GitHub to
+// reject every request with 401 Bad credentials. This code only ever
+// special-cased 403 — a 401 fell into a generic "GitHub API error" 502 with
+// zero server-side logging of the actual GitHub status, making the real
+// cause invisible without manually replaying the request against GitHub
+// directly (which is how it was actually diagnosed). This function fixes
+// both problems: it distinguishes the failure modes that actually matter,
+// and every branch logs the real GitHub status server-side — never the
+// token, never a raw stack trace, never anything sent back to the client
+// beyond a short, safe, human sentence.
+//
+// 403 vs 429: GitHub's core REST API traditionally signals BOTH primary
+// rate limiting and genuine permission/abuse-detection denial with the same
+// 403 status — the only reliable way to tell them apart is the
+// X-RateLimit-Remaining response header (0 means "you're rate limited",
+// present-and-nonzero means "this request was actually forbidden for some
+// other reason"). A bare 429 (some GitHub endpoints, e.g. secondary rate
+// limits) is treated the same as a confirmed rate limit.
+function classifyGithubHttpError(res, context) {
+  const status = res.status
+  const remaining = res.headers.get("x-ratelimit-remaining")
+  const usedAuth = !!process.env.GITHUB_TOKEN
+  const logSafe = (category) => console.error(
+    `[github/${context}] upstream GitHub error: status=${status} category=${category} authenticated=${usedAuth} rateLimitRemaining=${remaining ?? "n/a"}`
+  )
+
+  if (status === 401) {
+    logSafe("auth_failed")
+    // This means OUR server's own credentials to GitHub are invalid — never
+    // the calling user's fault, so this is a 502 (upstream failure) to the
+    // client, not a 401 (which would wrongly imply the USER isn't logged in).
+    return { status: 502, message: "GitHub connection could not be authenticated. Please try again later.", errorCategory: "auth_failed" }
+  }
+  if (status === 403 || status === 429) {
+    if (status === 429 || remaining === "0") {
+      logSafe("rate_limited")
+      return { status: 429, message: "GitHub temporarily limited this request. Please try again later.", errorCategory: "rate_limited" }
+    }
+    logSafe("access_denied")
+    return { status: 403, message: "GitHub denied access to this resource.", errorCategory: "access_denied" }
+  }
+  if (status >= 500) {
+    logSafe("upstream_unavailable")
+    return { status: 502, message: "GitHub is temporarily unavailable. Please try again later.", errorCategory: "network_error" }
+  }
+  logSafe("unknown")
+  return { status: 502, message: "We couldn't analyze this GitHub URL. Please check the link and try again.", errorCategory: "unknown" }
+}
+
 // ── Collaboration evidence (2026-09-03, GitHub Evidence Profile) ───────────
 // Real, public, unauthenticated GitHub data — no OAuth scope needed. Every
 // public pull request the account has ever opened, anywhere on GitHub (not
@@ -357,7 +407,7 @@ router.post("/verify-ownership", async (req, res) => {
   try {
     const ur = await fetch(`https://api.github.com/users/${username}`, { headers: ghHeaders() })
     if (ur.status === 404) return res.status(404).json({ error: "GitHub user not found" })
-    if (!ur.ok) return res.status(ur.status === 403 ? 429 : 502).json({ error: "GitHub API error" })
+    if (!ur.ok) { const c = classifyGithubHttpError(ur, "verify-ownership"); return res.status(c.status).json({ error: c.message }) }
     const user = await ur.json()
     const code = verificationCodeFor(req.user.id)
     const verified = !!(user.bio && user.bio.includes(code))
@@ -388,7 +438,7 @@ export async function analyzeGithubProfile({ userId, githubUrl = "", keyword = "
       fetch(`https://api.github.com/users/${username}/repos?sort=pushed&per_page=30`, { headers: ghHeaders() }),
     ])
     if (ur.status === 404) return { status: 404, body: { error: "GitHub user not found" }, errorCategory: "not_found" }
-    if (!ur.ok) return { status: ur.status === 403 ? 429 : 502, body: { error: ur.status === 403 ? "GitHub API rate limit reached — try again shortly" : "GitHub API error" }, errorCategory: ur.status === 403 ? "rate_limited" : "network_error" }
+    if (!ur.ok) { const c = classifyGithubHttpError(ur, "analyze"); return { status: c.status, body: { error: c.message }, errorCategory: c.errorCategory } }
     const user  = await ur.json()
     const repos = rr.ok ? await rr.json() : []
     // Kicked off now, awaited just before responseBody is assembled below —
@@ -775,8 +825,13 @@ Return JSON exactly matching this schema:
 
     return { status: 200, body: responseBody }
   } catch (e) {
-    console.error("[github/analyze]", e.message)
-    return { status: 500, body: { error: e.message }, errorCategory: "unknown" }
+    // A thrown error here (as opposed to a non-ok fetch response, handled
+    // above) means the request to GitHub never completed at all — DNS
+    // failure, connection reset, timeout. e.message can contain low-level
+    // Node/network internals, so it's logged server-side only; the client
+    // gets a short, safe, generic sentence.
+    console.error("[github/analyze] network failure reaching GitHub:", e.message)
+    return { status: 502, body: { error: "Could not connect to GitHub right now. Please try again." }, errorCategory: "network_error" }
   }
 }
 
@@ -808,7 +863,7 @@ router.post("/connect", strictLimiter, async (req, res) => {
   try {
     const ur = await fetch(`https://api.github.com/users/${username}`, { headers: ghHeaders() })
     if (ur.status === 404) return res.status(404).json({ error: "We couldn't find that GitHub profile. Check the username or URL and try again." })
-    if (!ur.ok) return res.status(ur.status === 403 ? 429 : 502).json({ error: ur.status === 403 ? "GitHub is rate-limiting requests right now — try again shortly." : "Unable to reach GitHub right now. Please try again later." })
+    if (!ur.ok) { const c = classifyGithubHttpError(ur, "connect"); return res.status(c.status).json({ error: c.message }) }
     const user = await ur.json()
     resolvedLogin = user.login
   } catch (e) {
