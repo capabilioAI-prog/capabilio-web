@@ -147,6 +147,102 @@ test("selectBestTask: ranks the lower-confidence competency's task first when ev
   assert.equal(result.targetedCompetencies[0].label, "Weak topic")
 })
 
+// ── Fresher-safe difficulty tie-break (Arena learning-loop audit, 2026-09-04) ──
+// Reproduces, as a fast local test, the exact bug found live in production:
+// every currently-seeded domain_role tags 100% of its own tasks to ONE
+// shared competency node, so confidence never differentiates between them —
+// the tie-break used to be raw creation order, which could (and did) serve
+// a brand-new, zero-evidence student a "medium" or "hard" task first.
+
+test("selectBestTask: confidence tied (shared competency node) — a low-ELO student is served the EASIEST eligible task first, not creation order", async () => {
+  const data = baseTableData({
+    // Deliberately out of easy-first creation order — medium was created
+    // first, exactly like the real "data" role in production.
+    experiments: [
+      { id: "e-medium", title: "Medium task", prompt: "p", difficulty: "medium", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-01" },
+      { id: "e-easy", title: "Easy task", prompt: "p", difficulty: "easy", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-02" },
+      { id: "e-hard", title: "Hard task", prompt: "p", difficulty: "hard", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-03" },
+    ],
+    profiles: { elo_rating: 450 }, // Rookie tier
+  })
+  const deps = {
+    ...fakeSupabase(data),
+    getExclusions: async () => ({ passedIds: new Set() }),
+    loadCapabilityState: async () => ({ competencies: [], hasData: false }), // no evidence yet — every currently-seeded role's actual state
+  }
+  const result = await selectBestTask({ userId: "u1", domain: "college_stream", key: "cse" }, deps)
+  assert.equal(result.task.id, "e-easy", "a brand-new Rookie-tier student must get the easy task first, not whichever was created first")
+})
+
+test("selectBestTask: confidence tied — after the easy task is passed, the next pick prefers the NEXT-closest difficulty (medium), not the farthest (hard)", async () => {
+  const data = baseTableData({
+    experiments: [
+      { id: "e-medium", title: "Medium task", prompt: "p", difficulty: "medium", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-01" },
+      { id: "e-hard", title: "Hard task", prompt: "p", difficulty: "hard", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-03" },
+    ],
+    profiles: { elo_rating: 450 },
+  })
+  const deps = {
+    ...fakeSupabase(data),
+    getExclusions: async () => ({ passedIds: new Set(["e-easy"]) }),
+    loadCapabilityState: async () => ({ competencies: [], hasData: false }),
+  }
+  const result = await selectBestTask({ userId: "u1", domain: "college_stream", key: "cse" }, deps)
+  assert.equal(result.task.id, "e-medium", "progression should be gradual — never skip straight from easy to hard when a medium option exists")
+})
+
+test("selectBestTask: a strong ELO tier with demonstrated confidence in the SPECIFIC competency can be served the hard task over an easier one", async () => {
+  const data = baseTableData({
+    experiments: [
+      { id: "e-easy", title: "Easy task", prompt: "p", difficulty: "easy", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-01" },
+      { id: "e-hard", title: "Hard task", prompt: "p", difficulty: "hard", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "shared-node", created_at: "2026-01-02" },
+    ],
+    profiles: { elo_rating: 1600 }, // Elite tier
+  })
+  const deps = {
+    ...fakeSupabase(data),
+    getExclusions: async () => ({ passedIds: new Set() }),
+    // Confidence tied between the two candidate tasks (both tag the same
+    // node) — genuinely differing confidence is already covered by the
+    // "ranks the lower-confidence competency's task first" test above and
+    // must keep winning over this tie-break; this test only exercises the
+    // Elite + strong-evidence tie-break path.
+    loadCapabilityState: async () => ({
+      competencies: [{ skillGraphNodeId: "shared-node", label: "Strong topic", confidence: 0.9, lastReinforcedAt: null }],
+      hasData: true,
+    }),
+  }
+  const result = await selectBestTask({ userId: "u1", domain: "college_stream", key: "cse" }, deps)
+  assert.equal(result.task.id, "e-hard", "an Elite-tier student with strong demonstrated confidence in this exact competency should be challenged, not kept on easy tasks forever")
+})
+
+test("selectBestTask: genuinely differing confidence still wins over the difficulty tie-break (the real gap signal is never overridden)", async () => {
+  const data = baseTableData({
+    experiments: [
+      // The LOW-confidence competency's task is "hard" and the HIGH-
+      // confidence competency's task is "easy" — a naive difficulty-first
+      // rule would pick the easy one; the correct behavior is still to
+      // target the genuine skill gap first.
+      { id: "e-easy-strong", title: "Easy, already strong", prompt: "p", difficulty: "easy", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "comp-strong", created_at: "2026-01-01" },
+      { id: "e-hard-weak", title: "Hard, still weak", prompt: "p", difficulty: "hard", difficulty_score: null, elo_reward: 10, time_limit_minutes: 30, challenge_type: null, skill_graph_node_id: "comp-weak", created_at: "2026-01-02" },
+    ],
+    profiles: { elo_rating: 450 },
+  })
+  const deps = {
+    ...fakeSupabase(data),
+    getExclusions: async () => ({ passedIds: new Set() }),
+    loadCapabilityState: async () => ({
+      competencies: [
+        { skillGraphNodeId: "comp-strong", label: "Strong topic", confidence: 0.9, lastReinforcedAt: null },
+        { skillGraphNodeId: "comp-weak", label: "Weak topic", confidence: 0.1, lastReinforcedAt: null },
+      ],
+      hasData: true,
+    }),
+  }
+  const result = await selectBestTask({ userId: "u1", domain: "college_stream", key: "cse" }, deps)
+  assert.equal(result.task.id, "e-hard-weak", "the real skill gap must still be targeted even though it means a harder task for a low-ELO student")
+})
+
 test("selectBestTask: domain_role branch reads domain_missions, not experiments", async () => {
   const deps = {
     ...fakeSupabase({

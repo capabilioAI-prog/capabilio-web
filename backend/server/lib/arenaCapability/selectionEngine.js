@@ -146,19 +146,41 @@ async function loadDomainRoleTasks(roleId, deps) {
   return { context: role, tasks: missions || [] }
 }
 
+// Same 4 tiers pickGenerationDifficulty already returns — used only to
+// measure ordinal distance for the tie-break below, never to invent a new
+// difficulty taxonomy. A task with an unrecognized/missing difficulty value
+// is never penalized or preferred (distance 0 — it sorts exactly as it did
+// before this fix in that edge case).
+const DIFFICULTY_RANK = { easy: 0, medium: 1, hard: 2, expert: 3 }
+function difficultyDistance(taskDifficulty, targetDifficulty) {
+  const a = DIFFICULTY_RANK[taskDifficulty]
+  const b = DIFFICULTY_RANK[targetDifficulty]
+  if (a == null || b == null) return 0
+  return Math.abs(a - b)
+}
+
 /** Honest, evidence-based ranking: prefer the task whose tagged competency
- *  has the LOWEST recorded confidence (the biggest gap) first; a task with
- *  no tagged competency, or a student with no confidence reading for it yet,
- *  falls back to curriculum order (created_at, already the query order) —
- *  never a fabricated score. */
-function rankByGap(tasks, competencyByNodeId) {
+ *  has the LOWEST recorded confidence (the biggest gap) first — this branch
+ *  is completely unchanged and still wins whenever confidence genuinely
+ *  differs between two tasks. Only the TIE-BREAK changed (fresher-safe
+ *  progression fix, 2026-09-04): a confidence tie (including the
+ *  both-null case, which is every currently-seeded domain_role today — see
+ *  selectBestTask's comment) now prefers the task whose difficulty is
+ *  closest to targetDifficulty, before falling back to curriculum order
+ *  (created_at, already the query order) — never a fabricated score.
+ *  targetDifficulty is optional so existing callers/tests that don't pass
+ *  one get the exact prior tie-break (creation order) unchanged. */
+function rankByGap(tasks, competencyByNodeId, targetDifficulty = null) {
   return [...tasks].sort((a, b) => {
     const confA = a.skill_graph_node_id ? competencyByNodeId.get(a.skill_graph_node_id)?.confidence : null
     const confB = b.skill_graph_node_id ? competencyByNodeId.get(b.skill_graph_node_id)?.confidence : null
-    if (confA == null && confB == null) return 0
+    if (confA == null && confB == null) {
+      return targetDifficulty ? difficultyDistance(a.difficulty, targetDifficulty) - difficultyDistance(b.difficulty, targetDifficulty) : 0
+    }
     if (confA == null) return 1
     if (confB == null) return -1
-    return confA - confB
+    if (confA !== confB) return confA - confB
+    return targetDifficulty ? difficultyDistance(a.difficulty, targetDifficulty) - difficultyDistance(b.difficulty, targetDifficulty) : 0
   })
 }
 
@@ -279,10 +301,34 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
 
   const eligible = tasks.filter((t) => !passedIds.has(t.id))
 
+  // Difficulty-appropriateness target (fresher-safe progression fix,
+  // 2026-09-04) — computed once, up front, and used by BOTH paths below.
+  // Previously only Path 2 (AI generation) got adaptive difficulty; Path 1
+  // (serving an already-existing task) ranked purely by competency-gap and
+  // fell back to raw creation order on a tie. That tie is the norm today —
+  // every currently-seeded domain_role tags 100% of its own missions to one
+  // shared competency node (confirmed live), so confidence never actually
+  // differentiates between them — which is what let a brand-new, zero-
+  // evidence student be served a "medium" task first, then jump straight to
+  // "hard" next, skipping the role's own "easy" task entirely (reproduced
+  // against production during this audit). This never changes the ranking
+  // when confidence genuinely differs between tasks (the real gap-based
+  // signal, tested and unchanged) — it only replaces the previously-
+  // meaningless creation-order tie-break with "closest to this student's
+  // current appropriate level," using the same conservative, ELO-tier-based
+  // pickGenerationDifficulty already used for generation — no new taxonomy.
+  const competencyTarget = pickTargetCompetency(competencies)
+  const { data: profileForDifficulty } = await deps.supabaseAdmin
+    .from("profiles").select("elo_rating").eq("id", userId).maybeSingle()
+  const targetDifficulty = pickGenerationDifficulty({
+    eloRating: profileForDifficulty?.elo_rating,
+    competencyConfidence: competencyTarget?.confidence ?? null,
+  })
+
   // ── Path 1: a suitable existing task exists — serve it, never generate. ──
   if (eligible.length > 0) {
     const competencyByNodeId = new Map(competencies.map((c) => [c.skillGraphNodeId, c]))
-    const ranked = rankByGap(eligible, competencyByNodeId)
+    const ranked = rankByGap(eligible, competencyByNodeId, targetDifficulty)
     const chosen = ranked[0]
     const chosenCompetency = chosen.skill_graph_node_id ? competencyByNodeId.get(chosen.skill_graph_node_id) : null
 
@@ -315,19 +361,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
   const noExistingReason = tasks.length
     ? "Every available task in this domain/role has already been passed."
     : "No tasks exist yet for this domain/role."
-  const competencyTarget = pickTargetCompetency(competencies)
-
-  // Adaptive difficulty (Fix 5, 2026-09-04) — replaces the previously
-  // hardcoded "easy" for every generated task. Only fetched here, in the
-  // generation branch, so the far more common "serve an existing task" path
-  // (Path 1 above) gains no extra query. See pickGenerationDifficulty's own
-  // header for why this stays conservative by design.
-  const { data: profileForDifficulty } = await deps.supabaseAdmin
-    .from("profiles").select("elo_rating").eq("id", userId).maybeSingle()
-  const generationDifficulty = pickGenerationDifficulty({
-    eloRating: profileForDifficulty?.elo_rating,
-    competencyConfidence: competencyTarget?.confidence ?? null,
-  })
+  // competencyTarget/targetDifficulty already computed above, shared with Path 1.
 
   let generationContext = null
   if (domain === "college_stream") {
@@ -337,7 +371,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     // generate for this path, not an error, and never fabricated.
     if (ctxResult.ok) {
       generationContext = {
-        domain, panelType: null, difficulty: generationDifficulty,
+        domain, panelType: null, difficulty: targetDifficulty,
         collegeStream: ctxResult.collegeStream, streamOrRole: context,
         competencyTarget: competencyTarget ? { skillGraphNodeId: competencyTarget.skillGraphNodeId, label: competencyTarget.label } : undefined,
         _collegeStreamMeta: { unitId: ctxResult.meta.unitId, subjectId: ctxResult.meta.subjectId, subjectName: ctxResult.collegeStream.subjectName },
@@ -345,7 +379,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     }
   } else if (panelTypeForGeneration) {
     generationContext = {
-      domain, panelType: panelTypeForGeneration, difficulty: generationDifficulty, streamOrRole: context,
+      domain, panelType: panelTypeForGeneration, difficulty: targetDifficulty, streamOrRole: context,
       competencyTarget: competencyTarget ? { skillGraphNodeId: competencyTarget.skillGraphNodeId, label: competencyTarget.label } : undefined,
     }
   }
