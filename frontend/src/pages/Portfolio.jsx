@@ -34,6 +34,7 @@ import {
 // own call sites separately — see the PRODUCTION FIX comments there.
 const C = {
   bg:      "#FAF7F2",           // Capabilio's page background (Aura.jsx T.cream)
+  bgSurface:"#F2EDE4",          // deeper warm surface, for alternating full-width bands (theme.js TH.bgSurface)
   bgCard:  "#FFFFFF",
   bgCard2: "#FFFFFF",
   bgInner: "rgba(0,0,0,0.035)",
@@ -72,27 +73,25 @@ const C = {
   surface2:"#FFFFFF",
 }
 
-// PRODUCTION FIX (2026-09-03): heroBg used to end in #07080F (near-black) with
-// bold 0.4-0.7 opacity radial washes — designed for the page's old dark
-// theme, where the hero's own text was plain white. That text is now dark
-// ink (matching the rest of Capabilio's light theme — see the C object's
-// header comment), so the background had to become light too, or the two
-// fixes would cancel out into dark-on-dark. Same per-path hue arrangement
-// for visual variety, ending in C.bg (cream) instead of black, with opacity
-// cut roughly 5x — the loud, moody-glow opacities only read as intended
-// against black; on a light base the same values would wash out the page
-// in solid color instead of the subtle tint actually wanted here. `accent`
-// is darkened to the same values as the C object's purple/teal/pink (that
-// object's own comments explain why) for contrast on the new light hero.
+// REDESIGN (2026-09-04): the previous version of this config gave each of
+// the 12 career "archetypes" (see portfolioArchetypes.js) its own hero
+// gradient — 12 subtly different visual identities for what is supposed to
+// be ONE consistent Capabilio product. That, plus dark-theme-derived glow
+// opacities left over from this page's original near-black design, is what
+// produced the "looks like a different, disconnected product" complaint.
+// Fix: exactly one flat, light hero background (Capabilio's own bgSurface/
+// bgPage duotone, matching Aura.jsx), shared by every path and every
+// archetype. `accent` still varies by path — used only for small flourishes
+// (a badge, an icon tint, a border) — never for the page background.
 const PATH_CONFIG = {
   student:      { label:"Student",      icon:"🎓",
-    heroBg:`radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(8,145,178,0.08) 0%, transparent 45%), radial-gradient(ellipse at 60% 80%, rgba(219,39,119,0.06) 0%, transparent 40%), ${C.bg}`,
+    heroBg:`linear-gradient(180deg, ${C.bgSurface||"#F2EDE4"} 0%, ${C.bg} 100%)`,
     accent:C.purple },
   professional: { label:"Professional", icon:"💼",
-    heroBg:`radial-gradient(ellipse at 15% 50%, rgba(8,145,178,0.10) 0%, transparent 50%), radial-gradient(ellipse at 85% 30%, rgba(16,185,129,0.08) 0%, transparent 45%), radial-gradient(ellipse at 50% 85%, rgba(59,130,246,0.07) 0%, transparent 40%), ${C.bg}`,
+    heroBg:`linear-gradient(180deg, ${C.bgSurface||"#F2EDE4"} 0%, ${C.bg} 100%)`,
     accent:C.teal },
   authority:    { label:"Expert",       icon:"⭐",
-    heroBg:`radial-gradient(ellipse at 25% 40%, rgba(147,51,234,0.13) 0%, transparent 50%), radial-gradient(ellipse at 75% 60%, rgba(219,39,119,0.09) 0%, transparent 45%), radial-gradient(ellipse at 55% 15%, rgba(8,145,178,0.05) 0%, transparent 40%), ${C.bg}`,
+    heroBg:`linear-gradient(180deg, ${C.bgSurface||"#F2EDE4"} 0%, ${C.bg} 100%)`,
     accent:C.pink },
 }
 
@@ -322,6 +321,21 @@ function DiffBadge({ diff }) {
   return <span style={{ fontSize:11, fontWeight:700, color:d.color, background:d.bg, padding:"2px 8px", borderRadius:99 }}>{diff}</span>
 }
 
+// Honest evaluation-method label — every Arena task is graded by a
+// deterministic, rule-based evaluator (arenaDomainRole.js / arenaCollegeStream.js
+// / the DSA judge), never by a human reviewer. There is no "verified by a
+// person" state in this data model, so this page never implies one — see
+// the spec's "do not fake verification" requirement.
+function EvalBadge() {
+  return (
+    <span title="Automatically graded by Capabilio's deterministic evaluator — not a human reviewer"
+      style={{ fontSize:10, fontWeight:700, color:C.ink3, background:C.bgInner,
+        border:`1px solid ${C.border}`, padding:"2px 8px", borderRadius:99, whiteSpace:"nowrap" }}>
+      ⚙ System-evaluated
+    </span>
+  )
+}
+
 function ScoreRing({ score, size=48 }) {
   const r = (size-8)/2, circ = 2*Math.PI*r, fill=(score/100)*circ, col=scoreColor(score)
   return (
@@ -390,107 +404,57 @@ function SectionTitle({ icon, title, sub, accent=C.blue }) {
 function StatChip({ icon, value, label, color=C.blue }) {
   return (
     <div style={{
-      textAlign:"center", padding:"20px 16px",
-      background:C.bgInner,
-      backdropFilter:"blur(20px)",
-      WebkitBackdropFilter:"blur(20px)",
-      borderRadius:18,
+      textAlign:"center", padding:"18px 16px",
+      background:C.bgCard,
+      borderRadius:16,
       border:`1px solid ${C.border}`,
       borderTop:`2px solid ${color}`,
-      boxShadow:`0 8px 32px rgba(0,0,0,0.4), 0 0 0 0 ${color}00`,
+      boxShadow:C.shadow,
       minWidth:90,
       flex:1,
-      position:"relative", overflow:"hidden",
-      transition:"transform 0.2s, box-shadow 0.2s",
     }}>
-      <div style={{
-        position:"absolute", inset:0,
-        background:`radial-gradient(ellipse at 50% 0%, ${color}18 0%, transparent 65%)`,
-        pointerEvents:"none",
-      }}/>
-      <div style={{ fontSize:22, marginBottom:6, lineHeight:1 }}>{icon}</div>
-      <div style={{ fontSize:22, fontWeight:900, color, fontFamily:"'DM Mono',monospace", lineHeight:1.1,
-        textShadow:`0 0 20px ${color}60` }}>{value}</div>
+      <div style={{ fontSize:20, marginBottom:6, lineHeight:1 }}>{icon}</div>
+      <div style={{ fontSize:20, fontWeight:900, color, fontFamily:"'DM Mono',monospace", lineHeight:1.1 }}>{value}</div>
       <div style={{ fontSize:9, color:C.ink3, marginTop:6, fontWeight:800, textTransform:"uppercase", letterSpacing:1.2 }}>{label}</div>
     </div>
   )
 }
 
-function SkillBadge({ label, pct, color=C.blue }) {
+// REDESIGN (2026-09-04): recruiters asked for evidence, not a percentage bar
+// with no basis a viewer can check — see the `evidence` prop, a plain-
+// language string like "3 projects · 5 Arena tasks · GitHub activity" built
+// from real Arena/project/GitHub data in buildSkillEvidence() below. The
+// proficiency % (self-assessed / resume-derived, real but softer signal)
+// is kept as a small secondary indicator, never the headline.
+function SkillBadge({ label, pct, evidence, color=C.blue }) {
   const p = Math.min(100, Math.max(0, pct))
-  const ring = 2 * Math.PI * 20
-  const filled = (p / 100) * ring
   return (
     <div style={{
       display:"flex", alignItems:"center", gap:12,
-      background:"linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)",
+      background:C.bgCard,
       border:`1px solid ${C.border}`,
-      borderTop:`1px solid ${C.border}`,
-      borderRadius:16, padding:"11px 14px", marginBottom:8,
-      backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-      position:"relative", overflow:"hidden",
-      boxShadow:`
-        0 2px 0 rgba(255,255,255,0.06) inset,
-        0 -1px 0 rgba(0,0,0,0.3) inset,
-        0 8px 24px rgba(0,0,0,0.4),
-        0 2px 8px rgba(0,0,0,0.3),
-        0 0 0 1px rgba(0,0,0,0.2)
-      `,
-      transition:"transform 0.15s ease, box-shadow 0.15s ease",
-    }}
-      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=`0 2px 0 rgba(255,255,255,0.06) inset,0 -1px 0 rgba(0,0,0,0.3) inset,0 16px 36px rgba(0,0,0,0.5),0 4px 12px ${color}25,0 0 0 1px ${color}30`}}
-      onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=`0 2px 0 rgba(255,255,255,0.06) inset,0 -1px 0 rgba(0,0,0,0.3) inset,0 8px 24px rgba(0,0,0,0.4),0 2px 8px rgba(0,0,0,0.3),0 0 0 1px rgba(0,0,0,0.2)`}}
-    >
-      {/* Top specular highlight */}
-      <div style={{position:"absolute",top:0,left:0,right:0,height:"40%",
-        background:"linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%)",
-        pointerEvents:"none",borderRadius:"16px 16px 0 0"}}/>
-      {/* Left accent bar */}
-      <div style={{position:"absolute",left:0,top:"15%",bottom:"15%",width:3,
-        background:`linear-gradient(180deg,${color},${color}44)`,
-        borderRadius:"0 3px 3px 0",boxShadow:`0 0 8px ${color}60`}}/>
-      {/* Icon inside circular progress ring */}
-      <div style={{ position:"relative", width:46, height:46, flexShrink:0 }}>
-        <svg width="46" height="46" style={{ transform:"rotate(-90deg)", position:"absolute", top:0, left:0 }}>
-          <circle cx="23" cy="23" r="20" fill="none" stroke={`${color}18`} strokeWidth="3.5"/>
-          <circle cx="23" cy="23" r="20" fill="none" stroke={`${color}30`} strokeWidth="3.5"
-            strokeDasharray={`${ring} 0`} strokeLinecap="round"/>
-          <circle cx="23" cy="23" r="20" fill="none" stroke={color} strokeWidth="3.5"
-            strokeDasharray={`${filled} ${ring}`} strokeLinecap="round"
-            style={{ filter:`drop-shadow(0 0 5px ${color})` }}/>
-        </svg>
-        <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)" }}>
-          <SkillIconEl name={label} size={22}/>
-        </div>
+      borderRadius:14, padding:"12px 14px",
+    }}>
+      <div style={{ flexShrink:0 }}>
+        <SkillIconEl name={label} size={34}/>
       </div>
-      {/* Label + bar */}
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:7 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6, marginBottom:3 }}>
           <span className="pf-skill-label" style={{ fontSize:13, fontWeight:700, color:C.ink, whiteSpace:"nowrap", overflow:"hidden",
-            textOverflow:"ellipsis", maxWidth:130 }}>{label}</span>
-          <span style={{
-            fontSize:11, fontWeight:900, color:"#fff",
-            fontFamily:"'DM Mono',monospace", flexShrink:0, marginLeft:6,
-            background:`linear-gradient(135deg, ${color}, ${color}aa)`,
-            padding:"2px 7px", borderRadius:6,
-            boxShadow:`0 2px 8px ${color}40, inset 0 1px 0 rgba(255,255,255,0.2)`,
-          }}>{p}%</span>
+            textOverflow:"ellipsis" }}>{label}</span>
+          {typeof p === "number" && p > 0 && (
+            <span style={{ fontSize:10, fontWeight:700, color, flexShrink:0 }}>{p}%</span>
+          )}
         </div>
-        <div style={{ height:4, background:C.bgInner, borderRadius:99,
-          boxShadow:"inset 0 1px 2px rgba(0,0,0,0.3)" }}>
-          <div style={{ height:"100%", width:`${p}%`,
-            background:`linear-gradient(90deg, ${color}77, ${color})`,
-            borderRadius:99,
-            boxShadow:`0 0 12px ${color}60, 0 0 4px ${color}80`,
-            transition:"width 1s cubic-bezier(0.4,0,0.2,1)",
-            position:"relative",
-          }}>
-            {/* Shimmer on bar */}
-            <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,
-              background:"linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.25) 50%,transparent 100%)",
-              borderRadius:99}}/>
+        {evidence ? (
+          <div style={{ fontSize:11, color:C.ink3, lineHeight:1.4 }}>
+            <span style={{ color, fontWeight:700 }}>Evidence: </span>{evidence}
           </div>
-        </div>
+        ) : (
+          <div style={{ height:3, background:C.border, borderRadius:99, marginTop:5 }}>
+            <div style={{ height:"100%", width:`${p}%`, background:color, borderRadius:99 }}/>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -499,7 +463,34 @@ function SkillBadge({ label, pct, color=C.blue }) {
 // keep alias for any remaining direct SkillBar calls
 const SkillBar = SkillBadge
 
-function SkillGrid({ skills, aConfig, max=12 }) {
+// Real, non-fabricated evidence trail for a skill: how many completed Arena
+// tasks touched it (matched on skill_name/skill_category/domain), how many
+// resume/personal projects list it, and whether the candidate's GitHub
+// Evidence Profile independently detected the same technology area. Never
+// invents a count — a skill with none of these still renders, just without
+// an evidence line (falls back to the plain % bar).
+function buildSkillEvidence(skillLabel, tasks, resumeProjects, codeDna) {
+  const norm = s => (s||"").toLowerCase().trim()
+  const label = norm(skillLabel)
+  const taskCount = (tasks||[]).filter(t => {
+    const hay = [t.skillName, t.skillCategory, t.domain, t.title].map(norm)
+    return hay.some(h => h && (h.includes(label) || label.includes(h)))
+  }).length
+  const projectCount = (resumeProjects||[]).filter(p => {
+    const techs = (p.technologies||p.tech||p.techStack||[]).map(norm)
+    return techs.some(t => t && (t.includes(label) || label.includes(t)))
+  }).length
+  const onGithub = (codeDna?.technicalFootprint||[]).some(f =>
+    (f.technologies||[]).some(t => norm(t)===label))
+
+  const parts = []
+  if (projectCount > 0) parts.push(`${projectCount} project${projectCount>1?"s":""}`)
+  if (taskCount > 0) parts.push(`${taskCount} Arena task${taskCount>1?"s":""}`)
+  if (onGithub) parts.push("GitHub activity")
+  return parts.length ? parts.join(" · ") : null
+}
+
+function SkillGrid({ skills, aConfig, tasks, resumeProjects, codeDna, max=12 }) {
   const [expanded, setExpanded] = useState(false)
   const accent = aConfig?.palette?.accent || C.blue
   const tag    = aConfig?.palette?.tag    || C.teal
@@ -507,9 +498,10 @@ function SkillGrid({ skills, aConfig, max=12 }) {
   const hasMore = skills.length > max
   return (
     <div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:10 }}>
         {visible.map((s,i) => (
           <SkillBadge key={i} label={s.skill} pct={s.percentage}
+            evidence={buildSkillEvidence(s.skill, tasks, resumeProjects, codeDna)}
             color={i%2===0 ? accent : tag} />
         ))}
       </div>
@@ -588,8 +580,9 @@ function ChallengeDetailModal({ t, onClose }) {
             <div style={{ fontSize:17, fontWeight:800, color:C.ink, marginBottom:5, lineHeight:1.3 }}>{t.title}</div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
               <DiffBadge diff={t.difficulty} />
-              {t.domain && t.domain !== "dsa" && (
-                <span style={{ fontSize:11, color:C.teal, fontWeight:700, background:C.teal3, padding:"2px 8px", borderRadius:99 }}>{t.domain}</span>
+              <EvalBadge/>
+              {(t.skillName || (t.domain && t.domain !== "dsa")) && (
+                <span style={{ fontSize:11, color:C.teal, fontWeight:700, background:C.teal3, padding:"2px 8px", borderRadius:99 }}>{t.skillName || t.domain}</span>
               )}
               {t.attempts > 1 && (
                 <span style={{ fontSize:11, color:C.amber, fontWeight:700, background:C.amber2, padding:"2px 8px", borderRadius:99 }}>🔁 {t.attempts} attempt{t.attempts>1?"s":""}</span>
@@ -755,9 +748,10 @@ function ChallengeCard({ t, last }) {
             <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:3 }}>{t.title}</div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
               <DiffBadge diff={t.difficulty} />
-              {t.domain && t.domain !== "dsa" && (
+              <EvalBadge/>
+              {(t.skillName || (t.domain && t.domain !== "dsa")) && (
                 <span style={{ fontSize:11, color:C.teal, fontWeight:700, background:C.teal3,
-                  padding:"2px 8px", borderRadius:99 }}>{t.domain}</span>
+                  padding:"2px 8px", borderRadius:99 }}>{t.skillName || t.domain}</span>
               )}
               {t.attempts > 1 && (
                 <span style={{ fontSize:11, color:C.amber, fontWeight:700, background:C.amber2,
@@ -1478,6 +1472,37 @@ export default function Portfolio({ username: usernameProp }) {
     return `${s1} ${s2} ${s3}`
   }
 
+  // Closing "Recruiter Summary" (spec section I) — a deterministic synthesis
+  // across every evidence source already loaded on this page (Arena tasks,
+  // resume/personal projects, GitHub Evidence Profile), never a fabricated
+  // or generic claim like "verified expert." Names at most 3 areas, and only
+  // ones actually backed by at least one real signal; returns null if there
+  // isn't enough evidence yet to synthesize anything (renders no section).
+  function buildRecruiterClosingSummary(ud, skills, tasks, codeDna) {
+    const name = ud.displayName !== "Anonymous" ? ud.displayName : "This candidate"
+    const areaScores = new Map()
+    const bump = (label, n=1) => { if (!label) return; areaScores.set(label, (areaScores.get(label)||0) + n) }
+
+    skills.slice(0, 6).forEach(s => bump(s.skill, Math.round((s.percentage||0)/20)))
+    tasks.forEach(t => bump(t.skillName || t.domain, t.score >= 70 ? 2 : 1))
+    ;(codeDna?.technicalFootprint || []).forEach(f => bump(f.area, f.repositoryCount || 1))
+
+    const topAreas = [...areaScores.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([label])=>label)
+    if (topAreas.length === 0) return null
+
+    const supportParts = []
+    if (tasks.length > 0) supportParts.push(`${tasks.length} completed Arena task${tasks.length>1?"s":""}`)
+    if ((ud.resumeProjects||[]).length > 0) supportParts.push(`${ud.resumeProjects.length} real project${ud.resumeProjects.length>1?"s":""}`)
+    if (codeDna) supportParts.push("public GitHub engineering activity")
+    const support = supportParts.length ? supportParts.join(", ") : "the activity recorded on this profile"
+
+    const areaStr = topAreas.length === 1 ? topAreas[0]
+      : topAreas.length === 2 ? topAreas.join(" and ")
+      : `${topAreas.slice(0,-1).join(", ")}, and ${topAreas[topAreas.length-1]}`
+
+    return `${name} demonstrates the strongest evidence in ${areaStr}, supported by ${support}. This summary reflects only what is verifiable from the record above — self-reported claims are labeled as such throughout.`
+  }
+
   // Legacy stub — kept so any stale references don't crash (unused)
   async function genSummary(ud, skills, tasks) {
     // replaced by buildProfessionalSummary — no-op
@@ -1625,6 +1650,8 @@ export default function Portfolio({ username: usernameProp }) {
           difficulty:     r.difficulty||"Medium",
           domain:         r.domain||r.type||"dsa",
           type:           r.type||r.domain||"dsa",
+          skillName:      r.skill_name||"",
+          skillCategory:  r.skill_category||"",
           score:          r.score??0,
           eloDelta:       r.elo_delta??0,
           feedback:       r.feedback||"",
@@ -1725,7 +1752,11 @@ export default function Portfolio({ username: usernameProp }) {
   const { archetype, seniority, config: aConfig } = getPortfolioConfig(ud)
 
   // Archetype-aware hero background — override PATH_CONFIG heroBg
-  const heroBg = aConfig?.palette?.hero || pc.heroBg
+  // REDESIGN (2026-09-04): no longer takes aConfig.palette.hero — every
+  // archetype rendered its own hero background, which is exactly the
+  // "12 different products" fragmentation this redesign removes. One flat,
+  // consistent hero background for every archetype and every path.
+  const heroBg = pc.heroBg
 
   // Role-specific recruiter summary (only if no custom profileSummary)
   const archetypeSummary = (aConfig && tasks.length > 0)
@@ -1755,6 +1786,7 @@ export default function Portfolio({ username: usernameProp }) {
   }))
 
   const avgScore = tasks.length ? Math.round(tasks.reduce((s,t)=>s+t.score,0)/tasks.length) : 0
+  const recruiterClosing = buildRecruiterClosingSummary(ud, skills, tasks, ud.codeDna)
 
   return (
     <div style={{fontFamily:"DM Sans,system-ui,sans-serif",background:C.bg,minHeight:"100vh",color:C.ink}}>
@@ -1765,11 +1797,6 @@ export default function Portfolio({ username: usernameProp }) {
         ::selection{background:rgba(59,130,246,0.35)}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
         .ps{animation:fadeUp 0.5s ease both}
-        @keyframes archetypePulse{0%,100%{box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 0 0 var(--accent-glow)}50%{box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 0 6px var(--accent-glow-mid)}}
-        @keyframes glowOrbit{0%{transform:translate(-50%,-50%) rotate(0deg) translateX(110px) rotate(0deg)}100%{transform:translate(-50%,-50%) rotate(360deg) translateX(110px) rotate(-360deg)}}
-        @keyframes liveDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
-        @keyframes scanLine{0%{transform:translateY(-100%);opacity:0}20%{opacity:0.6}80%{opacity:0.6}100%{transform:translateY(400%);opacity:0}}
-        @keyframes archetypeFloat{0%,100%{transform:translateY(0px)}50%{transform:translateY(-4px)}}
         @media print{
           /* PDF export fix (2026-07-30) — window.print() had almost no print
              stylesheet before this (only .np{display:none}), so the dark
@@ -1819,16 +1846,14 @@ export default function Portfolio({ username: usernameProp }) {
         </div>
         <div style={{display:"flex",gap:4}}>
           {[
+            // Refined recruiter-relevant navigation only (spec §7) — a tab
+            // exists here only if it leads somewhere with real evidence.
             {k:"overview",   l:"Overview"},
-            {k:"summary",    l:"Summary"},
-            tasks.length>0&&{k:"activity",   l:"Activity"},
+            (ud.experiences?.length>0||ud.resumeProjects?.length>0)&&{k:"experience",l:"Evidence"},
             skills.length>0&&{k:"skills",    l:"Skills"},
-            tasks.length>0&&{k:"challenges", l:"Challenges"},
-            interviews.length>0&&{k:"interviews",l:"Interviews"},
-            (ud.experiences?.length>0||ud.resumeProjects?.length>0)&&{k:"experience",l:"Timeline"},
-            ud.certificates?.length>0&&{k:"certificates",l:"Certificates"},
-            ud.testimonials?.length>0&&{k:"testimonials",l:"Reviews"},
+            tasks.length>0&&{k:"challenges", l:"Arena Proof"},
             ud.codeDna&&{k:"codeDna",l:"GitHub"},
+            !isPro && tasks.length>0&&{k:"activity",   l:"Activity"},
           ].filter(Boolean).map(({k,l})=>(
             <button key={k} onClick={()=>scrollTo(k)}
               style={{padding:"6px 14px",borderRadius:99,border:"none",
@@ -1856,23 +1881,15 @@ export default function Portfolio({ username: usernameProp }) {
       <>
       <div ref={refs.overview}>
         {/* ── GENZ HERO — 2-col split: left=text, right=avatar ───────────── */}
-        <div style={{background:heroBg,position:"relative",overflow:"hidden",minHeight:520}}>
-          {/* Dot grid */}
-          <div style={{position:"absolute",inset:0,opacity:0.04,
-            backgroundImage:"radial-gradient(circle,#fff 1px,transparent 1px)",backgroundSize:"30px 30px",pointerEvents:"none"}}/>
-          {/* Big accent glows */}
-          <div style={{position:"absolute",top:-200,left:-100,width:700,height:700,
-            background:aConfig?.palette?.accent||C.purple,borderRadius:"50%",
-            filter:"blur(130px)",opacity:0.2,pointerEvents:"none"}}/>
-          <div style={{position:"absolute",bottom:-200,right:-100,width:600,height:600,
+        <div style={{background:heroBg,position:"relative",overflow:"hidden",minHeight:480}}>
+          {/* One soft accent glow — subtle, single-color, never a per-archetype
+              identity shift (REDESIGN 2026-09-04: see PATH_CONFIG comment). */}
+          <div style={{position:"absolute",top:-220,right:-160,width:640,height:640,
             background:pc.accent||C.teal,borderRadius:"50%",
-            filter:"blur(110px)",opacity:0.15,pointerEvents:"none"}}/>
-          {/* Diagonal line accents */}
-          <div style={{position:"absolute",top:0,right:"38%",width:1,height:"100%",
-            background:"linear-gradient(180deg,transparent,rgba(255,255,255,0.06),transparent)",pointerEvents:"none"}}/>
+            filter:"blur(150px)",opacity:0.10,pointerEvents:"none"}}/>
 
-          <div style={{position:"relative",maxWidth:1100,margin:"0 auto",
-            padding:"80px 40px 90px",display:"flex",alignItems:"center",
+          <div style={{position:"relative",maxWidth:1320,margin:"0 auto",
+            padding:"72px 40px 80px",display:"flex",alignItems:"center",
             gap:48,flexWrap:"wrap"}}>
 
             {/* ── LEFT: Text content ── */}
@@ -2012,26 +2029,11 @@ export default function Portfolio({ username: usernameProp }) {
             <div style={{flex:"0 0 auto",display:"flex",flexDirection:"column",alignItems:"center",gap:20}}>
               {/* Avatar ring stack */}
               <div style={{position:"relative",width:220,height:220}}>
-                {/* Outer pulse ring */}
-                <div style={{
-                  position:"absolute",inset:-16,borderRadius:"50%",
-                  border:`2px solid ${aConfig?.palette?.accent||C.purple}25`,
-                }}/>
-                <div style={{
-                  position:"absolute",inset:-8,borderRadius:"50%",
-                  border:`2px solid ${aConfig?.palette?.accent||C.purple}40`,
-                }}/>
-                {/* Glow backdrop */}
-                <div style={{
-                  position:"absolute",inset:0,borderRadius:"50%",
-                  background:`radial-gradient(circle, ${aConfig?.palette?.accent||C.purple}30 0%, transparent 70%)`,
-                  filter:"blur(20px)",
-                }}/>
                 {/* Avatar */}
                 <div style={{
                   position:"absolute",inset:0,borderRadius:"50%",padding:4,
-                  background:`linear-gradient(135deg,${aConfig?.palette?.accent||C.purple},${pc.accent||C.teal},${aConfig?.palette?.accent||C.purple})`,
-                  boxShadow:`0 0 80px ${aConfig?.palette?.accent||C.purple}50,0 20px 60px rgba(0,0,0,0.7)`,
+                  background:`linear-gradient(135deg,${aConfig?.palette?.accent||C.purple},${pc.accent||C.teal})`,
+                  boxShadow:C.shadow2,
                 }}>
                   <div style={{borderRadius:"50%",overflow:"hidden",width:"100%",height:"100%"}}>
                     <Avatar name={ud.displayName} url={ud.avatarUrl} size={212} fontSize={64}/>
@@ -2063,17 +2065,16 @@ export default function Portfolio({ username: usernameProp }) {
                   context under it, not a substitute for the number. */}
               {!isPro ? (
                 <div style={{
-                  background:C.bgInner,
-                  backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                  background:C.bgCard,
                   border:`1px solid ${C.border}`,
                   borderTop:`2px solid ${aConfig?.palette?.accent||C.purple}`,
                   borderRadius:16,padding:"14px 24px",textAlign:"center",
-                  boxShadow:`0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.04)`,
+                  boxShadow:C.shadow,
                   minWidth:180,
                 }}>
                   <div style={{fontSize:10,fontWeight:800,color:C.ink3,
                     textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>Arena Rating</div>
-                  <div style={{fontSize:26,fontWeight:900,color:"#fff",fontFamily:"'DM Mono',monospace",lineHeight:1}}>
+                  <div style={{fontSize:26,fontWeight:900,color:C.ink,fontFamily:"'DM Mono',monospace",lineHeight:1}}>
                     {ud.eloRating}
                   </div>
                   {tasks.length>0 ? (
@@ -2088,12 +2089,11 @@ export default function Portfolio({ username: usernameProp }) {
                 </div>
               ) : (
                 <div style={{
-                  background:C.bgInner,
-                  backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                  background:C.bgCard,
                   border:`1px solid ${C.border}`,
                   borderTop:`2px solid ${aConfig?.palette?.accent||C.blue}`,
                   borderRadius:16,padding:"14px 24px",textAlign:"center",
-                  boxShadow:`0 8px 32px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.04)`,
+                  boxShadow:C.shadow,
                   minWidth:180,
                 }}>
                   <div style={{fontSize:10,fontWeight:800,color:C.ink3,
@@ -2120,7 +2120,7 @@ export default function Portfolio({ username: usernameProp }) {
           borderTop:`1px solid ${C.border}`,
           padding:"20px 40px",
         }}>
-          <div style={{maxWidth:1100,margin:"0 auto",display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+          <div style={{maxWidth:1320,margin:"0 auto",display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
             {/* Arena/challenge-specific stats — not relevant to the
                 professional path (no Arena challenges or day-streak concept
                 there); professionals get a different, recruiter-relevant set
@@ -2140,32 +2140,81 @@ export default function Portfolio({ username: usernameProp }) {
         </div>
       </div>
 
-      {/* ── Main content ─────────────────────────────────────────────────────── */}
-      <div style={{maxWidth:1100,margin:"36px auto",padding:"0 32px 80px",display:"flex",flexDirection:"column",gap:24}}>
+      {/* ── Main content — widened from the old 1100px single centered column
+          (the literal cause of the "narrow card floating in empty viewport"
+          complaint) to 1320px, with real grids inside sections below rather
+          than one uniform vertical stack. ─────────────────────────────────── */}
+      <div style={{maxWidth:1320,margin:"36px auto",padding:"0 32px 80px",display:"flex",flexDirection:"column",gap:24}}>
 
-        {/* ══ AI PROFESSIONAL IDENTITY CARD ══════════════════════════════════ */}
+        {/* ══ RECRUITER SNAPSHOT (spec B) — the "read in 30 seconds" summary:
+            direction, strongest capabilities, key evidence, recent activity,
+            career readiness, verification — every field sourced from data
+            already loaded above, nothing new fetched or invented. ══════════ */}
+        <div className="ps">
+          <Card accent={aConfig?.palette?.accent||C.blue}>
+            <SectionTitle icon="⚡" title="Recruiter Snapshot" accent={aConfig?.palette?.accent||C.blue}
+              sub="At a glance — everything below expands into full evidence further down this page"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14}}>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:C.ink4,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Direction</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.ink}}>{ud.keyword || pc.label}</div>
+              </div>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:C.ink4,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Strongest capabilities</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.ink}}>
+                  {skills.slice(0,3).map(s=>s.skill).join(", ") || "Building up evidence"}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:C.ink4,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Key evidence</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.ink}}>
+                  {[
+                    tasks.length>0 && `${tasks.length} Arena task${tasks.length>1?"s":""}`,
+                    (ud.resumeProjects||[]).length>0 && `${ud.resumeProjects.length} project${ud.resumeProjects.length>1?"s":""}`,
+                    ud.codeDna && "GitHub evidence",
+                  ].filter(Boolean).join(" · ") || "No public evidence yet"}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:C.ink4,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Recent activity</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.ink}}>
+                  {!isPro && ud.arenaStreak>0 ? `${ud.arenaStreak}-day Arena streak` : tasks[0]?.completedAt ? `Last active ${fmt(tasks[0].completedAt)}` : "No recent activity recorded"}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:C.ink4,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Career readiness</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.ink}}>
+                  {!isPro && ud.jobReadiness>0 ? `${ud.jobReadiness}% job-ready` : isPro && ud.yearsOfExperience>0 ? `${getProStage(ud.yearsOfExperience).label}` : "Not yet assessed"}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:10,fontWeight:800,color:C.ink4,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Verification</div>
+                <div style={{fontSize:14,fontWeight:700,color:(ud.codeDna?.verification?.startsWith("Verified")||ud.uanVerified)?C.green:C.ink3}}>
+                  {ud.codeDna?.verification?.startsWith("Verified") ? "GitHub ownership verified"
+                    : ud.uanVerified ? "Employment verified"
+                    : "Self-reported (unverified)"}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* ══ AI PROFESSIONAL IDENTITY CARD — REDESIGN (2026-09-04): dropped the
+            pulsing glow / animated scan-line treatment (a "different product"
+            visual language, not Capabilio's) in favor of a plain bordered
+            Card, consistent with every other section. ══════════════════════ */}
         {aConfig&&(
           <div className="ps" style={{
-            background:`linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.07) 100%)`,
-            backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
-            borderRadius:24, border:`1px solid ${aConfig.palette.accent}35`,
+            background:C.bgCard,
+            borderRadius:24, border:`1px solid ${C.border}`,
             borderLeft:`4px solid ${aConfig.palette.accent}`,
-            "--accent-glow":`${aConfig.palette.accent}22`,
-            "--accent-glow-mid":`${aConfig.palette.accent}18`,
-            animation:"archetypePulse 3s ease-in-out infinite",
+            boxShadow:C.shadow,
             overflow:"hidden", position:"relative",
           }}>
-            {/* Animated scan line */}
-            <div style={{
-              position:"absolute", top:0, left:0, right:0, height:2,
-              background:`linear-gradient(90deg, transparent 0%, ${aConfig.palette.accent}80 50%, transparent 100%)`,
-              animation:"scanLine 4s ease-in-out infinite",
-              pointerEvents:"none", zIndex:2,
-            }}/>
             {/* Accent radial glow */}
             <div style={{
               position:"absolute", top:"-30%", left:"-5%", width:400, height:300,
-              background:`radial-gradient(ellipse, ${aConfig.palette.accent}18 0%, transparent 70%)`,
+              background:`radial-gradient(ellipse, ${aConfig.palette.accent}0d 0%, transparent 70%)`,
               pointerEvents:"none",
             }}/>
             <div style={{ padding:"28px 32px", display:"flex", gap:0, flexWrap:"wrap", position:"relative" }}>
@@ -2178,10 +2227,9 @@ export default function Portfolio({ username: usernameProp }) {
                   width:64, height:64, borderRadius:20, flexShrink:0,
                   background:`linear-gradient(145deg,${aConfig.palette.accent},${aConfig.palette.tag||aConfig.palette.accent}99)`,
                   display:"flex", alignItems:"center", justifyContent:"center", fontSize:30,
-                  boxShadow:`inset 0 1px 2px rgba(255,255,255,0.3), inset 0 -2px 4px rgba(0,0,0,0.3), 0 8px 24px ${aConfig.palette.accent}55, 0 0 0 1px ${aConfig.palette.accent}30`,
+                  boxShadow:`0 6px 16px ${aConfig.palette.accent}30`,
                   border:`1px solid ${C.border}`,
                   position:"relative", overflow:"hidden",
-                  animation:"archetypeFloat 3s ease-in-out infinite",
                 }}>
                   <div style={{position:"absolute",top:0,left:0,right:0,height:"40%",
                     background:"linear-gradient(180deg,rgba(255,255,255,0.25),transparent)",pointerEvents:"none",borderRadius:"20px 20px 0 0"}}/>
@@ -2194,12 +2242,9 @@ export default function Portfolio({ username: usernameProp }) {
                     background:`${aConfig.palette.accent}14`,border:`1px solid ${aConfig.palette.accent}35`,
                     borderRadius:99,padding:"3px 12px",
                   }}>
-                    {/* Live pulse dot */}
                     <span style={{
                       width:6,height:6,borderRadius:"50%",
                       background:aConfig.palette.accent,flexShrink:0,
-                      animation:"liveDot 1.4s ease-in-out infinite",
-                      boxShadow:`0 0 6px ${aConfig.palette.accent}`,
                     }}/>
                     <span style={{fontSize:9,fontWeight:900,color:aConfig.palette.accent,
                       textTransform:"uppercase",letterSpacing:1.8}}>
@@ -2215,7 +2260,7 @@ export default function Portfolio({ username: usernameProp }) {
                   {/* Plain-English explanation */}
                   <div style={{
                     fontSize:12,color:C.ink2,lineHeight:1.8,
-                    background:"rgba(0,0,0,0.2)",borderRadius:10,
+                    background:C.bgInner,borderRadius:10,
                     padding:"10px 14px",border:`1px solid ${C.border}`,
                   }}>
                     💡 <strong style={{color:C.ink}}>What this means:</strong> {isPro
@@ -2363,18 +2408,6 @@ export default function Portfolio({ username: usernameProp }) {
           </div>
         )}
 
-        {/* ══ ACTIVITY HEATMAP (Arena challenge activity — not applicable to
-              the professional path, which has no Arena challenges) ═══════ */}
-        {!isPro && tasks.length>0&&(
-          <div ref={refs.activity} className="ps">
-            <Card accent={C.amber}>
-              <SectionTitle icon="📅" title="Activity & Streak Consistency" accent={C.amber}
-                sub="90-day challenge activity — hover a square to see the date"/>
-              <ActivityHeatmap tasks={tasks} streak={ud.arenaStreak||0}/>
-            </Card>
-          </div>
-        )}
-
         {/* ELO Journey sparkline removed (2026-07-26) — plotted a raw ELO
             number over time, which violates the product rule that portfolios
             never show a bare ELO score to either students or professionals.
@@ -2385,76 +2418,38 @@ export default function Portfolio({ username: usernameProp }) {
         {skills.length>0&&(
           <div ref={refs.skills} className="ps">
             {/* 3D outer shell */}
-            <div style={{
-              borderRadius:28,
-              background:"linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 60%, rgba(0,0,0,0.1) 100%)",
-              border:`1px solid ${C.border}`,
-              borderTop:`1px solid ${C.border}`,
-              backdropFilter:"blur(32px)", WebkitBackdropFilter:"blur(32px)",
-              boxShadow:`
-                0 32px 80px rgba(0,0,0,0.6),
-                0 8px 24px rgba(0,0,0,0.4),
-                0 2px 0 rgba(255,255,255,0.08) inset,
-                0 -2px 0 rgba(0,0,0,0.3) inset,
-                0 0 0 1px rgba(0,0,0,0.3)
-              `,
-              overflow:"hidden", position:"relative",
-            }}>
-              {/* Floating accent glow behind content */}
-              <div style={{
-                position:"absolute", top:"-20%", right:"-5%", width:320, height:280,
-                background:`radial-gradient(ellipse, ${(aConfig?.palette?.accent||C.teal)}18 0%, transparent 65%)`,
-                pointerEvents:"none",
-              }}/>
-              {/* Top shimmer bar */}
-              <div style={{position:"absolute",top:0,left:0,right:0,height:1,
-                background:`linear-gradient(90deg, transparent 0%, ${aConfig?.palette?.accent||C.teal}60 50%, transparent 100%)`,
-                pointerEvents:"none"}}/>
-              <div style={{padding:"28px 32px 32px", position:"relative"}}>
-                <SectionTitle icon="🧠" title="Skills & Expertise" accent={aConfig?.palette?.accent||C.teal}
-                  sub={`${skills.length} skills tracked from Arena challenges and assessments`}/>
-                <div style={{display:"grid",gridTemplateColumns:radarData.length>=3?"1fr 1fr":"1fr",gap:28,alignItems:"start",marginTop:4}}>
-                  {radarData.length>=3&&(
-                    <div style={{
-                      background:"rgba(0,0,0,0.25)",borderRadius:18,padding:"18px 16px",
-                      border:`1px solid ${C.border}`,
-                      boxShadow:"inset 0 2px 8px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3)",
-                    }}>
-                      <div style={{fontSize:10,fontWeight:800,color:aConfig?.palette?.accent||C.teal,textTransform:"uppercase",letterSpacing:2,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{width:4,height:14,background:aConfig?.palette?.accent||C.teal,borderRadius:2,display:"inline-block"}}/>
-                        Skill Radar
-                      </div>
-                      <ResponsiveContainer key={printKey} width="100%" height={220}>
-                        <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
-                          <PolarGrid stroke={C.border}/>
-                          <PolarAngleAxis dataKey="subject" tick={{fill:C.ink3,fontSize:10,fontWeight:600}}/>
-                          <PolarRadiusAxis domain={[0,100]} tick={false} axisLine={false}/>
-                          <Radar name="Score" dataKey="score"
-                            stroke={aConfig?.palette?.accent||C.teal}
-                            fill={aConfig?.palette?.accent||C.teal}
-                            fillOpacity={0.18} strokeWidth={2.5}
-                            dot={{fill:aConfig?.palette?.accent||C.teal,r:3}}/>
-                          <Tooltip
-                            contentStyle={{background:C.bgCard,border:`1px solid ${aConfig?.palette?.accent||C.teal}40`,borderRadius:10,fontSize:12,color:C.ink,boxShadow:C.shadow}}
-                            formatter={v=>[`${v}%`,"Score"]}/>
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+            <Card accent={aConfig?.palette?.accent||C.teal}>
+              <SectionTitle icon="🧠" title="Skills & Capability Evidence" accent={aConfig?.palette?.accent||C.teal}
+                sub={`${skills.length} skills, each backed by real projects, Arena tasks, or GitHub activity where available`}/>
+              <div style={{display:"grid",gridTemplateColumns:radarData.length>=3?"320px 1fr":"1fr",gap:24,alignItems:"start"}}>
+                {radarData.length>=3&&(
                   <div style={{
-                    background:"rgba(0,0,0,0.2)",borderRadius:18,padding:"18px 16px",
+                    background:C.bgInner,borderRadius:16,padding:"18px 16px",
                     border:`1px solid ${C.border}`,
-                    boxShadow:"inset 0 2px 8px rgba(0,0,0,0.35)",
                   }}>
-                    <div style={{fontSize:10,fontWeight:800,color:aConfig?.palette?.accent||C.teal,textTransform:"uppercase",letterSpacing:2,marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{width:4,height:14,background:aConfig?.palette?.accent||C.teal,borderRadius:2,display:"inline-block"}}/>
-                      Skill Levels
+                    <div style={{fontSize:10,fontWeight:800,color:aConfig?.palette?.accent||C.teal,textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>
+                      Skill Radar
                     </div>
-                    <SkillGrid skills={skills} aConfig={aConfig}/>
+                    <ResponsiveContainer key={printKey} width="100%" height={220}>
+                      <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
+                        <PolarGrid stroke={C.border}/>
+                        <PolarAngleAxis dataKey="subject" tick={{fill:C.ink3,fontSize:10,fontWeight:600}}/>
+                        <PolarRadiusAxis domain={[0,100]} tick={false} axisLine={false}/>
+                        <Radar name="Score" dataKey="score"
+                          stroke={aConfig?.palette?.accent||C.teal}
+                          fill={aConfig?.palette?.accent||C.teal}
+                          fillOpacity={0.18} strokeWidth={2.5}
+                          dot={{fill:aConfig?.palette?.accent||C.teal,r:3}}/>
+                        <Tooltip
+                          contentStyle={{background:C.bgCard,border:`1px solid ${aConfig?.palette?.accent||C.teal}40`,borderRadius:10,fontSize:12,color:C.ink,boxShadow:C.shadow}}
+                          formatter={v=>[`${v}%`,"Score"]}/>
+                      </RadarChart>
+                    </ResponsiveContainer>
                   </div>
-                </div>
+                )}
+                <SkillGrid skills={skills} aConfig={aConfig} tasks={tasks} resumeProjects={ud.resumeProjects} codeDna={ud.codeDna}/>
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -2499,46 +2494,15 @@ export default function Portfolio({ username: usernameProp }) {
           </div>
         )}
 
-        {/* ══ CHALLENGES ══════════════════════════════════════════════════════ */}
-        {tasks.length>0&&(
-          <div ref={refs.challenges} className="ps">
-            <Card accent={aConfig?.palette?.accent||C.blue}>
-              <SectionTitle icon="⚔️"
-                title={aConfig?.proofBadgeLabel ? `Arena Challenges · ${aConfig.proofBadgeLabel}` : "Arena Challenges"}
-                accent={aConfig?.palette?.accent||C.blue}
-                sub={`${tasks.length} challenges completed · avg score ${avgScore}/100`}/>
-
-              <ArenaChallengesSection
-                tasks={tasks}
-                commonTasks={commonTasks}
-                domainTasks={domainTasks}
-                avgScore={avgScore}
-                aConfig={aConfig}
-              />
-            </Card>
-          </div>
-        )}
-
-        {/* ══ INTERVIEW SESSIONS ══════════════════════════════════════════════ */}
-        {interviews.length>0&&(
-          <div ref={refs.interviews} className="ps">
-            <Card accent={C.purple}>
-              <SectionTitle icon="🎤" title="Interview Sessions" accent={C.purple}
-                sub={`${interviews.length} sessions completed — click any card to expand feedback`}/>
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                {interviews.map((iv,i)=><InterviewCard key={iv.id||i} iv={iv}/>)}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* ══ PROJECTS & EXPERIENCE — all users ══════════════════════════════ */}
+        {/* ══ PROVEN WORK — real work, experience, and projects, shown BEFORE the
+            task-by-task Arena evidence below (spec order D: "what have they
+            actually done" leads, the detailed evidence trail follows). ══════ */}
         {(ud.experiences?.length>0||ud.resumeProjects?.length>0)&&(
           <div ref={refs.experience} className="ps">
             <Card accent={aConfig?.palette?.accent}>
               <SectionTitle icon="🗂️"
-                title="Career Timeline"
-                sub="Professional experience, internships, and verified work history"
+                title="Proven Work"
+                sub="Professional experience, internships, and real projects"
                 accent={aConfig?.palette?.accent||C.teal}/>
 
               {/* Work / internship history */}
@@ -2657,6 +2621,47 @@ export default function Portfolio({ username: usernameProp }) {
                   </a>
                 </div>
               )}
+            </Card>
+          </div>
+        )}
+
+        {/* ══ ARENA EVIDENCE — "Verified Task Evidence": the dedicated proof-of-
+            work section (spec E). Every task shown here was auto-graded by a
+            deterministic evaluator (see EvalBadge) — never a human reviewer —
+            so every label is honest about that: "System-evaluated," never
+            "Verified by a reviewer." Recruiters can expand any task for the
+            full proof trail (scenario, submitted answer, program output, AI
+            feedback) where the underlying data model captures it. ══════════ */}
+        {tasks.length>0&&(
+          <div ref={refs.challenges} className="ps">
+            <Card accent={aConfig?.palette?.accent||C.blue}>
+              <SectionTitle icon="⚔️"
+                title="Verified Task Evidence"
+                accent={aConfig?.palette?.accent||C.blue}
+                sub={`${tasks.length} Arena tasks completed and auto-graded · avg score ${avgScore}/100 · expand any task for the full proof trail`}/>
+
+              <ArenaChallengesSection
+                tasks={tasks}
+                commonTasks={commonTasks}
+                domainTasks={domainTasks}
+                avgScore={avgScore}
+                aConfig={aConfig}
+              />
+            </Card>
+          </div>
+        )}
+
+        {/* ══ INTERVIEW SESSIONS — supplementary evidence: AI-assessed practice
+            interviews, clearly labeled as such, not confused with the Arena
+            task evidence above. ══════════════════════════════════════════════ */}
+        {interviews.length>0&&(
+          <div ref={refs.interviews} className="ps">
+            <Card accent={C.purple}>
+              <SectionTitle icon="🎤" title="Interview Sessions" accent={C.purple}
+                sub={`${interviews.length} AI-assessed practice sessions completed — click any card to expand feedback`}/>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {interviews.map((iv,i)=><InterviewCard key={iv.id||i} iv={iv}/>)}
+              </div>
             </Card>
           </div>
         )}
@@ -2875,6 +2880,33 @@ export default function Portfolio({ username: usernameProp }) {
                   "We deliberately don't show star counts, follower numbers, or activity graphs here — those measure popularity and luck, not skill."
                 )}
               </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ══ ACTIVITY & DEVELOPMENT (spec H) — recent Arena activity, shown near
+            the end since it's a supporting signal, not the headline evidence
+            above. Not applicable to the professional path (no Arena tasks). ══ */}
+        {!isPro && tasks.length>0&&(
+          <div ref={refs.activity} className="ps">
+            <Card accent={C.amber}>
+              <SectionTitle icon="📅" title="Activity & Development" accent={C.amber}
+                sub="90-day Arena activity — hover a square to see the date"/>
+              <ActivityHeatmap tasks={tasks} streak={ud.arenaStreak||0}/>
+            </Card>
+          </div>
+        )}
+
+        {/* ══ RECRUITER SUMMARY (spec I) — closing synthesis across every
+            evidence source on this page. Only rendered when there is real
+            evidence to synthesize; never a generic or unearned claim. ══════ */}
+        {recruiterClosing && (
+          <div className="ps">
+            <Card accent={aConfig?.palette?.accent||C.blue} style={{textAlign:"center"}}>
+              <SectionTitle icon="📌" title="Recruiter Summary" accent={aConfig?.palette?.accent||C.blue}/>
+              <p style={{fontSize:15,color:C.ink2,lineHeight:1.8,maxWidth:720,margin:"0 auto"}}>
+                {recruiterClosing}
+              </p>
             </Card>
           </div>
         )}
