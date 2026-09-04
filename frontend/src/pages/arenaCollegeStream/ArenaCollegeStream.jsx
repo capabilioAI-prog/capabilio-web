@@ -1321,30 +1321,73 @@ export default function ArenaCollegeStream({ userData, onNavigate, user, setUser
   const [nextExperimentMeta, setNextExperimentMeta] = useState(null)
   const [nextExperimentLoading, setNextExperimentLoading] = useState(false)
 
+  // Default recommended task is now the Arena Capability Engine's adaptive
+  // pick (2026-09-04 — "default = adaptive, browsing stays available"),
+  // not the plain curriculum-order /next-mission. Falls back to the
+  // original static endpoint whenever the capability engine has nothing to
+  // recommend (no eligible task, generation unavailable, or a transient
+  // error) — that fallback is UNCHANGED from the prior behavior, so a role
+  // with no capability data yet still gets a real next task, honestly, same
+  // as before this change. Deliberately does not touch openDomainMissions
+  // (the manual browse grid) or the daily quota/lock logic at all.
   const loadNextMission = useCallback(() => {
     setNextMissionLoading(true)
-    arenaDomainRoleApi.getNextMission(roleConfig.id)
-      .then(res => {
-        setNextMission(res.mission || null)
-        setNextMissionMeta({ totalMissions: res.totalMissions, completed: res.completed })
-        setNextMissionQuota(res.quota || null)
+    arenaCapabilityApi.getNextTask({ domain: "domain_role", key: roleConfig.id })
+      .then(async capRes => {
+        if (!isOpenableCapabilityTask(capRes)) throw new Error("no_suitable_task")
+        // The capability response is a narrow, answer-safe task shape (id/
+        // title/prompt/difficulty/panelType/timeLimitMinutes) — re-fetch the
+        // full mission record (already public, same one openDomainMission
+        // itself re-fetches when opening any task) so the dashboard preview
+        // card keeps showing company/manager/sprint/reward exactly as it did
+        // before this change, regardless of which task is recommended.
+        const { mission } = await arenaDomainRoleApi.getMission(capRes.task.id)
+        setNextMission(mission || null)
+        setNextMissionMeta({ totalMissions: null, completed: false })
+        setNextMissionQuota(null)
       })
-      .catch(() => setNextMission(null))
+      .catch(() =>
+        arenaDomainRoleApi.getNextMission(roleConfig.id)
+          .then(res => {
+            setNextMission(res.mission || null)
+            setNextMissionMeta({ totalMissions: res.totalMissions, completed: res.completed })
+            setNextMissionQuota(res.quota || null)
+          })
+          .catch(() => setNextMission(null))
+      )
       .finally(() => setNextMissionLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleConfig.id])
 
   useEffect(() => { loadNextMission() }, [loadNextMission])
 
+  // Same default-to-adaptive change as loadNextMission above, for the
+  // College Stream branch. The capability response has no semester/subject
+  // breadcrumb (it isn't asked to resolve one — see contextResolution.js),
+  // so those two WorkspaceField rows simply don't render for an adaptively-
+  // picked experiment (gracefully hidden, same as goToCapabilityNextTask's
+  // existing personalized-pick button already does) — an honest omission,
+  // not fabricated data. Falls back to the original static
+  // next-experiment endpoint, unchanged, whenever capability has nothing
+  // to recommend.
   useEffect(() => {
     if (!matchedStream) return
     setNextExperimentLoading(true)
-    arenaCollegeStreamApi.getNextExperiment(matchedStream.slug)
-      .then(res => {
-        setNextExperimentCtx(res.next || null)
-        setNextExperimentMeta({ totalExperiments: res.totalExperiments, completed: res.completed })
+    arenaCapabilityApi.getNextTask({ domain: "college_stream", key: matchedStream.slug })
+      .then(async capRes => {
+        if (!isOpenableCapabilityTask(capRes)) throw new Error("no_suitable_task")
+        const { experiment } = await arenaCollegeStreamApi.getExperiment(capRes.task.id)
+        setNextExperimentCtx(experiment ? { experiment, unit: null, subject: null, semester: null } : null)
+        setNextExperimentMeta({ totalExperiments: null, completed: false })
       })
-      .catch(() => setNextExperimentCtx(null))
+      .catch(() =>
+        arenaCollegeStreamApi.getNextExperiment(matchedStream.slug)
+          .then(res => {
+            setNextExperimentCtx(res.next || null)
+            setNextExperimentMeta({ totalExperiments: res.totalExperiments, completed: res.completed })
+          })
+          .catch(() => setNextExperimentCtx(null))
+      )
       .finally(() => setNextExperimentLoading(false))
   }, [matchedStream])
 
