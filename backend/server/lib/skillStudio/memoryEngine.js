@@ -88,18 +88,42 @@ export async function readDecayedState(userId, skillGraphNodeId) {
   return { ...state, confidence: decayed, band: currentBand }
 }
 
+// Evidence-quality bounds for the optional strengthMultiplier (Arena, 2026-09-04)
+// — see arenaReinforcement.js's computeEvidenceMultiplier for how Arena
+// derives a value in this range from score+difficulty. Clamped here too
+// (defense in depth) so no caller, present or future, can bypass the "one
+// perfect task can't jump a skill from near-zero to expert" requirement by
+// passing an unbounded multiplier.
+const MIN_STRENGTH_MULTIPLIER = 0.5
+const MAX_STRENGTH_MULTIPLIER = 1.4
+
+/** Pure — extracted so the actual arithmetic is unit-testable without a
+ *  database (reinforce() itself is not DI'd; see this file's test). */
+export function computeReinforcementDelta({ source, correct, strengthMultiplier = 1 }) {
+  const strength = REINFORCE_STRENGTH[source] ?? REINFORCE_STRENGTH.module
+  const mult = Math.max(MIN_STRENGTH_MULTIPLIER, Math.min(MAX_STRENGTH_MULTIPLIER, strengthMultiplier ?? 1))
+  return correct ? strength * mult : -strength * 0.6 * mult
+}
+
 /**
  * reinforce — bounded, source-weighted confidence update. Mirrors the
  * "±15-per-skill cap philosophy" already established on user_skills
  * confidence feedback elsewhere in the codebase (see eloEngine.js's own
  * comments) — no single event can jump confidence more than ~0.35 (Arena's
- * own weight, the highest tier) in one call.
+ * own weight, the highest tier) in one call, times at most 1.4x for an
+ * exceptionally strong piece of evidence.
+ *
+ * strengthMultiplier (optional, default 1 — every existing Skill Studio quiz/
+ * interview/practice caller is unaffected) additively scales that per-source
+ * strength for callers with a real evidence-quality signal to weight by
+ * (Arena: score + task difficulty). Bounded to
+ * [MIN_STRENGTH_MULTIPLIER, MAX_STRENGTH_MULTIPLIER] regardless of what a
+ * caller passes.
  */
-export async function reinforce({ userId, skillGraphNodeId, source, correct = true }) {
-  const strength = REINFORCE_STRENGTH[source] ?? REINFORCE_STRENGTH.module
+export async function reinforce({ userId, skillGraphNodeId, source, correct = true, strengthMultiplier = 1 }) {
   const state = await getOrCreateMemoryState(userId, skillGraphNodeId)
   const decayedNow = computeDecayedConfidence(state, new Date())
-  const delta = correct ? strength : -strength * 0.6
+  const delta = computeReinforcementDelta({ source, correct, strengthMultiplier })
   const newConfidence = Math.max(0, Math.min(1, decayedNow + delta))
   const newEase = correct
     ? Math.min(3.2, (state.ease_factor ?? 2.5) + 0.08)

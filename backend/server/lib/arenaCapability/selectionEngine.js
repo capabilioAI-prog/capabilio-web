@@ -41,6 +41,7 @@ import { checkDuplicate as defaultCheckDuplicate, recordFingerprint as defaultRe
 import { persistGeneratedTask as defaultPersistGeneratedTask } from "./persistence.js"
 import { resolveFewShotContext as defaultResolveFewShotContext } from "./fewShot.js"
 import { logger } from "../logger.js"
+import { getTier } from "../eloTiers.js"
 
 export const defaultDeps = {
   supabaseAdmin,
@@ -60,13 +61,28 @@ export const defaultDeps = {
 }
 
 // Generation is attempted at most this many times per request — bounded,
-// never a loop. Difficulty is fixed at "easy" for every generation attempt:
-// a deliberate Checkpoint D-2 simplification (matches taskGeneration.js's
-// own default), not a gap — adaptive difficulty targeting for generated
-// content is a real future improvement, not required for a correct minimum
-// version of this flow.
+// never a loop.
 const MAX_GENERATION_ATTEMPTS = 2
-const GENERATION_DIFFICULTY = "easy"
+
+// Adaptive generation difficulty (Fix 5, 2026-09-04 Arena evidence fix) —
+// replaces the previously hardcoded "easy" for every generated task
+// (a deliberate Checkpoint D-2 simplification that this closes out).
+// Deliberately conservative: Capabilio's users are primarily students/
+// freshers/entry-level candidates, so this never jumps to "hard" off a high
+// overall ELO alone — that only unlocks once there's real, demonstrated
+// confidence (memory_states, via loadCapabilityState) in the SPECIFIC
+// competency being targeted, not just a high rating from other skills.
+// Reuses the canonical ELO_TIERS (eloTiers.js, already the single source of
+// truth for the tier badge shown elsewhere) — no new tier taxonomy invented.
+export function pickGenerationDifficulty({ eloRating, competencyConfidence }) {
+  const tier = getTier(typeof eloRating === "number" ? eloRating : 0)
+  const strongEvidence = typeof competencyConfidence === "number" && competencyConfidence >= 0.75
+  if (tier.label === "Rookie" || tier.label === "Apprentice") return "easy"
+  if (tier.label === "Practitioner" || tier.label === "Expert") return strongEvidence ? "medium" : "easy"
+  // Master / Elite — still never "expert" from generation; that stays
+  // reserved for hand-authored seeded content, not an AI-generated guess.
+  return strongEvidence ? "hard" : "medium"
+}
 
 function badRequest(message) {
   const err = new Error(message)
@@ -301,6 +317,18 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     : "No tasks exist yet for this domain/role."
   const competencyTarget = pickTargetCompetency(competencies)
 
+  // Adaptive difficulty (Fix 5, 2026-09-04) — replaces the previously
+  // hardcoded "easy" for every generated task. Only fetched here, in the
+  // generation branch, so the far more common "serve an existing task" path
+  // (Path 1 above) gains no extra query. See pickGenerationDifficulty's own
+  // header for why this stays conservative by design.
+  const { data: profileForDifficulty } = await deps.supabaseAdmin
+    .from("profiles").select("elo_rating").eq("id", userId).maybeSingle()
+  const generationDifficulty = pickGenerationDifficulty({
+    eloRating: profileForDifficulty?.elo_rating,
+    competencyConfidence: competencyTarget?.confidence ?? null,
+  })
+
   let generationContext = null
   if (domain === "college_stream") {
     const ctxResult = await deps.resolveCollegeStreamGenerationContext({ streamSlug: key, exclusions: passedIds }, deps)
@@ -309,7 +337,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     // generate for this path, not an error, and never fabricated.
     if (ctxResult.ok) {
       generationContext = {
-        domain, panelType: null, difficulty: GENERATION_DIFFICULTY,
+        domain, panelType: null, difficulty: generationDifficulty,
         collegeStream: ctxResult.collegeStream, streamOrRole: context,
         competencyTarget: competencyTarget ? { skillGraphNodeId: competencyTarget.skillGraphNodeId, label: competencyTarget.label } : undefined,
         _collegeStreamMeta: { unitId: ctxResult.meta.unitId, subjectId: ctxResult.meta.subjectId, subjectName: ctxResult.collegeStream.subjectName },
@@ -317,7 +345,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     }
   } else if (panelTypeForGeneration) {
     generationContext = {
-      domain, panelType: panelTypeForGeneration, difficulty: GENERATION_DIFFICULTY, streamOrRole: context,
+      domain, panelType: panelTypeForGeneration, difficulty: generationDifficulty, streamOrRole: context,
       competencyTarget: competencyTarget ? { skillGraphNodeId: competencyTarget.skillGraphNodeId, label: competencyTarget.label } : undefined,
     }
   }
@@ -377,7 +405,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     try {
       persistResult = await deps.persistGeneratedTask({
         domain, panelType: generationContext.panelType, task: genResult.task, verification: verifyResult,
-        difficulty: GENERATION_DIFFICULTY, collegeStreamMeta: generationContext._collegeStreamMeta, domainRoleId: domain === "domain_role" ? context.id : undefined,
+        difficulty: generationContext.difficulty, collegeStreamMeta: generationContext._collegeStreamMeta, domainRoleId: domain === "domain_role" ? context.id : undefined,
         skillGraphNodeId: competencyTarget?.skillGraphNodeId || null,
       }, deps)
     } catch (err) {
@@ -417,7 +445,7 @@ export async function selectBestTask({ userId, domain, key }, deps = defaultDeps
     served = {
       task: toSafeTaskShape({
         id: persistResult.taskId, title: genResult.task.title, prompt: genResult.task.prompt,
-        difficulty: GENERATION_DIFFICULTY, panelType: generationContext.panelType, timeLimitMinutes: persistResult.row.time_limit_minutes,
+        difficulty: generationContext.difficulty, panelType: generationContext.panelType, timeLimitMinutes: persistResult.row.time_limit_minutes,
       }),
       outcome: attemptNumber === 1 ? "generated" : "regenerated",
       promptId: genResult.promptId,

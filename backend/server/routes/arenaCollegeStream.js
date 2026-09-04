@@ -33,8 +33,29 @@ import { logger } from "../lib/logger.js"
 // ELO_FAIL_PENALTY comment above draws; requireAuth/logger/supabaseAdmin
 // are already shared the same way.
 import { decodeCursor, encodeCursor } from "../lib/pagination.js"
+import { reinforceArenaSubmission } from "../lib/skillStudio/arenaReinforcement.js"
 
 const router = Router()
+
+// Reverse of loadCollegeStreamTasks's forward stream->...->experiments walk
+// (selectionEngine.js) — given one experiment's unit_id, resolve its stream
+// slug, needed as the domainKey for syncSkillGraphFromMemoryStates after
+// reinforcement (2026-09-04 Arena evidence fix). Uses the SAME authoritative
+// semester_subjects many-to-many join contextResolution.js and
+// selectionEngine.js already use — NOT subjects.semester_id, which is stale/
+// unreliable (see contextResolution.js's file header for why). A single-row
+// lookup on the submit path, not a hot loop, so 3 small sequential queries
+// is the right tradeoff over a bulk-oriented join used elsewhere.
+async function resolveStreamSlugForUnit(unitId) {
+  const { data: unit } = await supabaseAdmin.from("units").select("subject_id").eq("id", unitId).maybeSingle()
+  if (!unit) return null
+  const { data: link } = await supabaseAdmin.from("semester_subjects").select("semester_id").eq("subject_id", unit.subject_id).limit(1).maybeSingle()
+  if (!link) return null
+  const { data: semester } = await supabaseAdmin.from("semesters").select("stream_id").eq("id", link.semester_id).maybeSingle()
+  if (!semester) return null
+  const { data: stream } = await supabaseAdmin.from("streams").select("slug").eq("id", semester.stream_id).maybeSingle()
+  return stream?.slug || null
+}
 
 // Same deterministic fail-penalty scheme as the Domain Role branch (see
 // ELO_FAIL_PENALTY in arenaDomainRole.js) — kept as its own copy rather than
@@ -656,7 +677,7 @@ router.post("/experiments/:id/submit", requireAuth, codeExecutionLimiter, async 
 
     const { data: experiment, error: expErr } = await supabaseAdmin
       .from("experiments")
-      .select("id, title, prompt, rubric, elo_reward, difficulty, unit_id, tier, category")
+      .select("id, title, prompt, rubric, elo_reward, difficulty, unit_id, tier, category, skill_graph_node_id, skill_graph_nodes(label)")
       .eq("id", req.params.id)
       .maybeSingle()
     if (expErr) throw expErr
@@ -822,8 +843,25 @@ router.post("/experiments/:id/submit", requireAuth, codeExecutionLimiter, async 
       completed_at: submission.submitted_at,
       visible_in_portfolio: true,
       visible_in_aura: true,
+      // skill_name/skill_category (2026-09-04 Arena evidence fix) — see the
+      // matching comment in arenaDomainRole.js's recordArenaHistory.
+      skill_name: experiment.skill_graph_nodes?.label || null,
+      skill_category: experiment.category || null,
     })
     if (histErr) logger.error("arena_history insert failed (submission still recorded)", { err: histErr, userId: req.user.id })
+
+    // The actual fix: connect this result to skill evidence. Best-effort,
+    // never blocks this response — see arenaReinforcement.js's contract.
+    // domainKey is the experiment's stream slug (College Stream's coarse
+    // tagging is per-stream, not per-subject — see Fix 2's audit; no
+    // granular taxonomy exists for streams today, so this reinforces at the
+    // same grain the mission is actually tagged at, honestly).
+    const streamSlug = await resolveStreamSlugForUnit(experiment.unit_id).catch(() => null)
+    await reinforceArenaSubmission({
+      userId: req.user.id, skillGraphNodeId: experiment.skill_graph_node_id, domainKey: streamSlug,
+      correct: result.passed, score: result.score, difficulty: experiment.difficulty,
+      submissionTable: "college_submissions", submissionId: submission.id,
+    })
 
     res.json({ submission: { ...submission, ai_feedback: aiFeedback, execution_output: executionOutput, elo_capped: eloCapped } })
   } catch (err) {
