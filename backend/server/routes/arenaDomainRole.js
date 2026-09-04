@@ -20,6 +20,7 @@ import { logger } from "../lib/logger.js"
 import { decodeCursor, encodeCursor } from "../lib/pagination.js"
 import { sqlValidateLimiter } from "../lib/rateLimiters.js"
 import { AIService } from "../lib/ai/aiService.js"
+import { reinforceArenaSubmission } from "../lib/skillStudio/arenaReinforcement.js"
 
 // Best-effort, non-fatal — feeds the same global profiles.elo_rating the
 // header badge and Portfolio tier read (see arenaCollegeStream.js's fuller
@@ -36,9 +37,17 @@ async function bumpProfileElo(userId, delta) {
 // unlike the College Stream branch which caps ELO gain but never skips the
 // history row either. type: 'domain' distinguishes these from College
 // Stream's 'academic' rows in Portfolio, without guessing from free text.
-async function recordArenaHistory({ user_id, task_id, title, domain, difficulty, type, score, elo_delta }) {
+// skill_name/skill_category (2026-09-04 Arena evidence fix): populated from
+// the mission's tagged skill_graph_nodes row when one exists (most roles
+// today still only have a coarse per-role competency — see
+// backfillSkillCompetencyGranularity.mjs — so this is frequently still the
+// role-level label, not a regression, just not yet granular for every role).
+// Previously always null regardless of what the mission was actually tagged
+// with — Portfolio's Arena Evidence section couldn't show a skill label for
+// any task.
+async function recordArenaHistory({ user_id, task_id, title, domain, difficulty, type, score, elo_delta, skill_name = null, skill_category = null }) {
   const { error } = await supabaseAdmin.from("arena_history").insert({
-    user_id, task_id, title, domain, difficulty, type, score, elo_delta,
+    user_id, task_id, title, domain, difficulty, type, score, elo_delta, skill_name, skill_category,
     visible_in_portfolio: true, visible_in_aura: true,
   })
   if (error) logger.error("arena_history insert failed (submission still recorded)", { err: error, userId: user_id })
@@ -647,9 +656,14 @@ router.post("/missions/:id/submit", requireAuth, async (req, res) => {
     }
     const sql = submittedText
 
+    // skill_graph_node_id + the embedded skill_graph_nodes(label) (2026-09-04
+    // Arena evidence fix) — the only addition to this SELECT; every other
+    // field is unchanged. Lets this route reinforce the correct skill
+    // evidence and label arena_history with a real skill name, without
+    // touching evaluation/scoring at all.
     const { data: mission, error: missionErr } = await supabaseAdmin
       .from("domain_missions")
-      .select("id, title, prompt, dataset, expected_result, match_mode, rubric, reference_solution, elo_reward, difficulty, panel_type, domain_role_id, domain_roles(label)")
+      .select("id, title, prompt, dataset, expected_result, match_mode, rubric, reference_solution, elo_reward, difficulty, panel_type, domain_role_id, skill_graph_node_id, domain_roles(label), skill_graph_nodes(label)")
       .eq("id", req.params.id)
       .maybeSingle()
     if (missionErr) throw missionErr
@@ -715,6 +729,16 @@ router.post("/missions/:id/submit", requireAuth, async (req, res) => {
           user_id: req.user.id, task_id: mission.id, title: mission.title || "Domain Challenge",
           domain: mission.domain_roles?.label || "domain", difficulty: mission.difficulty,
           type: "domain", score: 0, elo_delta: eloDelta,
+          skill_name: mission.skill_graph_nodes?.label || null, skill_category: mission.panel_type || null,
+        })
+        // A sandbox error (e.g. invalid SQL) is still real, informative
+        // evidence — the same category of signal Skill Studio's own quiz
+        // mistakes already reinforce as "incorrect". Best-effort, never
+        // blocks the response (see reinforceArenaSubmission's own contract).
+        await reinforceArenaSubmission({
+          userId: req.user.id, skillGraphNodeId: mission.skill_graph_node_id, domainKey: mission.domain_role_id,
+          correct: false, score: 0, difficulty: mission.difficulty,
+          submissionTable: "domain_submissions", submissionId: submission.id,
         })
         return res.json({ submission: { ...submission, feedback: sandboxErr.message } })
       }
@@ -792,6 +816,16 @@ router.post("/missions/:id/submit", requireAuth, async (req, res) => {
       user_id: req.user.id, task_id: mission.id, title: mission.title || "Domain Challenge",
       domain: mission.domain_roles?.label || "domain", difficulty: mission.difficulty,
       type: "domain", score: comparison.score, elo_delta: eloDelta,
+      skill_name: mission.skill_graph_nodes?.label || null, skill_category: mission.panel_type || null,
+    })
+    // The actual fix: connect this result to skill evidence (memory_states)
+    // and, through that, back to profiles.skill_graph/Aura's radar. See
+    // arenaReinforcement.js's header for the full contract. Best-effort,
+    // never blocks this response — same convention as the two calls above.
+    await reinforceArenaSubmission({
+      userId: req.user.id, skillGraphNodeId: mission.skill_graph_node_id, domainKey: mission.domain_role_id,
+      correct: comparison.passed, score: comparison.score, difficulty: mission.difficulty,
+      submissionTable: "domain_submissions", submissionId: submission.id,
     })
 
     res.json({

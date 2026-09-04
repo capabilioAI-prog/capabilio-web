@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { selectBestTask } from "./selectionEngine.js"
+import { selectBestTask, pickGenerationDifficulty } from "./selectionEngine.js"
 
 /**
  * Minimal generic fake: each table name maps to either a single row
@@ -696,4 +696,37 @@ test("G1-no-leak. G-1 logging changes no observable field of the API response �
   assert.deepEqual(Object.keys(result).sort(), ["avoidedTaskIds", "difficulty", "domain", "provenance", "role", "selectionReason", "task", "taskSource", "targetedCompetencies"].sort())
   assert.equal(JSON.stringify(result).includes("stage"), false)
   assert.equal(JSON.stringify(result).includes("verification_rejected"), false)
+})
+
+// ── pickGenerationDifficulty (Fix 5, 2026-09-04) — pure, no DI needed ───────
+
+test("pickGenerationDifficulty: a low-ELO / new user (Rookie) always gets easy, never intimidating", () => {
+  assert.equal(pickGenerationDifficulty({ eloRating: 400, competencyConfidence: null }), "easy")
+  assert.equal(pickGenerationDifficulty({ eloRating: 400, competencyConfidence: 0.95 }), "easy",
+    "even with strong confidence, a Rookie should not be jumped past easy")
+})
+
+test("pickGenerationDifficulty: mid-tier (Practitioner/Expert) only reaches medium once there's real demonstrated confidence in THIS competency", () => {
+  assert.equal(pickGenerationDifficulty({ eloRating: 900, competencyConfidence: null }), "easy")
+  assert.equal(pickGenerationDifficulty({ eloRating: 900, competencyConfidence: 0.5 }), "easy")
+  assert.equal(pickGenerationDifficulty({ eloRating: 900, competencyConfidence: 0.8 }), "medium")
+})
+
+test("pickGenerationDifficulty: high-ELO (Master/Elite) never jumps straight to hard without strong specific-skill evidence", () => {
+  assert.equal(pickGenerationDifficulty({ eloRating: 1600, competencyConfidence: null }), "medium",
+    "a high overall rating alone must not unlock hard — that requires evidence for the targeted skill specifically")
+  assert.equal(pickGenerationDifficulty({ eloRating: 1600, competencyConfidence: 0.5 }), "medium")
+  assert.equal(pickGenerationDifficulty({ eloRating: 1600, competencyConfidence: 0.9 }), "hard")
+})
+
+test("pickGenerationDifficulty: never returns 'expert' — that stays reserved for hand-authored content, not AI generation", () => {
+  const results = [
+    pickGenerationDifficulty({ eloRating: 2000, competencyConfidence: 1 }),
+    pickGenerationDifficulty({ eloRating: 9999, competencyConfidence: 0.99 }),
+  ]
+  assert.ok(results.every(d => d !== "expert"))
+})
+
+test("pickGenerationDifficulty: a missing/undefined ELO defaults conservatively to Rookie behavior (easy) — matches the prior hardcoded default when no profile data is available", () => {
+  assert.equal(pickGenerationDifficulty({ eloRating: undefined, competencyConfidence: null }), "easy")
 })
