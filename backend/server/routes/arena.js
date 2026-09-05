@@ -12,7 +12,8 @@ import { supabaseAdmin } from "../lib/supabase.js"
 import { generalLimiter, strictLimiter, codeExecutionLimiter } from "../lib/rateLimiters.js"
 import { resolveAuthoritativeStream, listStreams, setStreamIfUnset } from "../lib/arena/streamResolver.js"
 import { getCurrentArenaWeek } from "../lib/arena/week.js"
-import { spinOrGetAllocation, getCurrentAllocation } from "../lib/arena/spin.js"
+import { getWheelOutcomes } from "../lib/arena/config.js"
+import { spinOrGetAllocation, getCurrentAllocation, getAllocationForWeek } from "../lib/arena/spin.js"
 import { getChallengeById } from "../lib/arena/challengeRepository.js"
 import { submitMission } from "../lib/arena/submission.js"
 import { getLeaderboard } from "../lib/arena/leaderboard.js"
@@ -60,6 +61,20 @@ router.post("/stream", requireAuth, generalLimiter, async (req, res) => {
 
 router.get("/week", requireAuth, (req, res) => {
   send(res, 200, getCurrentArenaWeek())
+})
+
+// Single source of truth for the wheel's possible outcomes — the frontend
+// fetches this instead of hardcoding [5,6,7,8,9,10,11,12] itself, so the
+// wheel always renders exactly as many segments as the backend actually
+// supports (spec §4: "centralized configuration... consistent source").
+router.get("/config", requireAuth, async (req, res) => {
+  try {
+    const wheelOutcomes = await getWheelOutcomes()
+    send(res, 200, { wheelOutcomes })
+  } catch (e) {
+    logger.error("[arena] GET /config failed", { error: e.message })
+    send(res, 500, { error: "Could not load config." })
+  }
 })
 
 router.get("/allocation", requireAuth, async (req, res) => {
@@ -143,6 +158,21 @@ router.get("/history", requireAuth, async (req, res) => {
   } catch (e) {
     logger.error("[arena] GET /history failed", { error: e.message })
     send(res, 500, { error: "Could not load history." })
+  }
+})
+
+// Read-only: view a specific past week's allocation (spec §30 — "clicking
+// a week opens that historical allocation"). Ownership-scoped by
+// (req.user.id, weekStart) only — no allocation id is ever accepted from
+// the client, so there's no way to probe another student's history.
+router.get("/history/:weekStart", requireAuth, async (req, res) => {
+  try {
+    const allocation = await getAllocationForWeek(req.user.id, req.params.weekStart)
+    if (!allocation) return send(res, 404, { error: "not_found" })
+    send(res, 200, { allocation })
+  } catch (e) {
+    logger.error("[arena] GET /history/:weekStart failed", { error: e.message })
+    send(res, 500, { error: "Could not load that week." })
   }
 })
 

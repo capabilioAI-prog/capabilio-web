@@ -895,12 +895,14 @@ export const arenaApi = {
   getStream:      () => request("GET", "/arena/stream"),
   setStream:      (streamId) => request("POST", "/arena/stream", { streamId }),
   getWeek:        () => request("GET", "/arena/week"),
+  getConfig:      () => request("GET", "/arena/config"),
   getAllocation:  () => request("GET", "/arena/allocation"),
   spin:           () => request("POST", "/arena/spin"),
   getMission:     (missionId) => request("GET", `/arena/missions/${missionId}`),
   submitMission:  (missionId, response) => request("POST", `/arena/missions/${missionId}/submit`, { response }),
   getLeaderboard: () => request("GET", "/arena/leaderboard"),
   getHistory:     () => request("GET", "/arena/history"),
+  getHistoryWeek: (weekStart) => request("GET", `/arena/history/${weekStart}`),
 }
 
 // ══════════════════════════════════════════

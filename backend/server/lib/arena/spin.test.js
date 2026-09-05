@@ -89,7 +89,7 @@ function makeFakeSupabase(state) {
   return { from: (table) => chain(table) }
 }
 
-let spinOrGetAllocation
+let spinOrGetAllocation, getAllocationForWeek
 
 function makeState() {
   return {
@@ -110,7 +110,7 @@ beforeEach(() => {
 })
 
 before(async () => {
-  ({ spinOrGetAllocation } = await import("./spin.js"))
+  ({ spinOrGetAllocation, getAllocationForWeek } = await import("./spin.js"))
 })
 
 after(() => {
@@ -181,4 +181,26 @@ test("a new week produces a new allocation, and the previous week's allocation r
   assert.notEqual(current.allocationId, "alloc-past-week", "spinning now must not reuse or overwrite a past week's allocation")
   assert.equal(sharedState.allocations.get(pastWeekKey).id, "alloc-past-week", "the past week's allocation must still exist, completely unchanged")
   assert.equal(sharedState.allocations.get(pastWeekKey).spin_result, 5, "historical spin_result is immutable")
+})
+
+test("getAllocationForWeek returns a specific past week's allocation, read-only (spec §30)", async () => {
+  await spinOrGetAllocation({ studentId: STUDENT_A, streamId: STREAM_CSE, streamSlug: "cse" })
+  const pastWeekKey = `${STUDENT_A}|2020-01-06`
+  sharedState.allocations.set(pastWeekKey, { id: "alloc-past-week", student_id: STUDENT_A, week_start: "2020-01-06", stream_id: STREAM_CSE, spin_result: 6 })
+
+  const past = await getAllocationForWeek(STUDENT_A, "2020-01-06")
+  assert.equal(past.allocationId, "alloc-past-week")
+  assert.equal(past.spinResult, 6)
+})
+
+test("getAllocationForWeek returns null for a week the student never had an allocation in — never fabricates one", async () => {
+  const result = await getAllocationForWeek(STUDENT_A, "1999-01-04")
+  assert.equal(result, null)
+})
+
+test("getAllocationForWeek is scoped to the requesting student only — never returns another student's week", async () => {
+  const key = `${STUDENT_B}|2020-01-06`
+  sharedState.allocations.set(key, { id: "alloc-student-b-only", student_id: STUDENT_B, week_start: "2020-01-06", stream_id: STREAM_ECE, spin_result: 6 })
+  const result = await getAllocationForWeek(STUDENT_A, "2020-01-06")
+  assert.equal(result, null, "must not leak STUDENT_B's allocation when queried under STUDENT_A's id")
 })

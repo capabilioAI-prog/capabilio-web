@@ -40,6 +40,17 @@ export default defineConfig({
           if (id.includes("node_modules/jspdf") || id.includes("node_modules/html2canvas")) return "vendor-pdf"
           // Supabase client (~300kb)
           if (id.includes("node_modules/@supabase"))     return "vendor-supabase"
+          // Code editor (~500kb) — only used by Arena's coding/SQL
+          // workstation (frontend/src/pages/arena/Workstation.jsx), which
+          // already dynamically imports it. Without its own chunk name
+          // here, manualChunks would otherwise sweep it into the shared
+          // "vendor-misc" chunk below — silently defeating that lazy
+          // import, since vendor-misc is pulled in eagerly by many
+          // unrelated pages that have nothing to do with Arena.
+          if (id.includes("node_modules/@uiw/react-codemirror") ||
+              id.includes("node_modules/@uiw/codemirror-extensions-basic-setup") ||
+              id.includes("node_modules/@codemirror/") ||
+              id.includes("node_modules/@lezer/"))       return "vendor-codemirror"
           // All other node_modules → shared vendor chunk
           if (id.includes("node_modules/"))              return "vendor-misc"
         },

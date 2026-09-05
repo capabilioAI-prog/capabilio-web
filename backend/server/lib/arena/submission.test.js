@@ -25,7 +25,7 @@ function baseState() {
         id: CHALLENGE_ID, title: "Test challenge", points: 10, workstation_type: "calculation",
         verification_type: "numeric_tolerance", verification_definition: { expectedValue: 100, tolerance: 0 },
         skill_graph_node_id: null, competency_area: "Testing", skill: "Testing", scenario: "s", mission: "m",
-        difficulty: "easy", challenge_type: "calculation", explanation: null,
+        difficulty: "easy", challenge_type: "calculation", explanation: "The correct value is 100 because...",
       },
     },
     historyInserts: [],
@@ -112,6 +112,21 @@ test("a mission that is already completed cannot be re-submitted for extra point
   const result = await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 100 } })
   assert.equal(result.ok, false)
   assert.equal(result.reason, "already_completed")
+})
+
+test("a failed submission never receives the challenge's own explanation (it states the correct answer)", async () => {
+  const result = await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 1 } }) // wrong
+  assert.equal(result.passed, false)
+  assert.equal(result.explanation, null, "explanation must be withheld on failure — it reveals the correct answer")
+  assert.equal(typeof result.hint, "string", "a generic, non-revealing hint should still be provided")
+  assert.ok(!result.hint.includes("100"), "the hint must never contain the actual correct value")
+})
+
+test("a passed submission DOES receive the challenge's own explanation (safe once already demonstrated)", async () => {
+  const result = await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 100 } })
+  assert.equal(result.passed, true)
+  assert.equal(result.explanation, "The correct value is 100 because...")
+  assert.equal(result.hint, null)
 })
 
 test("every attempt is preserved in the arena_submissions audit trail, not just the latest", async () => {

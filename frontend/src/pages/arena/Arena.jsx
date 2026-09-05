@@ -2,18 +2,25 @@ import { useState, useEffect, useCallback } from "react"
 import { arenaApi } from "../../lib/api"
 import { A } from "./tokens"
 import StreamPicker from "./StreamPicker"
-import SpinWheel from "./SpinWheel"
-import MissionList from "./MissionList"
-import MissionWorkstation from "./MissionWorkstation"
-import Leaderboard from "./Leaderboard"
-import History from "./History"
+import ArenaWeeklyReveal from "./ArenaWeeklyReveal"
+import ArenaWeekDashboard from "./ArenaWeekDashboard"
+import MissionWorkspace from "./MissionWorkspace"
+import ArenaLeaderboard from "./ArenaLeaderboard"
+import ArenaHistory from "./ArenaHistory"
+
+const TABS = [["active", "Active Week"], ["leaderboard", "Leaderboard"], ["history", "History"]]
 
 /**
  * Arena — the one canonical Student Path Arena (spec §46). Single route,
- * single component hierarchy: no ArenaOld/ArenaV2/DomainRoleArena
- * siblings. View flow strictly follows the server's own state — this
- * component never decides on its own that a spin "should" happen; it
- * only ever reflects GET /arena/stream and GET /arena/allocation.
+ * single component hierarchy. This component is a strict CONSUMER of
+ * backend truth (spec §41): it never decides a stream, a spin result, a
+ * mission count, or a verification outcome on its own — every one of
+ * those comes from a GET/POST response and is simply rendered.
+ *
+ * View logic is intentionally simple: no allocation yet -> reveal
+ * sequence; allocation already exists -> straight to the dashboard, every
+ * single time (refresh, relogin, second load) — spec §32-33 (no re-spin,
+ * no re-reveal, ever, once an allocation exists for the current week).
  */
 export default function Arena() {
   const [loading, setLoading] = useState(true)
@@ -21,14 +28,23 @@ export default function Arena() {
   const [stream, setStream] = useState(null)
   const [streamOptions, setStreamOptions] = useState([])
   const [allocation, setAllocation] = useState(null)
-  const [spinning, setSpinning] = useState(false)
+  const [wheelOutcomes, setWheelOutcomes] = useState(null)
   const [activeMissionId, setActiveMissionId] = useState(null)
-  const [tab, setTab] = useState("active") // active | leaderboard | history
+  const [tab, setTab] = useState("active")
+  // Separate from `allocation` itself: whether the reveal sequence
+  // (wheel + scratch) has finished. A returning user whose allocation
+  // already existed on load starts here at "dashboard" directly (spec
+  // §32) — a student who just spun stays on "reveal" (even though
+  // `allocation` is already populated by then) until they click "Enter
+  // Arena" on the scratch card, so the wheel/scratch animation is never
+  // skipped by allocation data simply becoming available.
+  const [viewMode, setViewMode] = useState("dashboard")
 
-  const loadStreamAndAllocation = useCallback(async () => {
+  const loadEverything = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const streamRes = await arenaApi.getStream()
+      const [streamRes, configRes] = await Promise.all([arenaApi.getStream(), arenaApi.getConfig()])
+      setWheelOutcomes(configRes.wheelOutcomes)
       if (!streamRes.resolved) {
         setStream(null); setStreamOptions(streamRes.streams || [])
         setAllocation(null)
@@ -37,6 +53,11 @@ export default function Arena() {
       setStream(streamRes.stream)
       const allocRes = await arenaApi.getAllocation()
       setAllocation(allocRes.allocation)
+      // On a fresh page load: an allocation already existing means this
+      // student already spun this week (possibly in an earlier session)
+      // — go straight to the dashboard, never re-show the wheel/scratch
+      // mechanic. No allocation yet means the reveal sequence is next.
+      setViewMode(allocRes.allocation ? "dashboard" : "reveal")
     } catch (e) {
       setError(e.message)
     } finally {
@@ -44,7 +65,7 @@ export default function Arena() {
     }
   }, [])
 
-  useEffect(() => { loadStreamAndAllocation() }, [loadStreamAndAllocation])
+  useEffect(() => { loadEverything() }, [loadEverything])
 
   async function handleSelectStream(streamId) {
     const res = await arenaApi.setStream(streamId)
@@ -52,23 +73,35 @@ export default function Arena() {
     setStreamOptions([])
     const allocRes = await arenaApi.getAllocation()
     setAllocation(allocRes.allocation)
+    setViewMode(allocRes.allocation ? "dashboard" : "reveal")
   }
 
+  // Returns the server's authoritative spin result to ArenaWeeklyReveal —
+  // the wheel/scratch mechanic only ever visualizes what this call
+  // already decided (spec §3). Deliberately does NOT flip viewMode here:
+  // the reveal component stays mounted through its own wheel+scratch
+  // sequence; viewMode only becomes "dashboard" once the student clicks
+  // "Enter Arena" (handleRevealDone).
   async function handleSpin() {
-    setSpinning(true); setError(null)
-    try {
-      const res = await arenaApi.spin()
-      setAllocation({ allocationId: res.allocationId, streamId: res.streamId, spinResult: res.spinResult, spinAt: new Date().toISOString(), missions: res.missions })
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSpinning(false)
-    }
+    const res = await arenaApi.spin()
+    setAllocation({ allocationId: res.allocationId, streamId: res.streamId, spinResult: res.spinResult, spinAt: new Date().toISOString(), missions: res.missions })
+    return res
+  }
+
+  function handleRevealDone() {
+    setViewMode("dashboard")
   }
 
   function handleMissionResult() {
-    // Re-fetch so status/points reflect the server's authoritative result.
     arenaApi.getAllocation().then((res) => setAllocation(res.allocation)).catch(() => {})
+  }
+
+  function handleContinueToNext(finishedMissionId) {
+    const missions = allocation?.missions || []
+    const idx = missions.findIndex((m) => m.id === finishedMissionId)
+    const next = missions.slice(idx + 1).find((m) => m.status !== "completed")
+    setActiveMissionId(next ? next.id : null)
+    handleMissionResult()
   }
 
   if (loading) {
@@ -77,45 +110,62 @@ export default function Arena() {
 
   return (
     <div style={{ background: A.cream, minHeight: "100%" }}>
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "20px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: A.ink }}>Arena</div>
-            {stream && <div style={{ fontSize: 12.5, color: A.ink3, marginTop: 2 }}>{stream.name} · Common Challenges</div>}
-          </div>
-          {stream && allocation && (
-            <div style={{ display: "flex", gap: 6 }}>
-              {[["active", "Active Week"], ["leaderboard", "Leaderboard"], ["history", "History"]].map(([key, label]) => (
-                <button key={key} onClick={() => setTab(key)} style={{
-                  padding: "7px 14px", borderRadius: 999, border: `1px solid ${tab === key ? A.indigo : A.border}`,
-                  background: tab === key ? A.indigo2 : "transparent", color: tab === key ? A.indigo : A.ink3,
-                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                }}>{label}</button>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 20px 0" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 22, fontWeight: 900, color: A.ink, letterSpacing: "-0.01em" }}>Arena</div>
+          {stream && viewMode === "dashboard" && (
+            <nav style={{ display: "flex", gap: 4, background: A.paper, padding: 4, borderRadius: 999 }}>
+              {TABS.map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  aria-current={tab === key ? "page" : undefined}
+                  style={{
+                    padding: "7px 16px", borderRadius: 999, border: "none",
+                    background: tab === key ? A.card : "transparent",
+                    color: tab === key ? A.indigoDeep : A.ink3,
+                    fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: tab === key ? A.shadow : "none", transition: "all 0.15s",
+                  }}
+                >
+                  {label}
+                </button>
               ))}
-            </div>
+            </nav>
           )}
         </div>
       </div>
 
-      {error && <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 20px" }}><div style={{ padding: "10px 14px", borderRadius: 10, background: A.rose2, color: A.rose, fontSize: 12.5 }}>{error}</div></div>}
+      {error && (
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "12px 20px 0" }}>
+          <div style={{ padding: "10px 14px", borderRadius: 10, background: A.rose2, color: A.rose, fontSize: 12.5 }}>{error}</div>
+        </div>
+      )}
 
       {!stream ? (
         <StreamPicker streams={streamOptions} onSelect={handleSelectStream} />
+      ) : viewMode === "reveal" ? (
+        <ArenaWeeklyReveal
+          outcomes={wheelOutcomes || [5, 6, 7, 8, 9, 10, 11, 12]}
+          streamName={stream.name}
+          onSpin={handleSpin}
+          onDone={handleRevealDone}
+        />
       ) : tab === "leaderboard" ? (
-        <Leaderboard />
+        <ArenaLeaderboard />
       ) : tab === "history" ? (
-        <History />
-      ) : !allocation ? (
-        <SpinWheel streamName={stream.name} onSpin={handleSpin} spinning={spinning} />
+        <ArenaHistory />
       ) : (
-        <MissionList spinResult={allocation.spinResult} missions={allocation.missions} onOpenMission={setActiveMissionId} />
+        <ArenaWeekDashboard streamName={stream.name} allocation={allocation} onOpenMission={setActiveMissionId} />
       )}
 
       {activeMissionId && (
-        <MissionWorkstation
+        <MissionWorkspace
           missionId={activeMissionId}
+          streamSlug={stream?.slug}
           onClose={() => setActiveMissionId(null)}
           onResult={handleMissionResult}
+          onContinueToNext={handleContinueToNext}
         />
       )}
     </div>

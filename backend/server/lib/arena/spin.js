@@ -106,3 +106,19 @@ export async function getCurrentAllocation(studentId) {
   const missions = await getAllocationWithMissions(existing.id)
   return { weekStart, weekEnd, allocation: { allocationId: existing.id, streamId: existing.stream_id, spinResult: existing.spin_result, spinAt: existing.spin_at, missions } }
 }
+
+/**
+ * Read-only lookup of a specific past (or current) week's allocation, for
+ * History's "click a week to view it" (spec §30). Ownership-scoped to
+ * `studentId` — never accepts an allocation id directly, only a
+ * (student, weekStart) pair, so there's no way to probe another
+ * student's data by guessing an id. Returns null if that student never
+ * had an allocation for that week; never creates one (this is a read
+ * path only — spinOrGetAllocation above is the only writer).
+ */
+export async function getAllocationForWeek(studentId, weekStart) {
+  const existing = await loadExistingAllocation(studentId, weekStart)
+  if (!existing) return null
+  const missions = await getAllocationWithMissions(existing.id)
+  return { allocationId: existing.id, streamId: existing.stream_id, spinResult: existing.spin_result, spinAt: existing.spin_at, weekStart: existing.week_start, missions }
+}
