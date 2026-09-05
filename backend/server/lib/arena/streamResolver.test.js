@@ -52,7 +52,7 @@ let state
 beforeEach(() => {
   state = {
     profiles: {
-      [STUDENT_WITH_STREAM]: { id: STUDENT_WITH_STREAM, stream_id: CSE_ID },
+      [STUDENT_WITH_STREAM]: { id: STUDENT_WITH_STREAM, stream_id: CSE_ID, year: 1, role: "backend", branch: "IT", target_role: "Backend Developer" },
       [STUDENT_WITHOUT_STREAM]: { id: STUDENT_WITHOUT_STREAM, stream_id: null },
     },
     streams: [{ id: CSE_ID, slug: "cse", name: "Computer Science Engineering" }, { id: ECE_ID, slug: "ece", name: "Electronics & Communication" }],
@@ -98,4 +98,46 @@ test("setting an invalid stream id is rejected", async () => {
   const result = await setStreamIfUnset(STUDENT_WITHOUT_STREAM, "not-a-real-stream")
   assert.equal(result.ok, false)
   assert.equal(result.reason, "invalid_stream")
+})
+
+test("changing year/role/branch/target_role never changes the resolved stream (spec §4/§6 — stream is the ONLY selector)", async () => {
+  const before = await resolveAuthoritativeStream(STUDENT_WITH_STREAM)
+  assert.equal(before.slug, "cse")
+
+  // Simulate the student's year advancing, switching professional role,
+  // and branch/target_role changing elsewhere in the product — none of
+  // this touches profiles.stream_id, so resolution must be unaffected.
+  const profile = state.profiles[STUDENT_WITH_STREAM]
+  profile.year = 4
+  profile.role = "devops"
+  profile.branch = "ECE"
+  profile.target_role = "Site Reliability Engineer"
+
+  const after = await resolveAuthoritativeStream(STUDENT_WITH_STREAM)
+  assert.equal(after.slug, "cse", "stream resolution must ignore year/role/branch/target_role entirely")
+  assert.equal(after.streamId, before.streamId)
+})
+
+test("resolveAuthoritativeStream never reads year/role/branch/target_role columns at all", async () => {
+  // If streamResolver.js ever started reading one of these columns to
+  // infer a stream, this profiles-table select would have to widen beyond
+  // "stream_id" — assert the exact select string stays narrow.
+  let selectedColumns = null
+  const spyState = { profiles: { [STUDENT_WITH_STREAM]: { id: STUDENT_WITH_STREAM, stream_id: CSE_ID } }, streams: state.streams }
+  function chain(table) {
+    const s = { table, filters: {} }
+    const api = {
+      select(cols) { if (table === "profiles") selectedColumns = cols; return api },
+      eq(col, val) { s.filters[col] = val; return api },
+      maybeSingle() {
+        if (table === "profiles") return Promise.resolve({ data: { stream_id: spyState.profiles[s.filters.id]?.stream_id ?? null }, error: null })
+        if (table === "streams") return Promise.resolve({ data: spyState.streams.find((st) => st.id === s.filters.id) || null, error: null })
+        return Promise.resolve({ data: null, error: null })
+      },
+    }
+    return api
+  }
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = { from: (table) => chain(table) }
+  await resolveAuthoritativeStream(STUDENT_WITH_STREAM)
+  assert.equal(selectedColumns, "stream_id", "must select ONLY stream_id from profiles — never year/role/branch/target_role")
 })
