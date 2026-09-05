@@ -4,7 +4,6 @@
  */
 import { useState, useEffect, useRef } from "react"
 import { arenaDb } from "../lib/db"
-import { getRoleConfig } from "../config/roleConfig"
 import { getTier } from "../theme"
 
 // ── Design tokens ─────────────────────────────────────────────────────────
@@ -120,7 +119,6 @@ export default function StudentHome({ user, userData, onNavigate }) {
   const firstName = name.split(" ")[0]
   const elo       = userData?.eloRating || 400
   const streak    = userData?.streak    || 0
-  const domain    = userData?.domain    || userData?.keyword || getRoleConfig(userData).label
   const { tier, color: tierColor, bg: tierBg, border: tierBorder } = eloTier(elo)
 
   const recentEloGained = submissions

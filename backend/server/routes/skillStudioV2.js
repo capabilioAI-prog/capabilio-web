@@ -5,20 +5,12 @@
  * routes/skillStudio.js (lesson, learning-path, youtube, resources) — no
  * path collisions, existing routes untouched. See
  * docs/skill-studio-v2-production-spec-2026-07-29.md for the full design.
- * Arena result ingestion is NOT currently wired (corrected 2026-09-01 — the
- * previous version of this comment was stale). arenaIngestion.js#notifySkillStudio
- * was written against Arena V2's submission-engine/service.js, which was
- * deleted along with the rest of Arena V2 in commit c34d357 (2026-08-26).
- * The rebuilt Arena (routes/arenaCollegeStream.js, arenaDomainRole.js) never
- * calls notifySkillStudio, and neither branch's content model carries the
- * `instance.skill` tag that function requires to do anything — every real
- * submission would hit its "no_skill_on_instance" no-op path even if wired.
- * GET /arena/ingestion below is still live and correctly reads
- * arena_ingestion_records, but that table is never written to post-rebuild,
- * so it will always return an empty list. Re-wiring this requires adding
- * real skill-tagging to Arena content first — tracked as follow-up work, not
- * fixed here. Content-ops/mentor review queue lives in
- * routes/skillStudioContentAdmin.js (separate, admin-gated namespace).
+ * Arena bridge (ingestion/readiness/handoff routes, arenaBridge.js,
+ * arenaIngestion.js) removed 2026-09-05 along with the rest of the old
+ * Arena implementation — see the arena-retirement report for the full
+ * history of why it was already non-functional before this removal.
+ * Content-ops/mentor review queue lives in routes/skillStudioContentAdmin.js
+ * (separate, admin-gated namespace).
  *
  * All routes require auth (requireAuth) and are user-scoped from req.user.id
  * — never trust a client-supplied userId.
@@ -42,7 +34,6 @@ import { getOrCreateModule, generateRemedialSupplement, getOrCreateRevisionConte
 import { getOrCreateNarration } from "../lib/skillStudio/narrationEngine.js"
 import { getOrGenerateQuestion, scoreAnswer, getSessionResult, MODULE_PASS_THRESHOLD } from "../lib/skillStudio/quizEngine.js"
 import { getDueReviews, submitRevisionReview, readDecayedState, reinforce } from "../lib/skillStudio/memoryEngine.js"
-import { checkReadiness, handoff } from "../lib/skillStudio/arenaBridge.js"
 import { writeModuleEvidence, writeInterviewEvidence, publishEvidence } from "../lib/skillStudio/evidenceBridge.js"
 import { getRecommendations, buildRecommendations } from "../lib/skillStudio/recommendationEngine.js"
 import { listForUser as listProofObjectsForUser } from "../lib/proofObjects/repository.js"
@@ -417,50 +408,12 @@ router.post("/memory/:skillGraphNodeId/review", requireAuth, async (req, res) =>
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Arena bridge ──────────────────────────────────────────────────────────────
-
-// Learner-facing read of arena_ingestion_records — "did my Arena result
-// reach Skill Studio, and what happened." Never exposes internal error
-// text for a 'failed' row beyond a generic status (avoid leaking internals
-// to the client); the real error message stays server-side for ops.
-router.get("/arena/ingestion", requireAuth, async (req, res) => {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("arena_ingestion_records")
-      .select("id, status, instance_id, created_at, completed_at, skill_graph_nodes(label, slug)")
-      .eq("user_id", req.user.id)
-      .order("created_at", { ascending: false })
-      .limit(Number(req.query.limit) || 10)
-    if (error) throw error
-    res.json({ records: (data || []).map((r) => ({
-      id: r.id, status: r.status, skillLabel: r.skill_graph_nodes?.label || null,
-      createdAt: r.created_at, completedAt: r.completed_at,
-    })) })
-  } catch (e) { res.status(500).json({ error: e.message }) }
-})
-
-router.post("/arena/readiness", requireAuth, async (req, res) => {
-  try {
-    const { skillGraphNodeId } = req.body
-    if (!skillGraphNodeId) return res.status(400).json({ error: "skillGraphNodeId required" })
-    const readiness = await checkReadiness({ userId: req.user.id, skillGraphNodeId })
-    res.json(readiness)
-  } catch (e) { res.status(500).json({ error: e.message }) }
-})
-
-router.post("/arena/handoff", requireAuth, async (req, res) => {
-  try {
-    const { skillJourneyId, skillGraphNodeId, domainKey } = req.body
-    if (!skillJourneyId || !skillGraphNodeId) return res.status(400).json({ error: "skillJourneyId and skillGraphNodeId required" })
-    const result = await handoff({ userId: req.user.id, skillJourneyId, skillGraphNodeId, domainKey })
-    await logEvent({ userId: req.user.id, eventType: "arena_handoff", skillId: skillGraphNodeId, metadata: { domainKey } })
-    res.json(result)
-  } catch (e) {
-    if (e.code === "not_ready") return res.status(403).json({ error: e.message, unmet: e.unmet })
-    console.error("[skill-studio/arena/handoff]", e.message)
-    res.status(500).json({ error: e.message })
-  }
-})
+// Arena bridge (GET /arena/ingestion, POST /arena/readiness, POST
+// /arena/handoff) removed 2026-09-05 along with the old Arena
+// implementation they pointed at. arena_ingestion_records/arena_handoffs
+// tables are left in place (historical rows only — see arena retirement
+// report); new Arena/Challenge system gets its own bridge here once
+// rebuilt.
 
 // ── Interview bridge (question generation grounded in module + mistakes) ────
 router.post("/interview/generate", aiLimiter, requireAuth, async (req, res) => {

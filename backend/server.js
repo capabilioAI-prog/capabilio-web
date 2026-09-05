@@ -90,7 +90,6 @@ import { logger } from "./server/lib/logger.js"
 // PATH — checked once at boot and logged alongside the other provider
 // checks below, since there's no render.yaml/Dockerfile in this repo for
 // me to confirm the production host actually has it installed.
-import { checkPythonAvailable } from "./server/lib/collegeStream/pythonSandbox.js"
 
 // ─── Process-level crash safety (2026-08-16) ───────────────────────────────────
 // Previously this process had NO uncaughtException/unhandledRejection
@@ -133,15 +132,9 @@ import { generalLimiter, aiLimiter, strictLimiter, skillStudioLimiter } from "./
 // ─── Route modules ────────────────────────────────────────────────────────────
 import resumeRoutes           from "./server/routes/resume.js"
 import assessmentRoutes       from "./server/routes/assessment.js"
-// Arena rebuild 2026-08-16 — old Arena (V1/V2) deleted for a from-scratch
-// redesign, split into two structurally-separate branches. College Stream
-// (Phase 1, this import) is live: static/rule-based/zero-AI. Domain Role
-// (config-driven, AI-generated missions) lands in a later phase as its own
-// route file, mounted at its own prefix — never sharing code with this one.
-import arenaCollegeStreamRoutes from "./server/routes/arenaCollegeStream.js"
-import arenaDomainRoleRoutes from "./server/routes/arenaDomainRole.js"
-import arenaActivityRoutes from "./server/routes/arenaActivity.js"
-import arenaCapabilityRoutes from "./server/routes/arenaCapability.js"
+// Old Arena (College Stream / Domain Role / cross-branch activity /
+// capability engine) retired 2026-09-05. New Arena/Challenge system gets
+// its own route import(s) here once rebuilt.
 import proofsRoutes           from "./server/routes/proofs.js"            // Portfolio redesign — public Engineering Proofs API: GET /:userId (grouped+filtered), GET /:userId/:proofId
 import educationRoutes        from "./server/routes/education.js"        // Education redesign Phase 1 — GET /profile/:userId (public), POST /profile (auth, own profile only)
 import verificationRoutes     from "./server/routes/verification.js"     // Trust & Verification Center Phase 1 — provider registry, hash-chained audit log, POST /verify
@@ -398,21 +391,9 @@ app.get("/api/_debug/email-config", (_, res) => res.json({
 // ─── Mount routes ─────────────────────────────────────────────────────────────
 app.use("/api",              resumeRoutes)       // extract-pdf, extract-linkedin
 app.use("/api",              assessmentRoutes)   // generate-mcq, analyse-assessment, analyse-professional-profile
-// Arena rebuild — College Stream branch: static curriculum reads (public,
-// covered by generalLimiter above) + rule-based submit (auth). UPDATE
-// (2026-08-16): submit is no longer zero-cost — the Common Challenge
-// Framework's Notebook workspace can spawn real python3 subprocesses
-// (lib/collegeStream/pythonSandbox.js) for code-execution challenges.
-// POST /experiments/:id/submit now carries its own dedicated
-// codeExecutionLimiter, applied at the route level inside
-// arenaCollegeStream.js (not here as a prefix) — same reasoning as
-// skillStudioLimiter/aiLimiter's per-route split (see rateLimiters.js):
-// this prefix's read-only browsing traffic (all-experiments, streams,
-// history) shouldn't share the stricter submit-only budget.
-app.use("/api/arena/college-stream", arenaCollegeStreamRoutes)
-app.use("/api/arena/domain-role", arenaDomainRoleRoutes)
-app.use("/api/arena/activity", arenaActivityRoutes)
-app.use("/api/arena/capability", arenaCapabilityRoutes)
+// Old Arena routes (College Stream, Domain Role, cross-branch activity,
+// capability engine) retired 2026-09-05. New Arena/Challenge system gets
+// its own mount(s) here once rebuilt.
 app.use("/api/proofs",          proofsRoutes)            // Portfolio redesign — public Engineering Proofs API (no auth: portfolios are public pages)
 app.use("/api",                 portfolioPublicRoutes)    // Career OS Tranche 6 Priority 6A — portfolio/lookup/:identifier (no auth required; optional bearer for owner/session-fallback matching)
 app.use("/api/admin/ops",       opsDashboardRoutes)       // Career OS Tranche 11 — admin/ops/dashboard, requireAdmin-gated (dedicated namespace — see opsDashboard.js header for why NOT bare "/api/admin", same routing-shadow lesson as questionBankAdmin.js)
@@ -535,7 +516,6 @@ app.listen(PORT, () => {
   console.log(`  ProxyCurl   ${process.env.PROXYCURL_API_KEY  ? ok("LinkedIn extraction")          : warn("LinkedIn limited")}`)
   console.log(`  GitHub      ${process.env.GITHUB_TOKEN       ? ok("5000 req/hr")                  : warn("60 req/hr rate limit")}`)
   console.log(`  YouTube     ${process.env.YOUTUBE_API_KEY    ? ok("real videos")                  : warn("AI fallback")}`)
-  console.log(`  Python3     ${checkPythonAvailable()          ? ok("Notebook code-execution challenges enabled") : err("MISSING — code-execution submissions will 500, see pythonSandbox.js")}`)
   console.log()
 })
 }

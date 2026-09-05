@@ -127,31 +127,9 @@ async function executePrompt(promptId, variables, opts = {}) {
 
 export const AIService = {
   executePrompt,
-
-  // Batch 1 (Phase 2.7) — retires lib/domainRole/aiProvider.js's local
-  // seam onto the platform-wide service. Returns { data: string|null, ... }
-  // on any failure inside executePrompt this still throws — the route's
-  // own try/catch (generateAiFeedback in routes/arenaDomainRole.js) is
-  // what preserves the existing "never blocks a submission, null on
-  // failure" contract, unchanged.
-  async generateArenaFeedback(vars) {
-    return executePrompt("arena.sqlFeedback", vars)
-  },
-
-  // Career Workspace refactor — Domain Role's code-execution panel types
-  // (python_runner, node_runner) share this one feedback wording, not
-  // sqlFeedback's SQL-specific framing. Same thin-wrapper shape as
-  // generateArenaFeedback. Renamed from generatePythonMissionFeedback —
-  // see prompts/domainRole.js's domainRole.codeMissionFeedback comment.
-  async generateCodeMissionFeedback(vars) {
-    return executePrompt("domainRole.codeMissionFeedback", vars)
-  },
-
-  // Vision Reset (2026-08-20) — frontend_runner's own feedback wording.
-  // Checklist-shaped (which structural CSS checks passed/failed), not
-  // stdout-shaped like generateCodeMissionFeedback — genuinely different
-  // grading output, same non-fatal thin-wrapper contract.
-  async generateFrontendMissionFeedback(vars) {
-    return executePrompt("domainRole.frontendMissionFeedback", vars)
-  },
+  // generateArenaFeedback/generateCodeMissionFeedback/
+  // generateFrontendMissionFeedback (arena.sqlFeedback,
+  // domainRole.codeMissionFeedback, domainRole.frontendMissionFeedback)
+  // removed 2026-09-05 along with the old Arena implementation — their only
+  // caller was routes/arenaDomainRole.js.
 }
