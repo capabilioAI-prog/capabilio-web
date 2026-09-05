@@ -29,13 +29,11 @@ export const PAGE_KEYS = [
   "aicopilot", "analytics",
   "aura", "authority", "candidateSearch", "communities",
   // Old Arena (College Stream, Domain Role, capability engine) retired
-  // 2026-09-05 — no currentPage render block exists for any Arena key
-  // any more. "arenaV2*" (17 keys, arena-v2 removal 2026-08-26), plain
-  // "arena", "arenaCollegeStream", and "challenges" (Arena-backed render
-  // removed 2026-08-16 along with Arena) all removed together here for the
-  // same reason: none resolve to a render block, so keeping them would
-  // just mean a silent blank panel on navigation. New Arena/Challenge
-  // system gets its own key(s) here once it's rebuilt.
+  // 2026-09-05 along with its "arenaV2*" (17 keys) and "arenaCollegeStream"/
+  // "challenges" predecessors — none of those resolved to a render block
+  // any more. "arena" below is the new, single canonical replacement
+  // (Student Stream Common Challenges) — see pages/arena/Arena.jsx.
+  "arena",
   "aura", "authority", "candidateSearch", "communities",
   "company", "events", "execnetwork", "executiveHome", "executivefeed",
   "forge", "funding", "growth", "jobPostings", "launchpad", "marketplace",
