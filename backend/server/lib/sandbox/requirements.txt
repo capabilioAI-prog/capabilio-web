@@ -1,0 +1,14 @@
+# Packages available to student code executed via pythonSandbox.js's
+# venv-aware path (runPython(code, { usePackages: true })). Deliberately
+# lightweight — each installs in seconds and runs classical/tabular ML in
+# well under the sandbox's 5s CPU cap. torch/tensorflow are explicitly
+# EXCLUDED: multi-GB installs, GPU-oriented, and real training runs don't
+# fit this sandbox's resource profile (MAX_CONCURRENT_EXECUTIONS=4,
+# 256MB address space, 5s CPU) — ML/AI Engineer's neural-network and deep
+# learning missions use scikit-learn's MLPClassifier and classical
+# CV/NLP techniques instead, not a mocked/fake substitute, just a scope
+# genuinely deliverable inside this sandbox's real constraints.
+numpy==2.5.2
+pandas==3.0.5
+scikit-learn==1.9.0
+Pillow==12.3.0

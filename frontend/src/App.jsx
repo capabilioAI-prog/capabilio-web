@@ -34,6 +34,9 @@ import CareerPicker from "./pages/CareerPicker"
 // ── Feature pages — lazy-loaded per navigation ───────────────────────────────
 // Each import() creates a separate chunk loaded only when the user visits that page.
 const Aura               = lazy(() => import("./pages/Aura"))
+// New Arena — Student Stream Common Challenges (2026-09-05). One canonical
+// Arena for the Student Path; see pages/arena/Arena.jsx's header.
+const Arena              = lazy(() => import("./pages/arena/Arena"))
 const Pulse              = lazy(() => import("./pages/Pulse"))
 const HardwareChallenges = lazy(() => import("./pages/HardwareChallenges"))
 const SkillStudio        = lazy(() => import("./pages/SkillStudio"))
@@ -1537,6 +1540,7 @@ function App() {
   // system to be rebuilt separately; nav entry returns once that lands.
   const STUDENT_HEADER_NAV = [
     { id: "aura",        label: "Aura",         page: "aura",        prefix: "+" },
+    { id: "arena",       label: "Arena",        page: "arena",       prefix: "🏟️" },
     { id: "pulse",       label: "Pulse",        page: "pulse",       prefix: "⚡" },
     { id: "skillstudio", label: "Skill Studio", page: "skillstudio",   prefix: "🎓" },
     { id: "launchpad",   label: "Launchpad",    page: "launchpad",     prefix: "🚀" },
@@ -1897,9 +1901,11 @@ function App() {
           )}
           {currentPage === "nexus"     && <Nexus user={user} userData={userData} setUserData={setUserData} />}
           {currentPage === "myTasks"   && <MyTasks />}
-          {/* Old Arena (College Stream / Domain Role / capability engine)
-              retired 2026-09-05. New Arena/Challenge system to be rebuilt
-              separately as its own component. */}
+          {/* New Arena — Student Stream Common Challenges (2026-09-05).
+              The old Arena (College Stream / Domain Role / capability
+              engine) was retired first; this is its from-scratch, single
+              canonical replacement. */}
+          {currentPage === "arena"     && <Arena />}
           {currentPage === "pulse"     && <Pulse user={user} userData={userData} />}
           {currentPage === "authority" && <AuthorityProfile user={user} userData={{ ...userData, uid: user?.id }} setUserData={setUserData} onNavigate={setCurrentPage} />}
           {currentPage === "startupworkspace" && <StartupWorkspace user={user} userData={userData} onNavigate={p => { setCurrentPage(p); setActiveNavItem(p) }} />}

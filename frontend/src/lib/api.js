@@ -884,6 +884,26 @@ export const certificationsApi = {
 // rebuilt.
 
 // ══════════════════════════════════════════
+// Arena — Student Stream Common Challenges (new canonical Arena, 2026-09-05)
+// One route file server-side (routes/arena.js); this is its one client-side
+// mirror. Stream is always server-resolved — this client never sends a
+// stream value for allocation/spin/submit; the one exception is the
+// one-time self-service stream picker (setStream), which only succeeds
+// server-side while profiles.stream_id is still null.
+// ══════════════════════════════════════════
+export const arenaApi = {
+  getStream:      () => request("GET", "/arena/stream"),
+  setStream:      (streamId) => request("POST", "/arena/stream", { streamId }),
+  getWeek:        () => request("GET", "/arena/week"),
+  getAllocation:  () => request("GET", "/arena/allocation"),
+  spin:           () => request("POST", "/arena/spin"),
+  getMission:     (missionId) => request("GET", `/arena/missions/${missionId}`),
+  submitMission:  (missionId, response) => request("POST", `/arena/missions/${missionId}/submit`, { response }),
+  getLeaderboard: () => request("GET", "/arena/leaderboard"),
+  getHistory:     () => request("GET", "/arena/history"),
+}
+
+// ══════════════════════════════════════════
 // Arena — Subscription tab checkout
 // Same /api/create-order + /api/verify-payment endpoints Pricing.jsx calls,
 // but routed through this module's shared request() helper instead of a
