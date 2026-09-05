@@ -4,7 +4,6 @@
  */
 import { useState, useEffect, useRef } from "react"
 import { arenaDb } from "../lib/db"
-import { getRoleConfig } from "../config/roleConfig"
 import { getTier } from "../theme"
 
 // ── Design tokens ─────────────────────────────────────────────────────────
@@ -120,7 +119,6 @@ export default function StudentHome({ user, userData, onNavigate }) {
   const firstName = name.split(" ")[0]
   const elo       = userData?.eloRating || 400
   const streak    = userData?.streak    || 0
-  const domain    = userData?.domain    || userData?.keyword || getRoleConfig(userData).label
   const { tier, color: tierColor, bg: tierBg, border: tierBorder } = eloTier(elo)
 
   const recentEloGained = submissions
@@ -128,12 +126,6 @@ export default function StudentHome({ user, userData, onNavigate }) {
     .reduce((sum, s) => sum + (s.eloDelta || s.elo_delta || 0), 0)
 
   const recentProof      = submissions.slice(0, 3).map(toProof)
-  const todaySubmissions = submissions.filter(s => {
-    const t = s.submittedAt || s.completed_at
-    return t && new Date(t).toDateString() === new Date().toDateString()
-  }).length
-  const missionProgress  = Math.min(100, todaySubmissions * 100)
-  const goalDone         = todaySubmissions >= 1
 
   const hour     = new Date().getHours()
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
@@ -296,75 +288,9 @@ export default function StudentHome({ user, userData, onNavigate }) {
           gap: 16,
         }}
       >
-        {/* ── Row 1 · Goal Card (col-span-2) ── */}
-        <div
-          className="bento-card bento-span2"
-          style={{
-            gridColumn: "span 2",
-            background: D.glass,
-            border: `1px solid ${D.glassH}`,
-            borderRadius: 20,
-            padding: "22px 24px",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            animation: "bentoReveal 0.4s ease-out 0ms both",
-          }}
-        >
-          {/* Label */}
-          <div style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize: 10,
-            fontWeight: 700,
-            color: "#A5B4FC",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            marginBottom: 12,
-          }}>
-            Today's Goal
-          </div>
-
-          {/* Headline */}
-          <div style={{
-            fontSize: 22,
-            fontWeight: 700,
-            color: D.text1,
-            marginBottom: 16,
-            lineHeight: 1.3,
-          }}>
-            {goalDone
-              ? "Goal complete! Well done."
-              : "Complete 1 Arena challenge"}
-          </div>
-
-          {/* Progress bar */}
-          <div style={{
-            height: 6,
-            borderRadius: 999,
-            background: "rgba(0,0,0,0.06)",
-            overflow: "hidden",
-            marginBottom: 20,
-          }}>
-            <div style={{
-              height: "100%",
-              width: mounted ? `${missionProgress || (goalDone ? 100 : 0)}%` : "0%",
-              borderRadius: 999,
-              background: `linear-gradient(90deg, ${D.indigo}, ${D.violet})`,
-              transition: "width 0.9s cubic-bezier(0,0,0.2,1) 0.4s",
-            }} />
-          </div>
-
-          {/* CTA */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <span style={{ fontSize: 12, color: D.muted }}>
-              {goalDone
-                ? `${todaySubmissions} challenge${todaySubmissions > 1 ? "s" : ""} done today`
-                : "Earn evidence recruiters can inspect"}
-            </span>
-            <button className="gold-btn" onClick={() => onNavigate("arenaCollegeStream")}>
-              Enter Arena →
-            </button>
-          </div>
-        </div>
+        {/* Row 1 · Goal Card removed 2026-09-05 — its entire purpose was
+            "Complete 1 Arena challenge", along with the old Arena
+            implementation it linked to. */}
 
         {/* ── Row 1 · ELO Card (col-span-1) ── */}
         <div
@@ -478,69 +404,9 @@ export default function StudentHome({ user, userData, onNavigate }) {
           </div>
         </div>
 
-        {/* ── Row 2 · Today's Mission Banner (col-span-4) ── */}
-        <div
-          className="bento-card bento-span4"
-          style={{
-            gridColumn: "span 4",
-            background: "linear-gradient(135deg, rgba(99,102,241,0.20), rgba(139,92,246,0.12))",
-            border: "1px solid rgba(99,102,241,0.25)",
-            borderRadius: 16,
-            padding: "18px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 16,
-            animation: "bentoReveal 0.4s ease-out 180ms both",
-          }}
-        >
-          {/* Left */}
-          <div>
-            <div style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 10,
-              fontWeight: 700,
-              color: "#A5B4FC",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              marginBottom: 6,
-            }}>
-              Today's Missions
-            </div>
-            <div style={{ fontSize: 14, color: D.text2, fontWeight: 500 }}>
-              3 challenges ready · <span style={{ color: D.muted }}>{domain}</span>
-            </div>
-          </div>
-
-          {/* Difficulty pills */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {[
-              { label: "Easy",   elo: "+8 ELO",  color: D.emerald, bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.25)"  },
-              { label: "Medium", elo: "+18 ELO", color: D.gold,    bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.25)"  },
-              { label: "Hard",   elo: "+30 ELO", color: D.rose,    bg: "rgba(244,63,94,0.15)",   border: "rgba(244,63,94,0.25)"   },
-            ].map(pill => (
-              <span key={pill.label} style={{
-                padding: "5px 12px",
-                borderRadius: 100,
-                background: pill.bg,
-                border: `1px solid ${pill.border}`,
-                color: pill.color,
-                fontSize: 12,
-                fontWeight: 700,
-                fontFamily: "'DM Mono', monospace",
-                whiteSpace: "nowrap",
-              }}>
-                {pill.label} <span style={{ opacity: 0.8 }}>{pill.elo}</span>
-              </span>
-            ))}
-          </div>
-
-          {/* CTA */}
-          <button className="gold-btn" onClick={() => onNavigate("arenaCollegeStream")}>
-            Enter Arena →
-          </button>
-        </div>
+        {/* Row 2 · Today's Mission Banner removed 2026-09-05 — its entire
+            content (challenge count, difficulty pills, "Enter Arena" CTA)
+            was static Arena promotional content, not real data. */}
 
         {/* ── Row 3 · Recommended Skill (col-span-1) ── */}
         <div
@@ -584,10 +450,6 @@ export default function StudentHome({ user, userData, onNavigate }) {
           }}>
             High market demand
           </div>
-
-          <button className="secondary-btn" onClick={() => onNavigate("arenaCollegeStream")}>
-            Start in Studio →
-          </button>
         </div>
 
         {/* ── Row 3 · Recent Proof (col-span-2) ── */}
@@ -734,7 +596,6 @@ export default function StudentHome({ user, userData, onNavigate }) {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
-              { icon: "⚔️", label: "Arena",     page: "arenaCollegeStream", accentColor: D.indigo },
               { icon: "📡", label: "Pulse",     page: "pulse",    accentColor: "#38BDF8" },
               { icon: "✦",  label: "Aura",      page: "aura",     accentColor: D.violet  },
               { icon: "👥", label: "Community", page: "nexus",    accentColor: D.emerald },

@@ -34,10 +34,6 @@ import CareerPicker from "./pages/CareerPicker"
 // ── Feature pages — lazy-loaded per navigation ───────────────────────────────
 // Each import() creates a separate chunk loaded only when the user visits that page.
 const Aura               = lazy(() => import("./pages/Aura"))
-// Arena rebuild — College Stream branch (Phase 1) live below. Domain Role
-// branch (config-driven, AI-generated missions) gets its own lazy import
-// here in a later phase — never sharing a component with College Stream.
-const ArenaCollegeStream = lazy(() => import("./pages/arenaCollegeStream/ArenaCollegeStream"))
 const Pulse              = lazy(() => import("./pages/Pulse"))
 const HardwareChallenges = lazy(() => import("./pages/HardwareChallenges"))
 const SkillStudio        = lazy(() => import("./pages/SkillStudio"))
@@ -1536,17 +1532,13 @@ function App() {
 
   // Nav decluttered 2026-07-28 (second, final pass): header stays at exactly
   // five items.
-  // Arena nav item removed 2026-08-16 — Arena feature deleted for redesign.
-  // Arena re-added 2026-08-16 — College Stream branch (arenaCollegeStream)
-  // rebuilt Phase 1; this is the actual header rendered on /aura, distinct
-  // from Header.jsx/CapUI.jsx/PathNav.jsx/BottomNav.jsx which were updated
-  // earlier but do not control this bar. Intentionally now 6 items (was
-  // capped at 5) since Arena is a real, functioning destination again.
+  // Arena nav item removed 2026-09-05 — old Arena implementation retired
+  // (College Stream / Domain Role / capability engine). New Arena/Challenge
+  // system to be rebuilt separately; nav entry returns once that lands.
   const STUDENT_HEADER_NAV = [
     { id: "aura",        label: "Aura",         page: "aura",        prefix: "+" },
     { id: "pulse",       label: "Pulse",        page: "pulse",       prefix: "⚡" },
     { id: "skillstudio", label: "Skill Studio", page: "skillstudio",   prefix: "🎓" },
-    { id: "arenaCollegeStream", label: "Arena", page: "arenaCollegeStream", prefix: "🏟️" },
     { id: "launchpad",   label: "Launchpad",    page: "launchpad",     prefix: "🚀" },
     { id: "myTasks",     label: "Tasks",        page: "myTasks",       prefix: "📋" },
     // 2026-08-02: only shown once GET /college/me/tasks confirms this student
@@ -1905,11 +1897,9 @@ function App() {
           )}
           {currentPage === "nexus"     && <Nexus user={user} userData={userData} setUserData={setUserData} />}
           {currentPage === "myTasks"   && <MyTasks />}
-          {/* Old Arena (V1 + V2) removed 2026-08-16 for redesign. Rebuild —
-              College Stream branch (Phase 1) below; Domain Role branch's
-              render block lands here in a later phase, its own component,
-              never sharing state with College Stream. */}
-          {currentPage === "arenaCollegeStream" && <ArenaCollegeStream userData={userData} onNavigate={setCurrentPage} user={user} setUserData={setUserData} />}
+          {/* Old Arena (College Stream / Domain Role / capability engine)
+              retired 2026-09-05. New Arena/Challenge system to be rebuilt
+              separately as its own component. */}
           {currentPage === "pulse"     && <Pulse user={user} userData={userData} />}
           {currentPage === "authority" && <AuthorityProfile user={user} userData={{ ...userData, uid: user?.id }} setUserData={setUserData} onNavigate={setCurrentPage} />}
           {currentPage === "startupworkspace" && <StartupWorkspace user={user} userData={userData} onNavigate={p => { setCurrentPage(p); setActiveNavItem(p) }} />}

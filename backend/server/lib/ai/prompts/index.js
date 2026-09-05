@@ -9,7 +9,6 @@
  * for registration) so every prompt is guaranteed registered before any
  * getPrompt() lookup can run.
  */
-import "./arena.js" // Batch 1
 import "./skillStudio.js" // Batch 2
-import "./domainRole.js" // Content-expansion pass
-import "./collegeStream.js" // Content-expansion pass
+// arena.js/domainRole.js/collegeStream.js prompt registrations removed
+// 2026-09-05 along with the old Arena implementation.

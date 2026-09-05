@@ -13,13 +13,7 @@
  *                            "low" (memoryEngine's existing decay-confidence
  *                            banding, same thresholds MemoryPanel/NextSkillPanel
  *                            already use), deduped with decayAlerts.
- *   3. Arena/Interview     — POST /skill-studio/arena/readiness per active
- *      Readiness             journey, the exact same call ArenaGatePanel makes
- *                            for a single skill (arenaBridge.checkReadiness's
- *                            existing memoryConfidence/quizPassRate/mistake
- *                            thresholds) — aggregated here across all active
- *                            journeys instead of one. No new readiness formula.
- *   4. Knowledge Retention — dueReviews / decayAlerts from GET /skill-studio/home,
+ *   3. Knowledge Retention — dueReviews / decayAlerts from GET /skill-studio/home,
  *                            same data MemoryPanel already renders per-item.
  *
  * Everything above is explicitly labeled as derived from existing
@@ -31,21 +25,6 @@ import { skillStudioV2Api } from "../lib/api"
 import { D, cardStyle, sectionLabel } from "./tokens"
 import NextSkillPanel from "./NextSkillPanel"
 import MemoryPanel from "./MemoryPanel"
-import ArenaIngestionPanel from "./ArenaIngestionPanel"
-
-// 2026-07-30 rate-limit incident fix: this used to fan out to 8 parallel
-// arena/readiness requests on EVERY LearningHome mount — combined with the
-// home/memory/ingestion calls that also fire on mount, that alone could
-// approach a whole minute's request budget from one page load, and repeated
-// navigation back to Mission Control (e.g. after finishing a module) refired
-// all 8 again. Two changes: capped to 3 (Mission Control only needs "are you
-// close to Arena-ready," not an exhaustive per-skill audit), and results are
-// cached in-memory per skillGraphNodeId for a few minutes so revisiting this
-// page shortly after doesn't re-issue the same requests. Module-scope (not
-// component state) so it survives this component unmounting/remounting on
-// navigation — a plain useRef would not.
-const READINESS_CACHE_TTL_MS = 3 * 60 * 1000
-const readinessCache = new Map() // skillGraphNodeId -> { result, fetchedAt }
 
 export default function LearningHome({ jobTitle, domainKey, onOpenJourney, onOpenGraph }) {
   const [data, setData] = useState(null)
@@ -53,7 +32,6 @@ export default function LearningHome({ jobTitle, domainKey, onOpenJourney, onOpe
   const [error, setError] = useState(null)
   const [newSkill, setNewSkill] = useState("")
   const [creating, setCreating] = useState(false)
-  const [readiness, setReadiness] = useState({ loading: true, readyCount: 0, total: 0, items: [] })
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -65,44 +43,6 @@ export default function LearningHome({ jobTitle, domainKey, onOpenJourney, onOpe
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  // Arena/Interview Readiness aggregate — bounded to active journeys (same
-  // per-skill call ArenaGatePanel already makes one-at-a-time; this just
-  // fans it out across a small, naturally-bounded list). Capped at 3 (was 8
-  // — see the incident note above) to keep Mission Control's own request
-  // burst small regardless of how many journeys a learner has active.
-  useEffect(() => {
-    const journeys = (data?.activeJourneys || []).slice(0, 3)
-    if (journeys.length === 0) {
-      setReadiness({ loading: false, readyCount: 0, total: 0, items: [] })
-      return
-    }
-    let cancelled = false
-    setReadiness((r) => ({ ...r, loading: true }))
-    Promise.all(
-      journeys.map(async (j) => {
-        const nodeId = j.skill_graph_nodes?.id
-        if (!nodeId) return null
-        const cached = readinessCache.get(nodeId)
-        if (cached && Date.now() - cached.fetchedAt < READINESS_CACHE_TTL_MS) {
-          return { journeyId: j.id, skill: j.skill_graph_nodes?.label || "Skill", ...cached.result }
-        }
-        try {
-          const r = await skillStudioV2Api.arenaReadiness(nodeId)
-          const result = { ready: !!r.ready, quizPassRate: r.quizPassRate, memoryConfidence: r.memoryConfidence }
-          readinessCache.set(nodeId, { result, fetchedAt: Date.now() })
-          return { journeyId: j.id, skill: j.skill_graph_nodes?.label || "Skill", ...result }
-        } catch {
-          return null // a single skill's readiness check failing shouldn't blank the whole dashboard
-        }
-      })
-    ).then((results) => {
-      if (cancelled) return
-      const items = results.filter(Boolean)
-      setReadiness({ loading: false, readyCount: items.filter((i) => i.ready).length, total: items.length, items })
-    })
-    return () => { cancelled = true }
-  }, [data?.activeJourneys])
 
   async function startJourney() {
     if (!newSkill.trim()) return
@@ -171,8 +111,8 @@ export default function LearningHome({ jobTitle, domainKey, onOpenJourney, onOpe
         )}
       </div>
 
-      {/* Critical Skills + Arena/Interview Readiness + Knowledge Retention */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+      {/* Critical Skills + Knowledge Retention */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         <div style={{ ...cardStyle, padding: 18 }}>
           <div style={{ ...sectionLabel, marginBottom: 10 }}>Critical Skills</div>
           {criticalSkills.length === 0 && <div style={{ fontSize: 12, color: D.muted }}>Nothing critical right now.</div>}
@@ -185,30 +125,6 @@ export default function LearningHome({ jobTitle, domainKey, onOpenJourney, onOpe
               </button>
             ))}
           </div>
-        </div>
-
-        <div style={{ ...cardStyle, padding: 18 }}>
-          <div style={{ ...sectionLabel, marginBottom: 10 }}>Arena / Interview Readiness</div>
-          {readiness.loading ? (
-            <div style={{ fontSize: 12, color: D.muted }}>Checking readiness…</div>
-          ) : readiness.total === 0 ? (
-            <div style={{ fontSize: 12, color: D.muted }}>No active journeys to evaluate yet.</div>
-          ) : (
-            <>
-              <div style={{ fontSize: 22, fontWeight: 900, color: readiness.readyCount > 0 ? D.emerald : D.text1, marginBottom: 4 }}>
-                {readiness.readyCount}/{readiness.total}
-              </div>
-              <div style={{ fontSize: 10, color: D.muted, marginBottom: 10 }}>skills ready — based on your recent quiz pass rate and memory confidence</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {readiness.items.map((i) => (
-                  <div key={i.journeyId} style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                    <span style={{ color: D.text2 }}>{i.skill}</span>
-                    <span style={{ fontWeight: 700, color: i.ready ? D.emerald : D.muted }}>{i.ready ? "Ready" : "Not yet"}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
         </div>
 
         <div style={{ ...cardStyle, padding: 18 }}>
@@ -259,12 +175,9 @@ export default function LearningHome({ jobTitle, domainKey, onOpenJourney, onOpe
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+      <div style={{ marginTop: 16 }}>
         <div style={{ ...cardStyle, padding: 20 }}>
           <MemoryPanel limit={5} />
-        </div>
-        <div style={{ ...cardStyle, padding: 20 }}>
-          <ArenaIngestionPanel limit={5} />
         </div>
       </div>
     </div>
