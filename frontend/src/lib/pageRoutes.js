@@ -27,26 +27,16 @@
 // so there's no separate list to keep in sync.
 export const PAGE_KEYS = [
   "aicopilot", "analytics",
-  // Arena rebuild — College Stream branch (Phase 1). Note: this deterministic
-  // camelCase->kebab-case deriver has no slash support, so this resolves to
-  // "/arena-college-stream", not "/arena/college-stream" as in the rebuild
-  // spec's prose — a real path, just flat rather than nested. Domain Role
-  // branch gets its own key here in a later phase (e.g. "arenaDomainRole").
-  "arenaCollegeStream",
   "aura", "authority", "candidateSearch", "communities",
-  // "arena" removed 2026-08-26 — no currentPage === "arena" block has
-  // existed in App.jsx since the College Stream rebuild (arenaCollegeStream
-  // is the live entry now); the key kept resolving to a silent blank panel.
-  // The 17 arenaV2* keys below have the exact same problem (no matching
-  // render block either) but are deliberately left as-is here — out of
-  // scope for this fix, tracked as part of the separate arena-v2 removal.
-  "arenaV2BiotechPilot", "arenaV2CivilPilot", "arenaV2ClinicalLabPilot",
-  "arenaV2CyberPilot", "arenaV2DataAnalystPilot", "arenaV2DbaPilot", "arenaV2DevOpsPilot",
-  "arenaV2EcePilot", "arenaV2EeePilot", "arenaV2FrontendPilot", "arenaV2MLPilot",
-  "arenaV2MechanicalPilot", "arenaV2MedicalBiotechPilot",
-  "arenaV2RecruiterView", "arenaV2SoftwarePilot",
-  "arenaV2SapFicoPilot", "arenaV2SapMmSdPilot", "arenaV2SapAbapPilot",
-  "aura", "authority", "candidateSearch", "challenges", "communities",
+  // Old Arena (College Stream, Domain Role, capability engine) retired
+  // 2026-09-05 — no currentPage render block exists for any Arena key
+  // any more. "arenaV2*" (17 keys, arena-v2 removal 2026-08-26), plain
+  // "arena", "arenaCollegeStream", and "challenges" (Arena-backed render
+  // removed 2026-08-16 along with Arena) all removed together here for the
+  // same reason: none resolve to a render block, so keeping them would
+  // just mean a silent blank panel on navigation. New Arena/Challenge
+  // system gets its own key(s) here once it's rebuilt.
+  "aura", "authority", "candidateSearch", "communities",
   "company", "events", "execnetwork", "executiveHome", "executivefeed",
   "forge", "funding", "growth", "jobPostings", "launchpad", "marketplace",
   "myTasks", "nexus", "orbit",

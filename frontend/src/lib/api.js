@@ -820,15 +820,12 @@ export const skillStudioV2Api = {
   memoryDue:          (limit = 5) => request("GET", `/skill-studio/memory/due?limit=${limit}`),
   memoryFor:          (skillGraphNodeId) => request("GET", `/skill-studio/memory/${skillGraphNodeId}`),
   memoryReview:       (skillGraphNodeId, correct) => request("POST", `/skill-studio/memory/${skillGraphNodeId}/review`, { correct }),
-  arenaReadiness:     (skillGraphNodeId) => request("POST", "/skill-studio/arena/readiness", { skillGraphNodeId }),
-  arenaHandoff:       (data) => request("POST", "/skill-studio/arena/handoff", data),
   interviewGenerate:  (data) => request("POST", "/skill-studio/interview/generate", data),
   interviewSubmit:    (sessionId, data) => request("POST", `/skill-studio/interview/${sessionId}/submit`, data),
   evidenceList:       () => request("GET", "/skill-studio/evidence"),
   evidencePublish:    (id, publish) => request("POST", `/skill-studio/evidence/${id}/publish`, { publish }),
   recommendations:    () => request("GET", "/skill-studio/recommendations"),
   refreshRecommendations: (opts = {}) => request("POST", "/skill-studio/recommendations/refresh", opts),
-  arenaIngestion:     (limit = 10) => request("GET", `/skill-studio/arena/ingestion?limit=${limit}`),
   // Phase 1 (2026-07-30): remedial regeneration (never cached — ephemeral,
   // targeted at one learner's missed topics) and revision content (cached
   // per-module via module_revision_content, shared like the base lesson).
@@ -881,98 +878,10 @@ export const certificationsApi = {
   },
 }
 
-// ══════════════════════════════════════════
-// ARENA — COLLEGE STREAM (Arena rebuild, Phase 1)
-// Static/curriculum/rule-based branch — structurally separate from the
-// not-yet-built Domain Role branch, which will get its own namespaced
-// object here later rather than sharing any of these calls.
-// ══════════════════════════════════════════
-export const arenaCollegeStreamApi = {
-  listStreams:     ()                     => request("GET", "/arena/college-stream/streams"),
-  listSemesters:   (streamSlug)           => request("GET", `/arena/college-stream/streams/${streamSlug}/semesters`),
-  listSubjects:    (semesterId)           => request("GET", `/arena/college-stream/semesters/${semesterId}/subjects`),
-  listUnits:       (subjectId)            => request("GET", `/arena/college-stream/subjects/${subjectId}/units`),
-  listExperiments: (unitId)               => request("GET", `/arena/college-stream/units/${unitId}/experiments`),
-  getExperiment:   (experimentId)         => request("GET", `/arena/college-stream/experiments/${experimentId}`),
-  submit:          (experimentId, answer) => request("POST", `/arena/college-stream/experiments/${experimentId}/submit`, { answer }),
-  getNextExperiment: (streamSlug)         => request("GET", `/arena/college-stream/streams/${streamSlug}/next-experiment`),
-  // params: { cursor, limit, passed } — passed is a boolean; the query
-  // string sends "true"/"false" strings, matching what the backend expects.
-  getHistory: (streamSlug, params = {}) => {
-    const { cursor, limit, passed } = params
-    const qs = new URLSearchParams()
-    if (cursor) qs.set("cursor", cursor)
-    if (limit) qs.set("limit", String(limit))
-    if (passed !== undefined) qs.set("passed", String(passed))
-    const s = qs.toString()
-    return request("GET", `/arena/college-stream/streams/${streamSlug}/history${s ? `?${s}` : ""}`)
-  },
-  getHistoryCounts: (streamSlug) => request("GET", `/arena/college-stream/streams/${streamSlug}/history/counts`),
-  getLeaderboard: (streamSlug)            => request("GET", `/arena/college-stream/streams/${streamSlug}/leaderboard`),
-  getAllExperiments: (streamSlug)         => request("GET", `/arena/college-stream/streams/${streamSlug}/all-experiments`),
-}
-
-// ══════════════════════════════════════════
-// Arena — Domain Role branch (Phase 2)
-// Config-driven (panel_types/domain_roles/evaluation_axes/domain_missions),
-// deterministic scoring (SQL Runner panel, sql.js sandbox server-side) —
-// structurally separate from arenaCollegeStreamApi above per the rebuild spec.
-// ══════════════════════════════════════════
-export const arenaDomainRoleApi = {
-  listMissions: (roleId)          => request("GET", `/arena/domain-role/${roleId}/missions`),
-  getMission:   (missionId)       => request("GET", `/arena/domain-role/missions/${missionId}`),
-  submitMission: (missionId, sql) => request("POST", `/arena/domain-role/missions/${missionId}/submit`, { sql }),
-  // Non-scoring preflight run (Phase 2) — never writes a submission, never
-  // touches ELO/quota. Same request shape as submitMission, different path.
-  validateMission: (missionId, sql) => request("POST", `/arena/domain-role/missions/${missionId}/validate`, { sql }),
-  getNextMission: (roleId)        => request("GET", `/arena/domain-role/${roleId}/next-mission`),
-  // params: { cursor, limit, passed } — passed is a boolean; the query
-  // string sends "true"/"false" strings, matching what the backend expects.
-  getHistory: (roleId, params = {}) => {
-    const { cursor, limit, passed } = params
-    const qs = new URLSearchParams()
-    if (cursor) qs.set("cursor", cursor)
-    if (limit) qs.set("limit", String(limit))
-    if (passed !== undefined) qs.set("passed", String(passed))
-    const s = qs.toString()
-    return request("GET", `/arena/domain-role/${roleId}/history${s ? `?${s}` : ""}`)
-  },
-  getHistoryCounts: (roleId) => request("GET", `/arena/domain-role/${roleId}/history/counts`),
-  // params: { window: "all_time"|"weekly"|"monthly", scope: "role"|"global" }
-  // — both optional, additive; omitting either preserves the original
-  // all-time/role-scoped behavior.
-  getLeaderboard: (roleId, params = {}) => {
-    const { window, scope } = params
-    const qs = new URLSearchParams()
-    if (window) qs.set("window", window)
-    if (scope) qs.set("scope", scope)
-    const s = qs.toString()
-    return request("GET", `/arena/domain-role/${roleId}/leaderboard${s ? `?${s}` : ""}`)
-  },
-}
-
-// ══════════════════════════════════════════
-// Arena — Capability Engine (Phase 2/3)
-// Sits above College Stream / Domain Role without merging them — the single
-// endpoint takes a domain ("college_stream"|"domain_role") + key (stream
-// slug or role id) and returns a ranked existing task, an AI-generated
-// fallback task when none exists (taskSource: "generated"|"regenerated"|
-// "fallback" — always a real, persisted, already-verified task), or an
-// honest no_suitable_task result.
-// ══════════════════════════════════════════
-export const arenaCapabilityApi = {
-  getNextTask: ({ domain, key }) =>
-    request("GET", `/arena/capability/next-task?domain=${encodeURIComponent(domain)}&key=${encodeURIComponent(key)}`),
-}
-
-// ══════════════════════════════════════════
-// Arena — cross-branch activity (Phase B)
-// Read-only: calendar/streak/week stats computed from both branches'
-// submission history. See backend/server/lib/activity/computeSummary.js.
-// ══════════════════════════════════════════
-export const arenaActivityApi = {
-  getSummary: () => request("GET", "/arena/activity/summary"),
-}
+// Old Arena API clients (College Stream, Domain Role, Capability Engine,
+// cross-branch activity) removed 2026-09-05 along with the old Arena
+// implementation. New Arena/Challenge system gets its own client here once
+// rebuilt.
 
 // ══════════════════════════════════════════
 // Arena — Subscription tab checkout

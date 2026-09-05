@@ -6,7 +6,7 @@
  * props:
  *   moduleRequest: { skillGraphNodeId, skillJourneyId, skillName, skillLabel,
  *                    domainKey, jobTitle, level }
- *   onArenaGo(result), onExitToJourney()
+ *   onExitToJourney()
  */
 import { useState, useEffect, useCallback } from "react"
 import { skillStudioV2Api } from "../lib/api"
@@ -39,7 +39,7 @@ const BASE_TABS = [
   { id: "interview", label: "Interview" },
 ]
 
-export default function ModuleRuntime({ moduleRequest, onArenaGo, onExitToJourney, recommendations = [] }) {
+export default function ModuleRuntime({ moduleRequest, onExitToJourney, recommendations = [] }) {
   const [level, setLevel] = useState(moduleRequest.level || "intermediate")
   const [mode, setMode] = useState("intermediate")
   const [module, setModule] = useState(null)

@@ -8,7 +8,6 @@ import { useState, useCallback } from "react"
 const NAV_BY_PATH = {
   student: [
     { id: "home",      label: "Home",      page: "studentHome",      icon: HomeIcon      },
-    { id: "arena",     label: "Arena",     page: "arenaCollegeStream", icon: ArenaIcon   },
     { id: "pulse",     label: "Pulse",     page: "pulse",            icon: PulseIcon     },
     { id: "aura",      label: "Aura",      page: "aura",             icon: AuraIcon      },
     { id: "community", label: "Community", page: "nexus",            icon: CommunityIcon },
@@ -76,16 +75,6 @@ function AuraIcon({ active, color }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? color : "#A8A29E"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
       <circle cx="12" cy="7" r="4"/>
-    </svg>
-  )
-}
-// Arena rebuild 2026-08-16 — re-added (old ArenaIcon removed with the rest
-// of Arena, this is a fresh icon for the rebuilt feature).
-function ArenaIcon({ active, color }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? color : "#A8A29E"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M12 6v6l4 2"/>
     </svg>
   )
 }

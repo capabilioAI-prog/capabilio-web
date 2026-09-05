@@ -13,7 +13,6 @@ async function vHeaders() {
   return h
 }
 import { getPlan, interviewsUsedThisMonth, reportsUsedThisMonth } from "../config/plans"
-import { getDomainChallenges } from "../config/domainChallenges"
 import { getRoleConfig, resolveRoleLabel, resolveAuraSkills } from "../config/roleConfig"
 import CareerVideoGenerator from "./CareerVideoGenerator"
 import EchoPitchHero from "./EchoPitchHero"
@@ -2597,73 +2596,8 @@ function ExecutiveAura({ user, userData, onNavigate, onNavigatePricing }) {
   )
 }
 
-// ─── MISSION TICKER ──────────────────────────────────────────────────────────
-// Scrolling bar in the Aura dashboard showing today's Arena mission.
-// Hides once the user completes a task today; reappears the next day with a new mission.
-function MissionTicker({ userData, keyword, onNavigate }) {
-  const todayStr = new Date().toISOString().slice(0, 10)
-
-  // Detect if user already completed a mission today
-  const lastActive    = userData?.arenaLastActive || userData?.arena_last_active || ""
-  const doneToday     = lastActive.slice(0, 10) === todayStr
-
-  // Pick today's mission deterministically (day-of-year rotates through challenges)
-  const challenges    = getDomainChallenges(keyword)
-  const dayOfYear     = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000)
-  const todayMission  = challenges.length > 0 ? challenges[dayOfYear % challenges.length] : null
-
-  if (doneToday || !todayMission) return null
-
-  const diffColor = { easy: "#10B981", medium: "#F59E0B", hard: "#EF4444", expert: "#8B5CF6" }
-  const dc = diffColor[(todayMission.difficulty || "medium").toLowerCase()] || "#F59E0B"
-
-  const tickerText = `🎯  Today's Mission  ·  ${todayMission.title}  ·  ${(todayMission.difficulty||"Medium").toUpperCase()}  ·  +${todayMission.eloGain||20} ELO  ·  ${todayMission.tools?.[0]||""}  ·  ⏱ ${todayMission.timeLimit||"30 min"}  ·  Go to Arena →          `
-  // Repeat text so the scroll feels seamless
-  const repeated = tickerText.repeat(4)
-
-  return (
-    <div
-      onClick={() => onNavigate && onNavigate("arenaCollegeStream")}
-      style={{
-        marginBottom: 16,
-        borderRadius: 12,
-        border: `1.5px solid ${dc}35`,
-        background: `linear-gradient(90deg, ${dc}10 0%, ${dc}06 100%)`,
-        overflow: "hidden",
-        cursor: "pointer",
-        position: "relative",
-      }}
-    >
-      <style>{`
-        @keyframes ticker { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-      `}</style>
-      {/* Left fade */}
-      <div style={{ position:"absolute", left:0, top:0, bottom:0, width:40, background:`linear-gradient(90deg, ${dc}15, transparent)`, zIndex:1, pointerEvents:"none" }} />
-      {/* Right fade */}
-      <div style={{ position:"absolute", right:0, top:0, bottom:0, width:40, background:`linear-gradient(270deg, ${dc}15, transparent)`, zIndex:1, pointerEvents:"none" }} />
-
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        whiteSpace: "nowrap",
-        padding: "10px 0",
-        animation: "ticker 28s linear infinite",
-        willChange: "transform",
-      }}>
-        <span style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 12,
-          fontWeight: 600,
-          color: dc,
-          letterSpacing: "0.03em",
-          paddingRight: 0,
-        }}>
-          {repeated}
-        </span>
-      </div>
-    </div>
-  )
-}
+// MissionTicker (Arena "today's mission" entry point) removed 2026-09-05
+// along with the old Arena implementation it linked to.
 
 // ─── Student Profile Link Form ────────────────────────────────────────────────
 function ProfileLinksForm({ userData, save, setUserData }) {
@@ -3311,7 +3245,6 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
   const [dragStart, setDragStart]             = useState({x:0,y:0})
   const [decayDropdownOpen, setDecayDropdownOpen]     = useState(false)
   const [selectedDecaySkills, setSelectedDecaySkills] = useState([])
-  const [practiceSkill, setPracticeSkill]             = useState("")
   const [githubUrl, setGithubUrl]             = useState("")
   const [githubVerifying, setGithubVerifying] = useState(false)
   const [githubVerifyMsg, setGithubVerifyMsg] = useState(null) // {verified, code, message}
@@ -4779,19 +4712,15 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
               )
             })()}
 
-            {/* ── Today's Mission ticker — hides when user completes task today ── */}
-            {path !== "professional" && (
-              <MissionTicker userData={userData} keyword={keyword} onNavigate={onNavigate} />
-            )}
-
-            {/* ── First-time user onboarding card — hides after first Arena completion ── */}
+            {/* First-time user onboarding card — Arena step removed 2026-09-05
+                along with the old Arena implementation. Show/hide still keys
+                on arenaCompleted (REVIEW: with no Arena to complete, this
+                will now always show for new users until the Arena/Challenge
+                system is rebuilt and this gating is revisited). */}
             {arenaCompleted === 0 && path !== "professional" && (()=>{
-              const role = getRoleConfig(userData)
-              const workbenchName = role?.label ? `${role.label} Arena` : "Arena"
               const steps = [
-                { n:"1", icon:"⚔️", title:`Complete your first ${workbenchName} challenge`, sub:"Solve a real coding challenge to earn your first ELO points and unlock your skill graph.", cta:"Go to Arena →", action:()=>onNavigate("arenaCollegeStream"), color:T.indigo, bg:T.indigo+"10", border:T.indigo+"30" },
-                { n:"2", icon:"📄", title:"Upload your resume", sub:"We'll extract your skills, projects, and experience to populate your Aura profile automatically.", cta:"Upload Resume", action:()=>resumeFileInputRef.current?.click(), color:T.green, bg:T.green+"10", border:T.green+"30" },
-                { n:"3", icon:"🔗", title:"Add your LinkedIn & GitHub", sub:"Connect your profiles so recruiters can verify your work and reach you directly.", cta:"Edit Profile →", action:()=>setActiveTab("vault"), color:"#E67E22", bg:"rgba(230,126,34,0.08)", border:"rgba(230,126,34,0.25)" },
+                { n:"1", icon:"📄", title:"Upload your resume", sub:"We'll extract your skills, projects, and experience to populate your Aura profile automatically.", cta:"Upload Resume", action:()=>resumeFileInputRef.current?.click(), color:T.green, bg:T.green+"10", border:T.green+"30" },
+                { n:"2", icon:"🔗", title:"Add your LinkedIn & GitHub", sub:"Connect your profiles so recruiters can verify your work and reach you directly.", cta:"Edit Profile →", action:()=>setActiveTab("vault"), color:"#E67E22", bg:"rgba(230,126,34,0.08)", border:"rgba(230,126,34,0.25)" },
               ]
               return (
                 <div style={{marginBottom:20,borderRadius:16,border:`1.5px solid rgba(99,102,241,0.20)`,background:"linear-gradient(135deg,rgba(99,102,241,0.04),rgba(139,92,246,0.04))",overflow:"hidden"}}>
@@ -4799,12 +4728,12 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                     <div style={{fontSize:18}}>🚀</div>
                     <div>
                       <div style={{fontSize:14,fontWeight:800,color:T.ink,marginBottom:1}}>Welcome — here's what to do first</div>
-                      <div style={{fontSize:11,color:T.ink3}}>3 quick steps to activate your Aura profile and start building your career record.</div>
+                      <div style={{fontSize:11,color:T.ink3}}>Quick steps to activate your Aura profile and start building your career record.</div>
                     </div>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0}}>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:0}}>
                     {steps.map((s,i)=>(
-                      <div key={i} style={{padding:"14px 16px",borderRight:i<2?`1px solid rgba(99,102,241,0.10)`:"none",display:"flex",flexDirection:"column",gap:8}}>
+                      <div key={i} style={{padding:"14px 16px",borderRight:i<1?`1px solid rgba(99,102,241,0.10)`:"none",display:"flex",flexDirection:"column",gap:8}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{width:22,height:22,borderRadius:"50%",background:s.color,color:"#fff",fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s.n}</div>
                           <span style={{fontSize:16}}>{s.icon}</span>
@@ -5019,13 +4948,6 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                         </div>
                       )}
 
-                      {/* CTA */}
-                      <button
-                        onClick={()=>onNavigate("arenaCollegeStream")}
-                        style={{marginTop:10,width:"100%",padding:"7px",background:`linear-gradient(135deg,${momentumForm.color},${momentumForm.color}BB)`,border:"none",borderRadius:8,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:"0.02em"}}
-                      >
-                        {graphSkills.length > 0 && graphSkills[0] ? `Practice ${graphSkills[0].label||graphSkills[0].skill} in Arena →` : "Practice in Arena →"}
-                      </button>
                     </div>
                   )
                 })()}
@@ -5036,9 +4958,8 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                       <span>🚨</span>
                       <div style={{flex:1}}>
                         <div style={{fontSize:11,fontWeight:700,color:T.red}}>ELO Decay Active — {daysSinceActive}d inactive</div>
-                        <div style={{fontSize:10,color:T.ink3}}>Decay starts after 15 days: −5 ELO/day, goes to 0. Complete Arena tasks to stop it.</div>
+                        <div style={{fontSize:10,color:T.ink3}}>Decay starts after 15 days: −5 ELO/day, goes to 0.</div>
                       </div>
-                      <button onClick={()=>onNavigate("arenaCollegeStream")} style={{padding:"5px 12px",background:T.red,border:"none",borderRadius:7,color:"#fff",fontSize:10,fontWeight:700,cursor:"pointer",flexShrink:0}}>Go →</button>
                     </div>
                     <button onClick={()=>setDecayDropdownOpen(p=>!p)} style={{width:"100%",padding:"7px 12px",background:"rgba(192,57,43,0.08)",border:`1px solid rgba(192,57,43,0.2)`,borderRadius:8,color:T.red,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <span>⚠️ View which {keyword} skills are decaying</span>
@@ -5063,11 +4984,9 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
                         </div>
                         {selectedDecaySkills.length>0&&(
                           <div style={{marginTop:10,padding:"8px 12px",background:T.red2,border:`1px solid rgba(192,57,43,0.15)`,borderRadius:8,fontSize:11,color:T.red,lineHeight:1.5}}>
-                            <strong>{selectedDecaySkills.length} skill{selectedDecaySkills.length>1?"s":""} at risk:</strong> {selectedDecaySkills.join(", ")}.<br/>
-                            Complete Arena tasks for these skills to restore their ELO contribution.
+                            <strong>{selectedDecaySkills.length} skill{selectedDecaySkills.length>1?"s":""} at risk:</strong> {selectedDecaySkills.join(", ")}.
                           </div>
                         )}
-                        <button onClick={()=>onNavigate("arenaCollegeStream")} style={{marginTop:8,width:"100%",padding:"8px",background:T.red,border:"none",borderRadius:8,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>🎯 Go to Arena to stop decay →</button>
                       </div>
                     )}
                   </div>
@@ -5183,74 +5102,9 @@ export default function Aura({ user, activeTab: initialTabProp, setActiveTab: se
               </div>
             </div>
 
-            {/* Domain Skill Practice Picker */}
-            <Card style={{marginBottom:20,borderTop:`3px solid ${T.indigo}`,background:"linear-gradient(135deg,#FAFAF8 0%,#F0F0F8 100%)"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <div>
-                  <SectionLabel color={T.indigo}>🎮 Practice a Skill</SectionLabel>
-                  <div style={{fontSize:15,fontWeight:800,color:T.ink}}>
-                    {userActualSkills.length >= 3 ? "Your Resume Skills" : resolvedKeyword}
-                    <span style={{fontSize:12,fontWeight:500,color:T.ink4,marginLeft:8}}>· {practiceSkillGraph.length} skills</span>
-                  </div>
-                </div>
-                {practiceSkill&&(
-                  <button onClick={()=>onNavigate("arenaCollegeStream")}
-                    style={{padding:"9px 20px",background:T.indigo,border:"none",borderRadius:10,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 4px 14px rgba(61,78,172,0.25)"}}>
-                    ⚔️ Practice in Arena →
-                  </button>
-                )}
-              </div>
-
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,marginBottom:14}}>
-                {practiceSkillGraph.map((entry,i)=>{
-                  const skill = entry.label
-                  const active = practiceSkill === skill
-                  const score = entry.value || 0
-                  const scoreCol = score >= 70 ? T.green : score >= 40 ? T.amber : score > 0 ? T.indigo : T.ink4
-                  return (
-                    <button key={i} onClick={()=>setPracticeSkill(active?"":skill)} style={{
-                      padding:"10px 12px",borderRadius:12,textAlign:"left",
-                      border:`1.5px solid ${active?T.indigo:score>0?"rgba(61,78,172,0.15)":T.border}`,
-                      background:active?T.indigo:score>0?"#fff":T.cream,
-                      cursor:"pointer",transition:"all 0.15s",
-                      boxShadow:active?"0 4px 14px rgba(61,78,172,0.2)":score>0?"0 1px 4px rgba(0,0,0,0.05)":"none",
-                    }}>
-                      <div style={{fontSize:12,fontWeight:active?700:600,color:active?"#fff":T.ink,marginBottom:5,lineHeight:1.3}}>{skill}</div>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        {score > 0 ? (
-                          <>
-                            <div style={{flex:1,height:3,background:active?"rgba(0,0,0,0.12)":"rgba(0,0,0,0.06)",borderRadius:99,marginRight:6}}>
-                              <div style={{height:"100%",width:`${score}%`,background:active?"#fff":scoreCol,borderRadius:99}}/>
-                            </div>
-                            <span style={{fontSize:10,fontWeight:800,color:active?"rgba(255,255,255,0.9)":scoreCol,fontFamily:"'DM Mono',monospace",flexShrink:0}}>{score}%</span>
-                          </>
-                        ) : (
-                          <span style={{fontSize:10,color:active?"rgba(255,255,255,0.6)":T.ink4,fontStyle:"italic"}}>Not assessed</span>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {practiceSkill ? (
-                <div style={{background:T.indigo,borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 4px 20px rgba(61,78,172,0.2)"}}>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>⚔️ Selected: {practiceSkill}</div>
-                    <div style={{fontSize:11,color:"#3D3935",marginTop:3}}>
-                      Arena will generate a <strong style={{color:"#fff"}}>{practiceSkill}</strong> challenge tailored to your level
-                    </div>
-                  </div>
-                  <button onClick={()=>onNavigate("arenaCollegeStream")} style={{padding:"10px 22px",background:"#FFFFFF",border:"none",borderRadius:10,color:T.indigo,fontSize:12,fontWeight:800,cursor:"pointer",flexShrink:0,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}>
-                    Go Practice →
-                  </button>
-                </div>
-              ) : (
-                <div style={{textAlign:"center",padding:"10px 0",color:T.ink4,fontSize:12}}>
-                  Select a skill above to focus your Arena practice session
-                </div>
-              )}
-            </Card>
+            {/* Domain Skill Practice Picker (fed skill selections into Arena)
+                removed 2026-09-05 along with the old Arena implementation —
+                its sole purpose was choosing a skill to practice in Arena. */}
 
             {/* ══ PORTFOLIO COMMAND CENTER ══ */}
             {(()=>{
