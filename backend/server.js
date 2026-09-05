@@ -132,9 +132,10 @@ import { generalLimiter, aiLimiter, strictLimiter, skillStudioLimiter } from "./
 // ─── Route modules ────────────────────────────────────────────────────────────
 import resumeRoutes           from "./server/routes/resume.js"
 import assessmentRoutes       from "./server/routes/assessment.js"
-// Old Arena (College Stream / Domain Role / cross-branch activity /
-// capability engine) retired 2026-09-05. New Arena/Challenge system gets
-// its own route import(s) here once rebuilt.
+// New Arena — Student Stream Common Challenges (2026-09-05). Replaces the
+// four retired Arena route files with one canonical mount; see
+// routes/arena.js's header for the full architecture.
+import arenaRoutes            from "./server/routes/arena.js"
 import proofsRoutes           from "./server/routes/proofs.js"            // Portfolio redesign — public Engineering Proofs API: GET /:userId (grouped+filtered), GET /:userId/:proofId
 import educationRoutes        from "./server/routes/education.js"        // Education redesign Phase 1 — GET /profile/:userId (public), POST /profile (auth, own profile only)
 import verificationRoutes     from "./server/routes/verification.js"     // Trust & Verification Center Phase 1 — provider registry, hash-chained audit log, POST /verify
@@ -391,9 +392,7 @@ app.get("/api/_debug/email-config", (_, res) => res.json({
 // ─── Mount routes ─────────────────────────────────────────────────────────────
 app.use("/api",              resumeRoutes)       // extract-pdf, extract-linkedin
 app.use("/api",              assessmentRoutes)   // generate-mcq, analyse-assessment, analyse-professional-profile
-// Old Arena routes (College Stream, Domain Role, cross-branch activity,
-// capability engine) retired 2026-09-05. New Arena/Challenge system gets
-// its own mount(s) here once rebuilt.
+app.use("/api/arena",           arenaRoutes)             // New Arena — Student Stream Common Challenges (stream/week/spin/missions/leaderboard/history)
 app.use("/api/proofs",          proofsRoutes)            // Portfolio redesign — public Engineering Proofs API (no auth: portfolios are public pages)
 app.use("/api",                 portfolioPublicRoutes)    // Career OS Tranche 6 Priority 6A — portfolio/lookup/:identifier (no auth required; optional bearer for owner/session-fallback matching)
 app.use("/api/admin/ops",       opsDashboardRoutes)       // Career OS Tranche 11 — admin/ops/dashboard, requireAdmin-gated (dedicated namespace — see opsDashboard.js header for why NOT bare "/api/admin", same routing-shadow lesson as questionBankAdmin.js)

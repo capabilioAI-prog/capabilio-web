@@ -12,3 +12,4 @@
 import "./skillStudio.js" // Batch 2
 // arena.js/domainRole.js/collegeStream.js prompt registrations removed
 // 2026-09-05 along with the old Arena implementation.
+import "./arenaChallenge.js" // New Arena — Common Challenges content generation
