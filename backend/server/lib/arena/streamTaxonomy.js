@@ -25,7 +25,7 @@ export const STREAM_TAXONOMY = {
   eee: {
     name: "Electrical & Electronics",
     competencyAreas: ["Circuit Analysis", "Electrical Measurements", "Electrical Machines", "Power Systems", "Control Systems", "Power Electronics", "Transformers", "Motors"],
-    vocabulary: ["voltage", "current", "resistance", "impedance", "transformer", "motor", "winding", "torque", "power factor", "relay", "circuit breaker", "load", "generator", "rms", "phasor", "harmonics", "grid", "substation", "pid", "feedback loop"],
+    vocabulary: ["voltage", "current", "resistance", "impedance", "transformer", "motor", "winding", "torque", "power factor", "relay", "circuit breaker", "load", "generator", "rms", "phasor", "harmonics", "grid", "substation", "pid", "feedback loop", "pole", "transfer function", "closed-loop", "stability"],
   },
   mechanical: {
     name: "Mechanical Engineering",
@@ -40,7 +40,7 @@ export const STREAM_TAXONOMY = {
   mba: {
     name: "MBA",
     competencyAreas: ["Finance", "Accounting", "Marketing", "Operations", "HR", "Strategy", "Business Analytics"],
-    vocabulary: ["revenue", "margin", "roi", "cash flow", "budget", "market share", "segment", "churn", "cac", "ltv", "supply chain", "inventory turnover", "kpi", "stakeholder", "competitive advantage", "positioning", "attrition", "forecast", "p&l", "bottleneck", "throughput", "capacity", "production line", "stage"],
+    vocabulary: ["revenue", "margin", "roi", "cash flow", "budget", "market share", "segment", "churn", "cac", "ltv", "lifetime value", "supply chain", "inventory turnover", "kpi", "stakeholder", "competitive advantage", "positioning", "attrition", "turnover", "forecast", "p&l", "bottleneck", "throughput", "capacity", "production line", "stage"],
   },
   "ai-ml": {
     name: "AI & Machine Learning",
@@ -55,7 +55,7 @@ export const STREAM_TAXONOMY = {
   "cyber-security": {
     name: "Cyber Security",
     competencyAreas: ["Authentication", "Authorization", "Logs", "Secure Configuration", "Vulnerability Analysis", "Incident Response", "Security Architecture", "Risk"],
-    vocabulary: ["authentication", "authorization", "token", "session", "log", "vulnerability", "exploit", "patch", "firewall", "encryption", "hash", "phishing", "malware", "incident", "breach", "access control", "privilege escalation", "cve", "mitigation", "audit trail"],
+    vocabulary: ["authentication", "authorization", "token", "session", "log", "vulnerability", "exploit", "patch", "firewall", "encryption", "hash", "phishing", "malware", "ransomware", "incident", "breach", "access control", "privilege escalation", "cve", "mitigation", "audit trail", "containment"],
   },
   it: {
     name: "Information Technology",
