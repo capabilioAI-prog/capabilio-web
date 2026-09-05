@@ -46,9 +46,9 @@ vite.config.js.timestamp-*
 
 # Python sandbox venv — recreated on install via scripts/setupSandboxVenv.sh
 # (postinstall hook), never committed (binary-heavy, environment-specific).
-# See backend/server/lib/collegeStream/pythonSandbox.js's header.
+# See backend/server/lib/sandbox/pythonSandbox.js's header.
 .sandbox-venv/
-backend/server/lib/collegeStream/.sandbox-venv/
+backend/server/lib/sandbox/.sandbox-venv/
 
 # Local AI-tool / deployment-CLI state — personal to the machine that ran
 # `vercel link` or the Codex CLI, not project config. (.mcp.json stays

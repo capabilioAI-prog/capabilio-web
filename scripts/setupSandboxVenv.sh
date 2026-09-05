@@ -14,8 +14,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VENV_DIR="$REPO_ROOT/backend/server/lib/collegeStream/.sandbox-venv"
-REQUIREMENTS="$REPO_ROOT/backend/server/lib/collegeStream/sandbox-requirements.txt"
+VENV_DIR="$REPO_ROOT/backend/server/lib/sandbox/.sandbox-venv"
+REQUIREMENTS="$REPO_ROOT/backend/server/lib/sandbox/requirements.txt"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[setupSandboxVenv] python3 not found — skipping (ML/AI workstations will report 'unavailable' at request time, not fail the build)"
