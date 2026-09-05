@@ -29,6 +29,7 @@ function baseState() {
       },
     },
     historyInserts: [],
+    submissionInserts: [],
   }
 }
 
@@ -58,6 +59,7 @@ function makeFakeSupabase(state) {
       }
       if (table === "skill_graph_nodes") return Promise.resolve({ data: null, error: null })
       if (table === "arena_history") { state.historyInserts.push(s.insertPayload); return Promise.resolve({ data: null, error: null }) }
+      if (table === "arena_submissions") { state.submissionInserts.push(s.insertPayload); return Promise.resolve({ data: null, error: null }) }
       return Promise.resolve({ data: null, error: null })
     }
     return api
@@ -110,4 +112,13 @@ test("a mission that is already completed cannot be re-submitted for extra point
   const result = await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 100 } })
   assert.equal(result.ok, false)
   assert.equal(result.reason, "already_completed")
+})
+
+test("every attempt is preserved in the arena_submissions audit trail, not just the latest", async () => {
+  await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 1 } })   // fail
+  await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 50 } })  // fail
+  await submitMission({ userId: OWNER, missionId: MISSION_ID, response: { value: 100 } }) // pass
+  assert.equal(state.submissionInserts.length, 3, "all three attempts must each produce their own audit row")
+  assert.deepEqual(state.submissionInserts.map((s) => s.passed), [false, false, true])
+  assert.equal(state.submissionInserts[0].student_id, OWNER, "student_id is stamped server-side from the authenticated caller")
 })

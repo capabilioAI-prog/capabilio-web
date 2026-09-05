@@ -60,6 +60,24 @@ export async function submitMission({ userId, missionId, response }) {
     .eq("id", missionId)
   if (updateErr) throw updateErr
 
+  // Append-only audit trail of every attempt (arena_submissions,
+  // 2026-09-05b) — arena_weekly_missions above only ever holds the LATEST
+  // attempt's summary; a student who fails twice before passing would
+  // otherwise leave no record those failed attempts ever happened.
+  try {
+    await supabaseAdmin.from("arena_submissions").insert({
+      mission_id: missionId,
+      student_id: userId,
+      response,
+      verification_result: { passed: verification.passed, score: verification.score, detail: verification.detail },
+      passed: verification.passed,
+      score: verification.score,
+      points_awarded: pointsAwarded,
+    })
+  } catch (e) {
+    logger.error("[arena.submission] arena_submissions audit insert failed (mission result unaffected)", { userId, missionId, error: e.message })
+  }
+
   logger.info("[arena.submission] verified", { userId, missionId, passed: verification.passed, score: verification.score, pointsAwarded })
 
   await recordMissionEvidence({ userId, mission, challenge, verification, pointsAwarded })
