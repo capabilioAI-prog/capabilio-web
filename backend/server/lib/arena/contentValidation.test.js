@@ -113,3 +113,79 @@ test("rejects duplicate content (same normalized title/scenario/mission)", async
   assert.equal(result.ok, false)
   assert.equal(result.stage, "duplicate")
 })
+
+// ─── Hard product rule: non-IT streams require a real simulation (spec §45) ───
+
+const eceTextOnlyContent = {
+  competency_area: "Signals",
+  skill: "Waveform Reading",
+  challenge_type: "diagnosis",
+  title: "Read the Oscilloscope Trace",
+  scenario: "A sensor's waveform was captured on an oscilloscope for review.",
+  mission: "State what is wrong with the captured signal.",
+  difficulty: "easy",
+  estimated_minutes: 8,
+  instructions: "Answer using the scenario above.",
+  workstation_type: "structured_response",
+  verification_type: "rule_based",
+  verification_definition: { rules: [{ field: "answer", equals: "clipping" }] }, // no `simulation` key at all
+}
+
+test("rejects a non-IT (ece) challenge with simulation_type: null — plain text/answer-only is not eligible", async () => {
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
+  const result = await validateChallengeContent({ ...eceTextOnlyContent, simulation_type: null }, { streamId: STREAM_ID, streamSlug: "ece" })
+  assert.equal(result.ok, false)
+  assert.equal(result.stage, "simulation_required")
+})
+
+test("rejects a non-IT (ece) challenge with a declared simulation_type but an empty simulation_config", async () => {
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
+  const content = { ...eceTextOnlyContent, simulation_type: "waveform_lab", verification_definition: { simulation: {}, rules: [{ field: "answer", equals: "x" }] } }
+  const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
+  assert.equal(result.ok, false)
+  assert.equal(result.stage, "simulation_required")
+})
+
+test("rejects a non-IT (ece) challenge declaring an unknown simulation_type", async () => {
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
+  const content = { ...eceTextOnlyContent, simulation_type: "foo_lab" }
+  const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
+  assert.equal(result.ok, false)
+  assert.equal(result.stage, "simulation_compat")
+})
+
+test("rejects a non-IT (ece) challenge whose simulation_config has a renderer but no meaningful interaction fields (spec §45)", async () => {
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
+  // A renderer exists for waveform_lab, but this config declares neither
+  // channel — the generator would silently default both (it's defensive
+  // against malformed AI output), so "does it throw" can't catch this;
+  // requiredConfigKeys is the explicit floor that does.
+  const content = { ...eceTextOnlyContent, simulation_type: "waveform_lab", verification_definition: { simulation: { notAChannel: true }, rules: [{ field: "answer", equals: "x" }] } }
+  const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
+  assert.equal(result.ok, false)
+  assert.equal(result.stage, "simulation_required")
+})
+
+test("accepts a genuinely valid ECE simulation challenge (real simulation_type + working config)", async () => {
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
+  const content = {
+    ...eceTextOnlyContent,
+    simulation_type: "waveform_lab",
+    verification_definition: {
+      simulation: {
+        sampleCount: 50, durationMs: 20, seed: 1,
+        channel1: { frequencyHz: 500, amplitude: 1 },
+        channel2: { frequencyHz: 500, amplitude: 1, anomaly: { type: "amplitude_clipping", severity: 0.5 } },
+      },
+      rules: [{ field: "diagnosis", equals: "Amplitude clipping" }],
+    },
+  }
+  const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
+  assert.equal(result.ok, true)
+})
+
+test("does NOT require a simulation_type for IT/computing streams (cse) — a valid coding challenge still passes", async () => {
+  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
+  const result = await validateChallengeContent(validCseContent, { streamId: STREAM_ID, streamSlug: "cse" })
+  assert.equal(result.ok, true)
+})

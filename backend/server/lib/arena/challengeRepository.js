@@ -5,6 +5,7 @@
  * content, look up one challenge for mission execution.
  */
 import { supabaseAdmin } from "../supabase.js"
+import { isSimulationRequiredStream } from "./streamTaxonomy.js"
 
 const CHALLENGE_COLUMNS = "id, stream_id, competency_area, skill, skill_graph_node_id, challenge_type, title, scenario, mission, learning_objective, difficulty, estimated_minutes, instructions, inputs, expected_output, workstation_type, verification_type, verification_definition, simulation_type, points, explanation, tags, version"
 
@@ -17,13 +18,26 @@ async function findSkillGraphNodeId(skillLabel) {
   return data?.id || null
 }
 
-export async function findEligibleChallenges({ streamId, excludeChallengeIds = [], limit = 50 }) {
+/**
+ * @param {{ streamId: string, streamSlug?: string, excludeChallengeIds?: string[], limit?: number }} params
+ *   `streamSlug` is required to enforce the non-IT simulation-only rule
+ *   (spec: "hard product rule") — omit it only for IT/computing streams,
+ *   or for call sites (like submission's own challenge lookup) that
+ *   don't need eligibility filtering at all.
+ */
+export async function findEligibleChallenges({ streamId, streamSlug, excludeChallengeIds = [], limit = 50 }) {
   let query = supabaseAdmin
     .from("arena_challenges").select(CHALLENGE_COLUMNS)
     .eq("stream_id", streamId).eq("status", "active")
     .order("created_at", { ascending: true })
     .limit(limit)
   if (excludeChallengeIds.length > 0) query = query.not("id", "in", `(${excludeChallengeIds.join(",")})`)
+  // Defense in depth beyond retiring old rows: even a stray active
+  // non-simulation row for a non-IT stream can never be allocated,
+  // enforced at the query itself, not just at content-creation time.
+  if (streamSlug && isSimulationRequiredStream(streamSlug)) {
+    query = query.not("simulation_type", "is", null)
+  }
   const { data, error } = await query
   if (error) throw error
   return data || []

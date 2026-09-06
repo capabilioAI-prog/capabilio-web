@@ -59,7 +59,7 @@ async function generateDeficit({ streamId, streamSlug, deficit, existingTitles, 
  * @returns {Promise<{ ok: true, challenges: object[] } | { ok: false, reason: string, allocated: number, needed: number }>}
  */
 export async function planWeeklyMissions({ streamId, streamSlug, count, excludeChallengeIds = [] }) {
-  const eligible = await findEligibleChallenges({ streamId, excludeChallengeIds, limit: Math.max(count * 5, 50) })
+  const eligible = await findEligibleChallenges({ streamId, streamSlug, excludeChallengeIds, limit: Math.max(count * 5, 50) })
   logger.info("[arena.planner] eligible existing challenges found", { streamSlug, count, eligibleCount: eligible.length })
 
   let chosen = pickWithVariety(eligible, count)

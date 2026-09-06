@@ -14,8 +14,8 @@
  */
 import crypto from "crypto"
 import { ChallengeContentSchema, validateWorkstationVerificationCompat } from "./contentSchema.js"
-import { getStreamTaxonomy } from "./streamTaxonomy.js"
-import { validateSimulationCompatibility } from "./simulations/registry.js"
+import { getStreamTaxonomy, isSimulationRequiredStream } from "./streamTaxonomy.js"
+import { validateSimulationCompatibility, validateSimulationConfigShape, getSimulationState } from "./simulations/registry.js"
 import { supabaseAdmin } from "../supabase.js"
 
 /** Stable fingerprint: normalized title + scenario + mission, so trivial
@@ -57,6 +57,40 @@ async function checkDuplicate(streamId, fingerprint, { excludeChallengeId } = {}
 }
 
 /**
+ * Hard product rule: for non-IT/non-computing streams, a Common Challenge
+ * is not eligible unless it declares a real, working simulation — a
+ * plain text + answer-box challenge (simulation_type null), an empty/
+ * missing simulation config, or a config the registered renderer can't
+ * actually turn into simulation state are all rejected here, before the
+ * content is ever persisted. This is the one gate both AI generation and
+ * curated seed content must pass through — there is no separate "AI
+ * fallback" path that skips it, so a thin non-IT pool can never silently
+ * backfill with text-only content.
+ */
+function validateSimulationRequired(content, streamSlug) {
+  if (!isSimulationRequiredStream(streamSlug)) return { ok: true }
+
+  if (!content.simulation_type) {
+    return { ok: false, reason: `stream "${streamSlug}" requires every Common Challenge to declare a simulation_type — plain text/answer-only challenges are not eligible for a non-IT stream` }
+  }
+
+  const simConfig = content.verification_definition?.simulation
+  if (!simConfig || typeof simConfig !== "object" || Array.isArray(simConfig) || Object.keys(simConfig).length === 0) {
+    return { ok: false, reason: `stream "${streamSlug}" requires a non-empty simulation configuration (verification_definition.simulation) — none was provided` }
+  }
+
+  const shapeCheck = validateSimulationConfigShape(content.simulation_type, simConfig)
+  if (!shapeCheck.ok) return { ok: false, reason: shapeCheck.reason }
+
+  const state = getSimulationState(content.simulation_type, simConfig)
+  if (!state) {
+    return { ok: false, reason: `simulation_config could not produce valid simulation state for "${content.simulation_type}" — not a meaningful interactive configuration` }
+  }
+
+  return { ok: true }
+}
+
+/**
  * @param {object} rawContent — candidate content, application-shaped (see contentSchema.js)
  * @param {{ streamId: string, streamSlug: string }} context
  * @returns {Promise<{ ok: true, content: object, fingerprint: string } | { ok: false, stage: string, reason: string }>}
@@ -76,6 +110,9 @@ export async function validateChallengeContent(rawContent, { streamId, streamSlu
 
   const simCompat = validateSimulationCompatibility(content.simulation_type, { streamSlug, challengeType: content.challenge_type })
   if (!simCompat.ok) return { ok: false, stage: "simulation_compat", reason: simCompat.reason }
+
+  const simRequired = validateSimulationRequired(content, streamSlug)
+  if (!simRequired.ok) return { ok: false, stage: "simulation_required", reason: simRequired.reason }
 
   const fingerprint = computeContentFingerprint(content)
   const isDuplicate = await checkDuplicate(streamId, fingerprint)
