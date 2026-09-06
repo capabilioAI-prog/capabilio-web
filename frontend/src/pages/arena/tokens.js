@@ -34,6 +34,23 @@ export const A = {
   mono: "'DM Mono', 'SF Mono', Menlo, monospace",
 }
 
+/**
+ * WHEEL_SEGMENT_COLORS — the Arena wheel's restrained, coherent palette
+ * (spec: "capability discovery, not gambling" — no casino colors, no
+ * unrelated eight-color rainbow). Cycles across 8 segments; a segment's
+ * neighbors never repeat its color.
+ */
+export const WHEEL_SEGMENT_COLORS = [
+  { bg: "#F5F3EE", text: "#181822" }, // cream
+  { bg: "#EEF0FF", text: "#3730A3" }, // soft indigo
+  { bg: "#EAF6F0", text: "#0F766E" }, // soft mint
+  { bg: "#EEF6FB", text: "#0369A1" }, // soft blue
+  { bg: "#FDF1E7", text: "#B45309" }, // soft peach
+  { bg: "#F3EEFB", text: "#6D28D9" }, // soft lavender
+  { bg: "#F5F3EE", text: "#181822" }, // cream (repeat, non-adjacent to first)
+  { bg: "#EEF0FF", text: "#3730A3" }, // soft indigo (repeat, non-adjacent to second)
+]
+
 export const DIFFICULTY_META = {
   easy:   { label: "Easy",   color: A.emerald, bg: A.emerald2 },
   medium: { label: "Medium", color: A.amber,   bg: A.amber2 },

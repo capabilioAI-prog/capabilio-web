@@ -12,6 +12,17 @@
  * R ≡ -segmentCenter(i) (mod 360), i.e. R mod 360 = (360 - segmentCenter) mod 360.
  */
 
+// Hard product requirement: the VISIBLE wheel spin (acceleration + main
+// rotation + deceleration + micro-settle) must never exceed 5 seconds.
+// Landing animation + the small settle bounce sum to well under that —
+// verified in wheelMath.test.js so a future tuning pass can't silently
+// blow the budget. The indeterminate "preparing" state while waiting on
+// the server does NOT rotate the wheel at all, so it never counts
+// against this budget in the first place.
+export const SPIN_DURATION_SECONDS = 4.0
+export const SETTLE_BOUNCE_SECONDS = 0.28
+export const MAX_SPIN_BUDGET_SECONDS = 5
+
 export function segmentAngle(segmentCount) {
   return 360 / segmentCount
 }

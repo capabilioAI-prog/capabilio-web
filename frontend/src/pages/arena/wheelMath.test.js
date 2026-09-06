@@ -1,8 +1,18 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { computeTargetRotation, outcomeAtRotation, segmentCenterAngle, wedgeBounds } from "./wheelMath.js"
+import { computeTargetRotation, outcomeAtRotation, segmentCenterAngle, wedgeBounds, SPIN_DURATION_SECONDS, SETTLE_BOUNCE_SECONDS, MAX_SPIN_BUDGET_SECONDS } from "./wheelMath.js"
 
 const OUTCOMES = [5, 6, 7, 8, 9, 10, 11, 12] // 8 segments
+
+test("hard requirement: the visible wheel spin (main rotation + settle bounce) never exceeds the 5-second budget", () => {
+  assert.ok(MAX_SPIN_BUDGET_SECONDS <= 5)
+  assert.ok(SPIN_DURATION_SECONDS + SETTLE_BOUNCE_SECONDS <= MAX_SPIN_BUDGET_SECONDS,
+    `SPIN_DURATION_SECONDS (${SPIN_DURATION_SECONDS}) + SETTLE_BOUNCE_SECONDS (${SETTLE_BOUNCE_SECONDS}) must stay within the ${MAX_SPIN_BUDGET_SECONDS}s budget`)
+})
+
+test("the spin duration lands in the requested 3.5-4.5s target window", () => {
+  assert.ok(SPIN_DURATION_SECONDS >= 3.5 && SPIN_DURATION_SECONDS <= 4.5)
+})
 
 test("computeTargetRotation always moves forward from the current rotation (never snaps backward)", () => {
   for (let current = 0; current < 1000; current += 37) {
