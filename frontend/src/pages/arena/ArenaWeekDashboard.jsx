@@ -10,6 +10,17 @@ import MissionGrid from "./MissionGrid"
 export default function ArenaWeekDashboard({ streamName, allocation, onOpenMission }) {
   const [showRecap, setShowRecap] = useState(false)
 
+  // Defensive: this component only ever makes sense with a real
+  // allocation (spec §32-33 assumes one already exists here) — a caller
+  // bug that reaches this without one should degrade, not crash the page.
+  if (!allocation) {
+    return (
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "60px 20px", textAlign: "center", color: A.ink3, fontSize: 13 }}>
+        Couldn&apos;t load this week&apos;s missions. Please refresh.
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px 60px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>

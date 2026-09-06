@@ -155,8 +155,17 @@ export default function Arena() {
         <ArenaLeaderboard />
       ) : tab === "history" ? (
         <ArenaHistory />
-      ) : (
+      ) : allocation ? (
         <ArenaWeekDashboard streamName={stream.name} allocation={allocation} onOpenMission={setActiveMissionId} />
+      ) : (
+        // A transient failure fetching the allocation (e.g. after the
+        // stream itself resolved fine) must never render the dashboard
+        // with a null allocation — ArenaWeekDashboard reads
+        // allocation.missions unconditionally and would crash the whole
+        // page. Degrade to a message instead of a white-screen error.
+        <div style={{ padding: "60px 20px", textAlign: "center", color: A.ink3, fontSize: 13 }}>
+          {error || "Couldn't load this week's missions. Please refresh."}
+        </div>
       )}
 
       {activeMissionId && (
