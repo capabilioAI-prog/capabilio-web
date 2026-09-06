@@ -1065,4 +1065,44 @@ export const SEED_CHALLENGES = [
     explanation: "The trace departs from its initial straight-line elastic slope at about 0.6% strain — before the 1.0% spec threshold — so the specimen yields before reaching the required load and fails acceptance.",
     tags: ["mechanical", "materials", "compression", "diagnosis", "stress-strain"],
   },
+
+  // ─── Simulation vertical slice: EEE Electrical Circuit Lab ─────────────
+  {
+    stream: "eee",
+    competency_area: "Circuit Analysis",
+    skill: "Series RLC Resonance",
+    challenge_type: "investigation",
+    title: "Find the Resonance Condition on a Series RLC Test Bench",
+    scenario: "A bench is wired as a series R-L-C circuit driven by a variable-frequency source, with a voltmeter and ammeter across the components.",
+    mission: "Sweep the source frequency and find the operating condition where the circuit approaches resonance.",
+    learning_objective: "Recognize the resonance condition in a series RLC circuit — current peaks and the circuit becomes purely resistive when inductive and capacitive reactance cancel.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Use the frequency control to sweep the test bench and observe the current, impedance, and phase readouts, then submit your finding.",
+    inputs: {
+      responseFields: [
+        { key: "resonanceFrequencyHz", label: "Resonance frequency", type: "number", unit: "Hz", step: "1" },
+        { key: "behavior", label: "What happens to the current at that frequency?", type: "select", options: ["Current reaches its maximum value", "Current reaches its minimum value", "Voltage across R drops to zero", "Circuit becomes purely inductive"] },
+        { key: "conclusion", label: "What can you conclude about the circuit at that frequency?", type: "select", options: ["The circuit is purely resistive at this frequency", "The circuit is purely capacitive at this frequency", "The circuit is purely inductive at this frequency", "No current flows at this frequency"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "rlc_lab",
+    verification_definition: {
+      simulation: {
+        resistanceOhms: 20, inductanceH: 0.02, capacitanceF: 50e-6, sourceVoltageV: 12,
+        freqMinHz: 50, freqMaxHz: 500, sweepSteps: 90,
+      },
+      rules: [
+        { field: "resonanceFrequencyHz", numeric: { expected: 159.15, tolerance: 8 } },
+        { field: "behavior", equals: "Current reaches its maximum value" },
+        { field: "conclusion", equals: "The circuit is purely resistive at this frequency" },
+      ],
+    },
+    points: 20,
+    explanation: "At resonance, inductive reactance (2*pi*f*L) equals capacitive reactance (1/(2*pi*f*C)), so they cancel — impedance drops to just R, current peaks, and the circuit is purely resistive. For this bench (L=20mH, C=50µF), that occurs near f0 = 1/(2*pi*sqrt(LC)) ≈ 159 Hz.",
+    tags: ["eee", "circuits", "rlc", "resonance", "investigation"],
+  },
 ]

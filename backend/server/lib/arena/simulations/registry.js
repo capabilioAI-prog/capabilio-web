@@ -8,6 +8,7 @@
  */
 import { SIMULATION_TYPE as WAVEFORM_LAB, generateWaveformState } from "./waveformLab.js"
 import { SIMULATION_TYPE as COMPRESSION_LAB, generateCompressionState } from "./compressionLab.js"
+import { SIMULATION_TYPE as RLC_LAB, generateRlcState } from "./rlcLab.js"
 
 export const SIMULATION_REGISTRY = {
   [WAVEFORM_LAB]: {
@@ -24,7 +25,21 @@ export const SIMULATION_REGISTRY = {
     supportedChallengeTypes: ["diagnosis", "investigation", "decision_making"],
     generate: generateCompressionState,
   },
+  [RLC_LAB]: {
+    id: RLC_LAB,
+    name: "Electrical Circuit Lab",
+    supportedStreams: ["eee"],
+    supportedChallengeTypes: ["investigation", "diagnosis", "calculation"],
+    generate: generateRlcState,
+  },
 }
+
+// Roadmap (spec §20, §29-32) — additional EEE simulation families this
+// registry is designed to grow into next: motor_fault_lab, power_factor_lab,
+// control_response_lab, electrical_measurement_lab. Not registered yet —
+// an unimplemented entry here would let content validation accept a
+// simulation_type with no working generator, breaking the UI it renders
+// into. Add each only alongside its own generator module, same as rlc_lab.
 
 export const SIMULATION_TYPES = Object.keys(SIMULATION_REGISTRY)
 

@@ -25,7 +25,7 @@ export const STREAM_TAXONOMY = {
   eee: {
     name: "Electrical & Electronics",
     competencyAreas: ["Circuit Analysis", "Electrical Measurements", "Electrical Machines", "Power Systems", "Control Systems", "Power Electronics", "Transformers", "Motors"],
-    vocabulary: ["voltage", "current", "resistance", "impedance", "transformer", "motor", "winding", "torque", "power factor", "relay", "circuit breaker", "load", "generator", "rms", "phasor", "harmonics", "grid", "substation", "pid", "feedback loop", "pole", "transfer function", "closed-loop", "stability"],
+    vocabulary: ["voltage", "current", "resistance", "impedance", "transformer", "motor", "winding", "torque", "power factor", "relay", "circuit breaker", "load", "generator", "rms", "phasor", "harmonics", "grid", "substation", "pid", "feedback loop", "pole", "transfer function", "closed-loop", "stability", "resonance", "reactance", "inductor", "capacitor"],
   },
   mechanical: {
     name: "Mechanical Engineering",

@@ -2,14 +2,16 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import { SIMULATION_TYPES, isKnownSimulationType, validateSimulationCompatibility, getSimulationState } from "./registry.js"
 
-test("registry lists exactly the two vertical-slice simulation types", () => {
-  assert.deepEqual(new Set(SIMULATION_TYPES), new Set(["waveform_lab", "compression_lab"]))
+test("registry lists exactly the three vertical-slice simulation types", () => {
+  assert.deepEqual(new Set(SIMULATION_TYPES), new Set(["waveform_lab", "compression_lab", "rlc_lab"]))
 })
 
 test("isKnownSimulationType rejects anything not in the registry", () => {
   assert.ok(isKnownSimulationType("waveform_lab"))
   assert.ok(isKnownSimulationType("compression_lab"))
+  assert.ok(isKnownSimulationType("rlc_lab"))
   assert.ok(!isKnownSimulationType("quantumOscilloscopeRocket"))
+  assert.ok(!isKnownSimulationType("motor_fault_lab"), "roadmap types must not validate until they have a real generator")
 })
 
 test("validateSimulationCompatibility passes null simulation_type through (non-simulation challenges)", () => {
@@ -46,4 +48,16 @@ test("getSimulationState dispatches to the right generator", () => {
 test("getSimulationState returns null for an unknown type or missing recipe, never throws", () => {
   assert.equal(getSimulationState("quantumOscilloscopeRocket", {}), null)
   assert.equal(getSimulationState("waveform_lab", null), null)
+})
+
+test("rlc_lab is registered for eee investigation/diagnosis/calculation challenges only", () => {
+  assert.deepEqual(validateSimulationCompatibility("rlc_lab", { streamSlug: "eee", challengeType: "investigation" }), { ok: true })
+  assert.equal(validateSimulationCompatibility("rlc_lab", { streamSlug: "ece", challengeType: "investigation" }).ok, false)
+  assert.equal(validateSimulationCompatibility("rlc_lab", { streamSlug: "eee", challengeType: "debugging" }).ok, false)
+})
+
+test("getSimulationState dispatches rlc_lab to its own generator", () => {
+  const state = getSimulationState("rlc_lab", { resistanceOhms: 20, inductanceH: 0.02, capacitanceF: 50e-6, sourceVoltageV: 12, freqMinHz: 50, freqMaxHz: 500, sweepSteps: 10 })
+  assert.equal(state.simulationType, "rlc_lab")
+  assert.equal(state.points.length, 11)
 })

@@ -38,6 +38,34 @@ test("rule_based: a missing answer field fails rather than throwing", async () =
   assert.equal(result.passed, false)
 })
 
+test("rule_based: a numeric rule passes within tolerance and fails outside it (e.g. a simulation's computed resonance frequency)", async () => {
+  const def = { rules: [{ field: "resonanceFrequencyHz", numeric: { expected: 159.15, tolerance: 8 } }] }
+  const within = await verifyMission("rule_based", { answers: { resonanceFrequencyHz: "162" } }, def)
+  assert.equal(within.passed, true)
+  const outside = await verifyMission("rule_based", { answers: { resonanceFrequencyHz: "200" } }, def)
+  assert.equal(outside.passed, false)
+})
+
+test("rule_based: a non-numeric submission against a numeric rule fails cleanly, never throws", async () => {
+  const def = { rules: [{ field: "resonanceFrequencyHz", numeric: { expected: 159, tolerance: 5 } }] }
+  const result = await verifyMission("rule_based", { answers: { resonanceFrequencyHz: "not a number" } }, def)
+  assert.equal(result.passed, false)
+})
+
+test("rule_based: numeric and equals rules combine — every rule (numeric or categorical) must match to pass", async () => {
+  const def = {
+    rules: [
+      { field: "resonanceFrequencyHz", numeric: { expected: 159, tolerance: 5 } },
+      { field: "behavior", equals: "Current reaches its maximum value" },
+    ],
+  }
+  const bothCorrect = await verifyMission("rule_based", { answers: { resonanceFrequencyHz: "160", behavior: "current reaches its maximum value" } }, def)
+  assert.equal(bothCorrect.passed, true)
+  const onlyOneCorrect = await verifyMission("rule_based", { answers: { resonanceFrequencyHz: "160", behavior: "wrong" } }, def)
+  assert.equal(onlyOneCorrect.passed, false)
+  assert.equal(onlyOneCorrect.score, 50)
+})
+
 test("rubric: deterministic keyword scoring, not an LLM decision — same input always produces the same score", async () => {
   const def = { field: "explanation", criteria: [{ keyword: "overfitting", weight: 2 }, { keyword: "validation", weight: 1 }], passThreshold: 60 }
   const response = { answers: { explanation: "The gap between train and validation accuracy suggests overfitting." } }

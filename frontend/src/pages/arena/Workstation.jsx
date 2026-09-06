@@ -173,6 +173,19 @@ function ResponseField({ field, value, onChange }) {
       </div>
     )
   }
+  if (field.type === "number") {
+    return (
+      <div>
+        <label style={labelStyle}>{field.label}</label>
+        <input
+          type="number" inputMode="decimal" step={field.step ?? "any"} value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || "0"}
+          style={{ ...inputStyle, fontFamily: A.mono }}
+        />
+        {field.unit && <div style={{ fontSize: 11, color: A.muted, marginTop: 4 }}>{field.unit}</div>}
+      </div>
+    )
+  }
   return (
     <div>
       <label style={labelStyle}>{field.label}</label>

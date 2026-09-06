@@ -67,16 +67,28 @@ function verifyNumericTolerance(response, definition) {
 
 /** verification_type: rule_based (workstation_type: structured_response | decision | log_investigation).
  *  response: { answers: Record<string, string> }
- *  verification_definition: { rules: [{ field, equals }] } — every rule must match. */
+ *  verification_definition: { rules: [{ field, equals } | { field, numeric: { expected, tolerance } }] } —
+ *  every rule must match. A `numeric` rule (added for simulation missions
+ *  like the EEE RLC lab's resonance-frequency field, where the correct
+ *  answer is a computed value with a tolerance band, not a fixed string)
+ *  parses the submission as a number and checks it's within tolerance of
+ *  the expected value; a plain `equals` rule keeps its original
+ *  case-insensitive string comparison for categorical fields. */
 function verifyRuleBased(response, definition) {
   const answers = response.answers || {}
   const rules = definition.rules || []
   if (rules.length === 0) return { passed: false, score: 0, detail: { error: "No rules defined." } }
   let matched = 0
   const results = rules.map((rule) => {
-    const submitted = (answers[rule.field] ?? "").toString().trim().toLowerCase()
-    const expected = (rule.equals ?? "").toString().trim().toLowerCase()
-    const ok = submitted === expected
+    let ok
+    if (rule.numeric) {
+      const submitted = Number(answers[rule.field])
+      ok = Number.isFinite(submitted) && Math.abs(submitted - rule.numeric.expected) <= (rule.numeric.tolerance ?? 0)
+    } else {
+      const submitted = (answers[rule.field] ?? "").toString().trim().toLowerCase()
+      const expected = (rule.equals ?? "").toString().trim().toLowerCase()
+      ok = submitted === expected
+    }
     if (ok) matched++
     return { field: rule.field, ok }
   })

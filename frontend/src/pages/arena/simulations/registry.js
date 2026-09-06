@@ -8,4 +8,5 @@ import { lazy } from "react"
 export const SIMULATION_COMPONENTS = {
   waveform_lab: lazy(() => import("./WaveformLab.jsx")),
   compression_lab: lazy(() => import("./CompressionLab.jsx")),
+  rlc_lab: lazy(() => import("./RlcLab.jsx")),
 }

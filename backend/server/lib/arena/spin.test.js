@@ -14,6 +14,7 @@ const STUDENT_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 const STUDENT_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 const STREAM_CSE = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 const STREAM_ECE = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+const STREAM_EEE = "44444444-4444-4444-4444-444444444444"
 
 function makeChallenge(i, type, streamId = STREAM_CSE) {
   return {
@@ -98,6 +99,7 @@ function makeState() {
     challenges: [
       ...Array.from({ length: 12 }, (_, i) => makeChallenge(i, i % 3 === 0 ? "debugging" : i % 3 === 1 ? "calculation" : "diagnosis", STREAM_CSE)),
       ...Array.from({ length: 12 }, (_, i) => makeChallenge(i, i % 3 === 0 ? "debugging" : i % 3 === 1 ? "calculation" : "diagnosis", STREAM_ECE)),
+      ...Array.from({ length: 12 }, (_, i) => makeChallenge(i, i % 3 === 0 ? "debugging" : i % 3 === 1 ? "calculation" : "diagnosis", STREAM_EEE)),
     ],
   }
 }
@@ -145,6 +147,22 @@ test("assigned missions contain no duplicate challenge ids", async () => {
   const result = await spinOrGetAllocation({ studentId: STUDENT_A, streamId: STREAM_CSE, streamSlug: "cse" })
   const ids = result.missions.map((m) => m.challenge_id)
   assert.equal(new Set(ids).size, ids.length)
+})
+
+test("cross-stream isolation (spec §43): an EEE spin allocates only EEE challenges, never CSE or ECE ones, and vice versa", async () => {
+  const eeeChallengeIds = new Set(sharedState.challenges.filter((c) => c.stream_id === STREAM_EEE).map((c) => c.id))
+  const cseAndEceIds = new Set(sharedState.challenges.filter((c) => c.stream_id !== STREAM_EEE).map((c) => c.id))
+
+  const eeeResult = await spinOrGetAllocation({ studentId: STUDENT_A, streamId: STREAM_EEE, streamSlug: "eee" })
+  for (const m of eeeResult.missions) {
+    assert.ok(eeeChallengeIds.has(m.challenge_id), `mission ${m.challenge_id} leaked into an EEE allocation from another stream`)
+    assert.ok(!cseAndEceIds.has(m.challenge_id))
+  }
+
+  const cseResult = await spinOrGetAllocation({ studentId: STUDENT_B, streamId: STREAM_CSE, streamSlug: "cse" })
+  for (const m of cseResult.missions) {
+    assert.ok(!eeeChallengeIds.has(m.challenge_id), `an EEE challenge leaked into a CSE allocation`)
+  }
 })
 
 test("a CSE student receives ONLY CSE challenges, never ECE (stream is the only selector)", async () => {
