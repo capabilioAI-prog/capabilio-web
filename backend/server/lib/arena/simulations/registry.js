@@ -9,6 +9,8 @@
 import { SIMULATION_TYPE as WAVEFORM_LAB, generateWaveformState } from "./waveformLab.js"
 import { SIMULATION_TYPE as COMPRESSION_LAB, generateCompressionState } from "./compressionLab.js"
 import { SIMULATION_TYPE as RLC_LAB, generateRlcState } from "./rlcLab.js"
+import { SIMULATION_TYPE as BEAM_LAB, generateBeamState } from "./beamLab.js"
+import { SIMULATION_TYPE as OPERATIONS_LAB, generateOperationsState } from "./operationsLab.js"
 
 export const SIMULATION_REGISTRY = {
   [WAVEFORM_LAB]: {
@@ -17,6 +19,14 @@ export const SIMULATION_REGISTRY = {
     supportedStreams: ["ece"],
     supportedChallengeTypes: ["diagnosis", "investigation"],
     generate: generateWaveformState,
+    // Every generator here defaults missing recipe fields defensively (so
+    // a malformed AI response degrades to SOME trace rather than a 500)
+    // — which means "does it throw" alone can't detect a meaningless
+    // config (spec: "renderer exists but no meaningful interaction
+    // configuration"). requiredConfigKeys is the separate, explicit floor
+    // contentValidation.js checks: an authored config missing these isn't
+    // a real dual-channel scope, whatever the generator falls back to.
+    requiredConfigKeys: ["channel1", "channel2"],
   },
   [COMPRESSION_LAB]: {
     id: COMPRESSION_LAB,
@@ -24,6 +34,7 @@ export const SIMULATION_REGISTRY = {
     supportedStreams: ["mechanical"],
     supportedChallengeTypes: ["diagnosis", "investigation", "decision_making"],
     generate: generateCompressionState,
+    requiredConfigKeys: ["elasticModulusMPa", "yieldStrainPct", "ultimateStrainPct", "ultimateStressMPa"],
   },
   [RLC_LAB]: {
     id: RLC_LAB,
@@ -31,15 +42,35 @@ export const SIMULATION_REGISTRY = {
     supportedStreams: ["eee"],
     supportedChallengeTypes: ["investigation", "diagnosis", "calculation"],
     generate: generateRlcState,
+    requiredConfigKeys: ["resistanceOhms", "inductanceH", "capacitanceF", "sourceVoltageV", "freqMinHz", "freqMaxHz"],
+  },
+  [BEAM_LAB]: {
+    id: BEAM_LAB,
+    name: "Structures Lab",
+    supportedStreams: ["civil"],
+    supportedChallengeTypes: ["diagnosis", "investigation", "calculation"],
+    generate: generateBeamState,
+    requiredConfigKeys: ["spanMm", "loadN", "loadPositionMm", "modulusMPa", "sectionWidthMm", "sectionHeightMm"],
+  },
+  [OPERATIONS_LAB]: {
+    id: OPERATIONS_LAB,
+    name: "Business Lab",
+    supportedStreams: ["mba"],
+    supportedChallengeTypes: ["decision_making", "investigation", "diagnosis"],
+    generate: generateOperationsState,
+    requiredConfigKeys: ["demandLowUnits", "demandHighUnits", "unitHoldingCost", "unitStockoutCost"],
   },
 }
 
-// Roadmap (spec §20, §29-32) — additional EEE simulation families this
-// registry is designed to grow into next: motor_fault_lab, power_factor_lab,
-// control_response_lab, electrical_measurement_lab. Not registered yet —
-// an unimplemented entry here would let content validation accept a
+// Roadmap (spec §20, §29-32) — additional simulation families this
+// registry is designed to grow into next: EEE motor_fault_lab/
+// power_factor_lab/control_response_lab/electrical_measurement_lab;
+// Mechanical vibration_lab/pneumatic_lab/measurement_lab/manufacturing_lab/
+// thermal_lab; Civil surveying_lab/soil_lab/hydraulics_lab; MBA
+// finance_lab/marketing_lab/hr_lab/strategy_lab. Not registered yet — an
+// unimplemented entry here would let content validation accept a
 // simulation_type with no working generator, breaking the UI it renders
-// into. Add each only alongside its own generator module, same as rlc_lab.
+// into. Add each only alongside its own generator module, same as the six above.
 
 export const SIMULATION_TYPES = Object.keys(SIMULATION_REGISTRY)
 
@@ -59,6 +90,21 @@ export function validateSimulationCompatibility(simulationType, { streamSlug, ch
   }
   if (!sim.supportedChallengeTypes.includes(challengeType)) {
     return { ok: false, reason: `simulation_type "${simulationType}" does not support challenge_type "${challengeType}" (supports: ${sim.supportedChallengeTypes.join(", ")})` }
+  }
+  return { ok: true }
+}
+
+/** Checks a candidate simulation_config actually declares the fields that
+ *  make this simulation type meaningful (spec §45: reject "a renderer
+ *  exists but the challenge has no meaningful interaction configuration").
+ *  Deliberately separate from getSimulationState — the generators default
+ *  missing fields defensively, so "does it throw" can't catch this. */
+export function validateSimulationConfigShape(simulationType, config) {
+  const sim = SIMULATION_REGISTRY[simulationType]
+  if (!sim) return { ok: false, reason: `simulation_type "${simulationType}" is not in the supported simulation registry` }
+  const missing = (sim.requiredConfigKeys || []).filter((key) => config?.[key] === undefined)
+  if (missing.length > 0) {
+    return { ok: false, reason: `simulation_config for "${simulationType}" is missing required key(s): ${missing.join(", ")} — not a meaningful interactive configuration` }
   }
   return { ok: true }
 }

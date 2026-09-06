@@ -9,4 +9,6 @@ export const SIMULATION_COMPONENTS = {
   waveform_lab: lazy(() => import("./WaveformLab.jsx")),
   compression_lab: lazy(() => import("./CompressionLab.jsx")),
   rlc_lab: lazy(() => import("./RlcLab.jsx")),
+  beam_lab: lazy(() => import("./BeamLab.jsx")),
+  operations_lab: lazy(() => import("./OperationsLab.jsx")),
 }
