@@ -15,6 +15,7 @@ import { getCurrentArenaWeek } from "../lib/arena/week.js"
 import { getWheelOutcomes } from "../lib/arena/config.js"
 import { spinOrGetAllocation, getCurrentAllocation, getAllocationForWeek } from "../lib/arena/spin.js"
 import { getChallengeById } from "../lib/arena/challengeRepository.js"
+import { getSimulationState } from "../lib/arena/simulations/registry.js"
 import { submitMission } from "../lib/arena/submission.js"
 import { getLeaderboard } from "../lib/arena/leaderboard.js"
 import { getStudentHistoryWithRank } from "../lib/arena/history.js"
@@ -115,8 +116,15 @@ router.get("/missions/:missionId", requireAuth, async (req, res) => {
     const challenge = await getChallengeById(mission.challenge_id)
     if (!challenge) return send(res, 404, { error: "not_found" })
 
-    // Never leak verification_definition to the client — that's the answer key.
+    // Compute the public simulation state (spec §20-21) BEFORE stripping
+    // verification_definition — the hidden recipe lives there and must
+    // never reach the client raw; only the deterministically-derived
+    // rendered state (e.g. waveform samples) is safe to send.
     const safeChallenge = { ...challenge }
+    if (challenge.simulation_type) {
+      safeChallenge.simulation = getSimulationState(challenge.simulation_type, challenge.verification_definition?.simulation)
+    }
+    // Never leak verification_definition to the client — that's the answer key.
     delete safeChallenge.verification_definition
     send(res, 200, { mission: { id: mission.id, status: mission.status, position: mission.position, score: mission.score, pointsAwarded: mission.points_awarded, verificationStatus: mission.verification_status }, challenge: safeChallenge })
   } catch (e) {

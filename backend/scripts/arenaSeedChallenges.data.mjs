@@ -990,4 +990,79 @@ export const SEED_CHALLENGES = [
     explanation: "Returning 200 OK for a missing resource breaks REST conventions and misleads clients (and caching/monitoring layers) into treating a failure as success. The correct status for 'resource does not exist' is 404 Not Found.",
     tags: ["apis", "rest", "http-status-codes"],
   },
+
+  // ─── Simulation vertical slice: ECE Signal Lab ─────────────────────────
+  {
+    stream: "ece",
+    competency_area: "Signals",
+    skill: "Waveform Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Distorted Sensor Waveform",
+    scenario: "A vibration sensor's output was captured on a dual-channel scope alongside a clean reference signal of the same frequency for comparison.",
+    mission: "Inspect both channels on the scope and determine what is wrong with the sensor's output.",
+    learning_objective: "Recognize amplitude clipping in a captured waveform and identify amplitude as the affected signal parameter.",
+    difficulty: "easy",
+    estimated_minutes: 8,
+    instructions: "Use the oscilloscope's timebase, averaging, and gain controls to inspect CH2 (sensor output) against CH1 (reference), then submit your diagnosis.",
+    inputs: {
+      responseFields: [
+        { key: "diagnosis", label: "What is wrong with CH2?", type: "select", options: ["Amplitude clipping", "Random noise", "DC offset drift", "Signal dropout"] },
+        { key: "cause", label: "Which signal parameter is responsible?", type: "select", options: ["Amplitude", "Frequency", "Phase", "Sampling rate"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "waveform_lab",
+    verification_definition: {
+      simulation: {
+        sampleCount: 400, durationMs: 20, seed: 7,
+        channel1: { label: "Reference (CH1)", frequencyHz: 500, amplitude: 1 },
+        channel2: { label: "Sensor Output (CH2)", frequencyHz: 500, amplitude: 1, anomaly: { type: "amplitude_clipping", severity: 0.55 } },
+      },
+      rules: [
+        { field: "diagnosis", equals: "Amplitude clipping" },
+        { field: "cause", equals: "Amplitude" },
+      ],
+    },
+    points: 15,
+    explanation: "CH2's peaks are flattened at a fixed ceiling/floor relative to CH1's smooth, undistorted sine — the signature of amplitude clipping, caused by the sensor's output exceeding its usable amplitude range.",
+    tags: ["ece", "signals", "waveform", "diagnosis", "oscilloscope"],
+  },
+
+  // ─── Simulation vertical slice: Mechanical Materials Lab ───────────────
+  {
+    stream: "mechanical",
+    competency_area: "Materials",
+    skill: "Compression Test Interpretation",
+    challenge_type: "diagnosis",
+    title: "Determine Whether the Specimen Passes Compression Spec",
+    scenario: "A batch-acceptance compression test was run on a structural specimen and the stress-strain trace was captured for review against the acceptance spec.",
+    mission: "Step through the recorded test, identify where yielding begins, and decide whether the specimen meets the acceptance spec.",
+    learning_objective: "Read a stress-strain curve and classify specimen behavior against a yield-based acceptance threshold.",
+    difficulty: "easy",
+    estimated_minutes: 9,
+    instructions: "Use the load control to step through the captured test up to full load, compare where the curve leaves its elastic slope against the spec threshold line, then submit your classification.",
+    inputs: {
+      acceptanceStrainPct: 1.0,
+      responseFields: [
+        { key: "diagnosis", label: "Does the specimen pass the acceptance spec?", type: "select", options: ["Passes — stays within elastic limit past spec load", "Fails — yields before spec load", "Fails — fractures before spec load"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "compression_lab",
+    verification_definition: {
+      simulation: {
+        steps: 40, maxStrainPct: 3, elasticModulusMPa: 20000,
+        yieldStrainPct: 0.6, ultimateStrainPct: 1.8, ultimateStressMPa: 145,
+        specimenLabel: "Specimen C-14",
+      },
+      rules: [{ field: "diagnosis", equals: "Fails — yields before spec load" }],
+    },
+    points: 15,
+    explanation: "The trace departs from its initial straight-line elastic slope at about 0.6% strain — before the 1.0% spec threshold — so the specimen yields before reaching the required load and fails acceptance.",
+    tags: ["mechanical", "materials", "compression", "diagnosis", "stress-strain"],
+  },
 ]

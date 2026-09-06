@@ -3,6 +3,7 @@ import { arenaApi } from "../../lib/api"
 import { A } from "./tokens"
 import MissionHeader from "./MissionHeader"
 import MissionContext from "./MissionContext"
+import SimulationShell from "./SimulationShell"
 import Workstation, { getInitialResponse } from "./Workstation"
 import EvidencePanel from "./EvidencePanel"
 import SubmissionResult from "./SubmissionResult"
@@ -84,6 +85,7 @@ export default function MissionWorkspace({ missionId, streamSlug, onClose, onRes
           />
         ) : (
           <>
+            <SimulationShell challenge={challenge} />
             <Workstation challenge={challenge} value={response} onChange={setResponse} />
             <EvidencePanel challenge={challenge} />
             <div style={{ marginTop: 22, display: "flex", justifyContent: "flex-end" }}>

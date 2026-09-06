@@ -15,6 +15,7 @@
 import crypto from "crypto"
 import { ChallengeContentSchema, validateWorkstationVerificationCompat } from "./contentSchema.js"
 import { getStreamTaxonomy } from "./streamTaxonomy.js"
+import { validateSimulationCompatibility } from "./simulations/registry.js"
 import { supabaseAdmin } from "../supabase.js"
 
 /** Stable fingerprint: normalized title + scenario + mission, so trivial
@@ -72,6 +73,9 @@ export async function validateChallengeContent(rawContent, { streamId, streamSlu
 
   const compat = validateWorkstationVerificationCompat(content)
   if (!compat.ok) return { ok: false, stage: "workstation_verification_compat", reason: compat.reason }
+
+  const simCompat = validateSimulationCompatibility(content.simulation_type, { streamSlug, challengeType: content.challenge_type })
+  if (!simCompat.ok) return { ok: false, stage: "simulation_compat", reason: simCompat.reason }
 
   const fingerprint = computeContentFingerprint(content)
   const isDuplicate = await checkDuplicate(streamId, fingerprint)

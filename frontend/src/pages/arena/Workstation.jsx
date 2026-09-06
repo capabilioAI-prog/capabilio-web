@@ -13,6 +13,7 @@ async function loadSqlLang() { return (await import("@codemirror/lang-sql")).sql
 // workstationDefaults.js (plain .js, no JSX) so it can be unit-tested
 // directly with node:test, which cannot parse this file's JSX.
 export { getInitialResponse } from "./workstationDefaults.js"
+import { getResponseFields, buildAnswerUpdate } from "./workstationDefaults.js"
 
 /**
  * Workstation — the primary, 80%-of-the-screen work surface (spec §20-21).
@@ -30,16 +31,18 @@ export default function Workstation({ challenge, value, onChange }) {
     case "calculation":
       return <CalculationPanel family={family} numericValue={value.numericValue || ""} onChange={(numericValue) => onChange({ ...value, numericValue })} />
     default:
-      // structured_response / decision / log_investigation share the same
-      // short-answer + explanation input shape, framed distinctly per type.
+      // structured_response / decision / log_investigation render one
+      // control per the challenge's own response_schema (spec §19) —
+      // a diagnosis mission declares exactly the fields its finding needs
+      // (e.g. "diagnosis" + "cause" as selects); anything else falls back
+      // to a generic answer/reasoning pair.
       return (
         <DecisionPanel
           family={family}
           workstationType={challenge.workstation_type}
-          answer={value.answer || ""}
-          explanation={value.explanation || ""}
-          onAnswerChange={(answer) => onChange({ ...value, answer })}
-          onExplanationChange={(explanation) => onChange({ ...value, explanation })}
+          fields={getResponseFields(challenge)}
+          answers={value.answers || {}}
+          onFieldChange={(key, fieldValue) => onChange(buildAnswerUpdate(value, key, fieldValue))}
         />
       )
   }
@@ -128,30 +131,56 @@ const WORKSTATION_FRAME_LABEL = {
   log_investigation: "Log Investigation",
 }
 
-function DecisionPanel({ family, workstationType, answer, explanation, onAnswerChange, onExplanationChange }) {
+function DecisionPanel({ family, workstationType, fields, answers, onFieldChange }) {
   return (
     <div style={{ borderRadius: A.radiusSm, border: `1px solid ${A.border}`, overflow: "hidden" }}>
       <div style={{ background: family.bg, padding: "10px 16px", fontSize: 10.5, fontWeight: 800, color: family.accent, textTransform: "uppercase", letterSpacing: "0.08em" }}>
         {WORKSTATION_FRAME_LABEL[workstationType] || "Response"}
       </div>
       <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14, background: A.card }}>
-        <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: A.ink3, marginBottom: 6 }}>Your answer</label>
-          <input
-            type="text" value={answer} onChange={(e) => onAnswerChange(e.target.value)}
-            placeholder="Short answer — e.g. the exact option named in the instructions"
-            style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1.5px solid ${A.border}`, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit" }}
-          />
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: A.ink3, marginBottom: 6 }}>Your reasoning (optional, used for explanation-graded missions)</label>
-          <textarea
-            value={explanation} onChange={(e) => onExplanationChange(e.target.value)}
-            placeholder="Explain your reasoning…"
-            style={{ width: "100%", minHeight: 100, padding: 12, borderRadius: 10, border: `1.5px solid ${A.border}`, fontSize: 13, color: A.ink, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
-          />
-        </div>
+        {fields.map((field) => (
+          <ResponseField key={field.key} field={field} value={answers[field.key] || ""} onChange={(v) => onFieldChange(field.key, v)} />
+        ))}
       </div>
+    </div>
+  )
+}
+
+function ResponseField({ field, value, onChange }) {
+  const labelStyle = { display: "block", fontSize: 12, fontWeight: 700, color: A.ink3, marginBottom: 6 }
+  const inputStyle = { width: "100%", padding: "12px 14px", borderRadius: 10, border: `1.5px solid ${A.border}`, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", background: "#fff" }
+
+  if (field.type === "select") {
+    return (
+      <div>
+        <label style={labelStyle}>{field.label}</label>
+        <select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+          <option value="" disabled>Choose one…</option>
+          {(field.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
+      </div>
+    )
+  }
+  if (field.type === "textarea") {
+    return (
+      <div>
+        <label style={labelStyle}>{field.label}</label>
+        <textarea
+          value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || "Explain your reasoning…"}
+          style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
+        />
+      </div>
+    )
+  }
+  return (
+    <div>
+      <label style={labelStyle}>{field.label}</label>
+      <input
+        type="text" value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder || "Short answer — e.g. the exact option named in the instructions"}
+        style={inputStyle}
+      />
     </div>
   )
 }

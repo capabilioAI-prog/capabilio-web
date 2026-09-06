@@ -48,6 +48,12 @@ export const ChallengeContentSchema = z.object({
   points: z.number().int().min(5).max(50).default(10),
   explanation: z.string().optional().nullable(),
   tags: z.array(z.string()).default([]),
+  // Orthogonal to workstation_type — names which micro-lab (spec §5, §35)
+  // renders above the response panel. null/absent for plain coding/SQL/
+  // decision challenges with no simulation. Enum membership is checked
+  // against the live simulation registry in contentValidation.js, not
+  // here, to avoid this schema module depending on the simulations tree.
+  simulation_type: z.string().min(2).optional().nullable(),
 })
 
 /** Deterministic rules that don't need a model call (spec §33/§39: handle

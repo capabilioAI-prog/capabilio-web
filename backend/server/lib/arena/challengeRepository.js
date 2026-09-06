@@ -6,7 +6,7 @@
  */
 import { supabaseAdmin } from "../supabase.js"
 
-const CHALLENGE_COLUMNS = "id, stream_id, competency_area, skill, skill_graph_node_id, challenge_type, title, scenario, mission, learning_objective, difficulty, estimated_minutes, instructions, inputs, expected_output, workstation_type, verification_type, verification_definition, points, explanation, tags, version"
+const CHALLENGE_COLUMNS = "id, stream_id, competency_area, skill, skill_graph_node_id, challenge_type, title, scenario, mission, learning_objective, difficulty, estimated_minutes, instructions, inputs, expected_output, workstation_type, verification_type, verification_definition, simulation_type, points, explanation, tags, version"
 
 /** Best-effort skill_graph_nodes match by label — same honesty contract as
  *  the rest of this codebase's skill-graph integrations: null, never
@@ -62,6 +62,7 @@ export async function insertChallenge(content, { streamId, fingerprint, source }
       workstation_type: content.workstation_type,
       verification_type: content.verification_type,
       verification_definition: content.verification_definition,
+      simulation_type: content.simulation_type || null,
       points: content.points || 10,
       explanation: content.explanation || null,
       tags: content.tags || [],
