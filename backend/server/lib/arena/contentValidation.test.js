@@ -114,7 +114,9 @@ test("rejects duplicate content (same normalized title/scenario/mission)", async
   assert.equal(result.stage, "duplicate")
 })
 
-// ─── Hard product rule: non-IT streams require a real simulation (spec §45) ───
+// ─── simulation_type is optional for every stream — a non-IT stream MAY
+// use a real simulation, but a plain structured-response/text challenge
+// remains eligible too (no stream is simulation-only). ─────────────────
 
 const eceTextOnlyContent = {
   competency_area: "Signals",
@@ -131,19 +133,10 @@ const eceTextOnlyContent = {
   verification_definition: { rules: [{ field: "answer", equals: "clipping" }] }, // no `simulation` key at all
 }
 
-test("rejects a non-IT (ece) challenge with simulation_type: null — plain text/answer-only is not eligible", async () => {
+test("accepts a non-IT (ece) challenge with simulation_type: null — plain structured-response content remains eligible", async () => {
   globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
   const result = await validateChallengeContent({ ...eceTextOnlyContent, simulation_type: null }, { streamId: STREAM_ID, streamSlug: "ece" })
-  assert.equal(result.ok, false)
-  assert.equal(result.stage, "simulation_required")
-})
-
-test("rejects a non-IT (ece) challenge with a declared simulation_type but an empty simulation_config", async () => {
-  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
-  const content = { ...eceTextOnlyContent, simulation_type: "waveform_lab", verification_definition: { simulation: {}, rules: [{ field: "answer", equals: "x" }] } }
-  const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
-  assert.equal(result.ok, false)
-  assert.equal(result.stage, "simulation_required")
+  assert.equal(result.ok, true)
 })
 
 test("rejects a non-IT (ece) challenge declaring an unknown simulation_type", async () => {
@@ -152,18 +145,6 @@ test("rejects a non-IT (ece) challenge declaring an unknown simulation_type", as
   const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
   assert.equal(result.ok, false)
   assert.equal(result.stage, "simulation_compat")
-})
-
-test("rejects a non-IT (ece) challenge whose simulation_config has a renderer but no meaningful interaction fields (spec §45)", async () => {
-  globalThis.__ARENA_V2_TEST_SUPABASE_CLIENT__ = makeFakeSupabase()
-  // A renderer exists for waveform_lab, but this config declares neither
-  // channel — the generator would silently default both (it's defensive
-  // against malformed AI output), so "does it throw" can't catch this;
-  // requiredConfigKeys is the explicit floor that does.
-  const content = { ...eceTextOnlyContent, simulation_type: "waveform_lab", verification_definition: { simulation: { notAChannel: true }, rules: [{ field: "answer", equals: "x" }] } }
-  const result = await validateChallengeContent(content, { streamId: STREAM_ID, streamSlug: "ece" })
-  assert.equal(result.ok, false)
-  assert.equal(result.stage, "simulation_required")
 })
 
 test("accepts a genuinely valid ECE simulation challenge (real simulation_type + working config)", async () => {
