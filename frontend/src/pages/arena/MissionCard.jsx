@@ -28,53 +28,45 @@ export default function MissionCard({ mission, onOpen }) {
       whileTap={canOpen ? { y: -1 } : {}}
       transition={{ duration: 0.15 }}
       style={{
-        textAlign: "left", padding: "20px 22px", borderRadius: A.radius, border: `1px solid ${A.border}`,
+        textAlign: "left", padding: "22px 24px", borderRadius: 20, border: "none",
         background: family.bg, cursor: canOpen ? "pointer" : "default", fontFamily: "inherit",
-        display: "flex", flexDirection: "column", gap: 12, position: "relative", overflow: "hidden",
-        opacity: completed ? 0.75 : 1, width: "100%", boxSizing: "border-box",
+        display: "flex", flexDirection: "column", gap: 14, position: "relative", overflow: "hidden",
+        opacity: completed ? 0.7 : 1, width: "100%", boxSizing: "border-box", minHeight: 176,
       }}
     >
       <style>{`.arena-mission-card:hover .arena-mission-arrow { transform: translateX(3px); }`}</style>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontFamily: A.mono, fontSize: 14, fontWeight: 800, color: family.accent, lineHeight: 1 }}>&gt;_</span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: family.accent, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            {diff.label}
+          </span>
+        </div>
         <div style={{
-          fontFamily: A.mono, fontSize: 12, fontWeight: 700, color: family.accent,
-          background: "rgba(255,255,255,0.6)", padding: "3px 9px", borderRadius: 999,
+          fontSize: 12.5, fontWeight: 800, color: family.accent, background: "rgba(255,255,255,0.85)",
+          padding: "4px 12px", borderRadius: 999, whiteSpace: "nowrap",
         }}>
-          {String(mission.position).padStart(2, "0")}
+          +{c.points} Pts
         </div>
-        <div style={{ fontSize: 13, fontWeight: 900, color: family.accent }}>+{c.points} PTS</div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-        <span style={{ fontSize: 16, color: family.accent, lineHeight: 1 }}>{family.glyph}</span>
-        <span style={{ fontSize: 10.5, fontWeight: 800, color: family.accent, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div>
+        <div style={{ fontSize: 19, fontWeight: 800, color: A.ink, lineHeight: 1.3, marginBottom: 6 }}>{c.title}</div>
+        <div style={{ fontSize: 12.5, color: "rgba(24,24,34,0.6)", lineHeight: 1.5 }}>
           {c.competency_area} · {WORKSTATION_LABEL[c.workstation_type] || c.workstation_type}
-        </span>
-      </div>
-
-      <div style={{ fontSize: 17, fontWeight: 800, color: A.ink, lineHeight: 1.3 }}>{c.title}</div>
-
-      {c.mission && (
-        <div style={{ fontSize: 12.5, color: A.ink3, lineHeight: 1.55, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-          {c.mission}
         </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
-        <span style={{ fontSize: 11.5, color: A.ink3 }}>⏱ {c.estimated_minutes} min</span>
-        <span style={{
-          fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999,
-          color: diff.color, background: diff.bg, textTransform: "uppercase", letterSpacing: "0.04em",
-        }}>
-          {diff.label}
-        </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4, paddingTop: 12, borderTop: `1px solid rgba(0,0,0,0.06)` }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: status.color }}>{status.label}</span>
-        {canOpen && (
-          <span style={{ fontSize: 12.5, fontWeight: 800, color: family.accent, display: "flex", alignItems: "center", gap: 4 }}>
-            Enter Mission
+      <div style={{ flex: 1 }} />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {completed ? (
+          <span style={{ fontSize: 13, fontWeight: 800, color: status.color, display: "flex", alignItems: "center", gap: 5 }}>
+            ✓ {status.label}
+          </span>
+        ) : (
+          <span style={{ fontSize: 13.5, fontWeight: 800, color: mission.status === "failed" ? A.rose : family.accent, display: "flex", alignItems: "center", gap: 5 }}>
+            {mission.status === "failed" ? "Try Again" : "Solve Task"}
             <span className="arena-mission-arrow" style={{ display: "inline-block", transition: "transform 0.15s ease" }}>→</span>
           </span>
         )}
