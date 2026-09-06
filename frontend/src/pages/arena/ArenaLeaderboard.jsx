@@ -7,9 +7,9 @@ import { A } from "./tokens"
  *  fabricated. Falls back to the stream's own slug, uppercased, for any
  *  stream not in this list rather than hiding the badge. */
 const STREAM_CODE = {
-  cse: "CSE", mca: "MCA", it: "IT", "ai-ml": "AI/ML", "ai-ds": "AI/DS",
+  cse: "CSE", it: "IT", "ai-ml": "AI/ML", "ai-ds": "AI/DS",
   "cyber-security": "CYBER", ece: "ECE", eee: "EEE", mechanical: "MECH",
-  civil: "CIVIL", mba: "MBA",
+  civil: "CIVIL",
 }
 function streamCode(stream) {
   if (!stream) return null

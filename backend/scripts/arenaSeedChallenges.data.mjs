@@ -1,15 +1,17 @@
 /**
- * arenaSeedChallenges.data.mjs — curated initial challenge library (spec
- * §59, §18). Four genuinely discipline-specific challenges per stream (44
- * total across 11 streams) — quality over quantity. Every entry goes
- * through the SAME validateChallengeContent pipeline AI-generated content
- * does (see arenaSeedChallenges.mjs) before being persisted; nothing here
- * is special-cased or exempt from the semantic-stream/vocabulary check.
+ * arenaSeedChallenges.data.mjs — curated initial challenge library across
+ * the final 9-stream Arena set (cse, ece, eee, mechanical, civil, ai-ml,
+ * ai-ds, cyber-security, it — mba/mca are removed from Arena entirely).
+ * Every entry goes through the SAME validateChallengeContent pipeline
+ * AI-generated content does (see arenaSeedChallenges.mjs) before being
+ * persisted; nothing here is special-cased or exempt from the
+ * semantic-stream/vocabulary check.
  *
- * The library is meant to grow via the AI generation fallback as real
- * weekly demand exceeds it (spec §41) — this seed only needs to be large
- * enough that most weeks don't have to lean on generation for every
- * student in every stream.
+ * ece/eee/mechanical/civil carry only simulation_type content (the
+ * non-IT simulation-only hard gate) — see also
+ * arenaGenerateSimVariants.mjs, which procedurally backfills each of
+ * those streams' pool up to 12 (the wheel's max weekly outcome) so the
+ * gate never starves a spin.
  */
 
 export const SEED_CHALLENGES = [
@@ -125,8 +127,6 @@ export const SEED_CHALLENGES = [
   // ─── Mechanical ─────────────────────────────────────────────────────────
 
   // ─── Civil ────────────────────────────────────────────────────────────
-
-  // ─── MBA ──────────────────────────────────────────────────────────────
 
   // ─── AI/ML ────────────────────────────────────────────────────────────
   {
@@ -472,105 +472,6 @@ export const SEED_CHALLENGES = [
     tags: ["it", "databases", "query-performance"],
   },
 
-  // ─── MCA ──────────────────────────────────────────────────────────────
-  {
-    stream: "mca",
-    competency_area: "Programming",
-    skill: "String Processing",
-    challenge_type: "implementation",
-    title: "Find the First Non-Repeating Character in a String",
-    scenario: "A text-processing utility needs a function that identifies the first character in a string that does not repeat anywhere else in that string — a common building block for tokenizer and log-parsing utilities.",
-    mission: "Implement a function that returns the first non-repeating character in a given string, or '_' if none exists, and print the result.",
-    learning_objective: "Correctly implement a frequency-count-based string algorithm.",
-    difficulty: "easy",
-    estimated_minutes: 10,
-    instructions: "Implement `firstNonRepeating(s)` for the input \"swiss\" and print its result on one line.",
-    inputs: {
-      starterCode: "function firstNonRepeating(s) {\n  // TODO: implement\n}\nconsole.log(firstNonRepeating(\"swiss\"))",
-      language: "javascript",
-    },
-    expected_output: { stdout: "w" },
-    workstation_type: "coding",
-    verification_type: "test_cases",
-    verification_definition: { language: "javascript", testCases: [{ expectedStdout: "w" }] },
-    points: 10,
-    explanation: "In \"swiss\": s appears 3 times, w appears once, i appears once — w is the first character (by position) that appears exactly once.",
-    tags: ["programming", "strings", "frequency-count"],
-  },
-  {
-    stream: "mca",
-    competency_area: "Databases",
-    skill: "SQL Aggregation",
-    challenge_type: "data_interpretation",
-    title: "Find Departments With Above-Average Headcount",
-    scenario: "An HR system tracks employees per department. Management wants to know which departments are overstaffed relative to the company average.",
-    mission: "Write a SQL query that returns department names with more employees than the average department headcount.",
-    learning_objective: "Use a subquery/aggregate comparison — a step beyond a plain GROUP BY.",
-    difficulty: "medium",
-    estimated_minutes: 10,
-    instructions: "Query the `employees` table (columns: id, name, department) to find departments whose employee count exceeds the average employee count per department across all departments.",
-    inputs: {
-      dataset: {
-        tableName: "employees",
-        columns: ["id", "name", "department"],
-        rows: [[1, "A", "Engineering"], [2, "B", "Engineering"], [3, "C", "Engineering"], [4, "D", "Sales"], [5, "E", "Sales"], [6, "F", "HR"]],
-      },
-    },
-    expected_output: { columns: ["department"], rows: [["Engineering"]] },
-    workstation_type: "sql",
-    verification_type: "sql_result",
-    verification_definition: {
-      dataset: { tableName: "employees", columns: ["id", "name", "department"], rows: [[1, "A", "Engineering"], [2, "B", "Engineering"], [3, "C", "Engineering"], [4, "D", "Sales"], [5, "E", "Sales"], [6, "F", "HR"]] },
-      expectedResult: { columns: ["department"], rows: [["Engineering"]] },
-      matchMode: "unordered_rows",
-    },
-    points: 15,
-    explanation: "Average headcount per department = 6 employees / 3 departments = 2. Engineering has 3 (above average); Sales has 2 and HR has 1 (at or below average). Only Engineering qualifies.",
-    tags: ["databases", "sql", "aggregation"],
-  },
-  {
-    stream: "mca",
-    competency_area: "Testing",
-    skill: "Test Case Design",
-    challenge_type: "investigation",
-    title: "Identify the Missing Critical Test Case for a Division Function",
-    scenario: "A function `divide(a, b)` returns `a / b`. The existing test suite covers: dividing two positive integers, dividing a positive by a negative number, and dividing two negative numbers. There is no test for the case where `b` is 0.",
-    mission: "Identify which critical edge case is missing from the test suite.",
-    learning_objective: "Recognize division-by-zero as the single most important missing edge case for any division function.",
-    difficulty: "easy",
-    estimated_minutes: 6,
-    instructions: "Given the described test coverage, select the missing critical edge case: 'division_by_zero', 'negative_numbers', 'decimal_numbers', or 'large_numbers'.",
-    inputs: { existingTests: ["positive/positive", "positive/negative", "negative/negative"] },
-    expected_output: { answer: "division_by_zero" },
-    workstation_type: "structured_response",
-    verification_type: "rule_based",
-    verification_definition: { rules: [{ field: "answer", equals: "division_by_zero" }] },
-    points: 10,
-    explanation: "Division by zero is undefined behavior (or produces Infinity/NaN depending on the language) and is the single most critical edge case for any division function — its absence from the test suite is a serious gap, more urgent than the other listed options which are already partially covered by the described tests.",
-    tags: ["testing", "edge-cases", "test-design"],
-  },
-  {
-    stream: "mca",
-    competency_area: "APIs",
-    skill: "REST API Design",
-    challenge_type: "diagnosis",
-    title: "Diagnose Incorrect HTTP Status Code Usage in an API",
-    scenario: "A REST API's `GET /users/:id` endpoint returns HTTP status 200 with a JSON body `{ \"error\": \"User not found\" }` whenever the requested user does not exist, instead of a non-2xx status code.",
-    mission: "Identify the correct HTTP status code this endpoint should return instead.",
-    learning_objective: "Apply REST status-code conventions to a concrete API design flaw.",
-    difficulty: "easy",
-    estimated_minutes: 6,
-    instructions: "For a GET request to a resource that does not exist, the correct convention is HTTP 404 Not Found. Submit '404' as the answer.",
-    inputs: { currentBehavior: "returns 200 with error message body for missing resource" },
-    expected_output: { answer: "404" },
-    workstation_type: "structured_response",
-    verification_type: "rule_based",
-    verification_definition: { rules: [{ field: "answer", equals: "404" }] },
-    points: 10,
-    explanation: "Returning 200 OK for a missing resource breaks REST conventions and misleads clients (and caching/monitoring layers) into treating a failure as success. The correct status for 'resource does not exist' is 404 Not Found.",
-    tags: ["apis", "rest", "http-status-codes"],
-  },
-
   // ─── Simulation vertical slice: ECE Signal Lab ─────────────────────────
   {
     stream: "ece",
@@ -609,6 +510,117 @@ export const SEED_CHALLENGES = [
     explanation: "CH2's peaks are flattened at a fixed ceiling/floor relative to CH1's smooth, undistorted sine — the signature of amplitude clipping, caused by the sensor's output exceeding its usable amplitude range.",
     tags: ["ece", "signals", "waveform", "diagnosis", "oscilloscope"],
   },
+  {
+    stream: "ece",
+    competency_area: "Signals",
+    skill: "Waveform Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Sensor Output Drifting Off Baseline",
+    scenario: "A temperature sensor's output was captured on a dual-channel scope alongside a clean reference signal of the same frequency, and the trace no longer sits centered on zero.",
+    mission: "Inspect both channels on the scope and determine what is wrong with the sensor's output.",
+    learning_objective: "Recognize a DC offset in a captured waveform and identify amplitude (the signal's baseline level) as the affected parameter.",
+    difficulty: "easy",
+    estimated_minutes: 8,
+    instructions: "Use the oscilloscope's timebase and gain controls to inspect CH2 (sensor output) against CH1 (reference), then submit your diagnosis.",
+    inputs: {
+      responseFields: [
+        { key: "diagnosis", label: "What is wrong with CH2?", type: "select", options: ["Amplitude clipping", "Random noise", "DC offset drift", "Signal dropout"] },
+        { key: "cause", label: "Which signal parameter is responsible?", type: "select", options: ["Amplitude", "Frequency", "Phase", "Sampling rate"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "waveform_lab",
+    verification_definition: {
+      simulation: {
+        sampleCount: 400, durationMs: 20, seed: 11,
+        channel1: { label: "Reference (CH1)", frequencyHz: 400, amplitude: 1 },
+        channel2: { label: "Sensor Output (CH2)", frequencyHz: 400, amplitude: 1, anomaly: { type: "dc_offset", severity: 0.6 } },
+      },
+      rules: [
+        { field: "diagnosis", equals: "DC offset drift" },
+        { field: "cause", equals: "Amplitude" },
+      ],
+    },
+    points: 15,
+    explanation: "CH2's entire waveform is shifted upward off the zero baseline while its shape and frequency stay identical to CH1 — a constant offset added to the signal's amplitude, the signature of DC offset drift.",
+    tags: ["ece", "signals", "waveform", "diagnosis", "oscilloscope"],
+  },
+  {
+    stream: "ece",
+    competency_area: "Signals",
+    skill: "Waveform Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Sensor Output With Missing Samples",
+    scenario: "A vibration sensor's output was captured on a dual-channel scope alongside a clean reference signal, and portions of the sensor trace read exactly zero at irregular points.",
+    mission: "Inspect both channels on the scope and determine what is wrong with the sensor's output.",
+    learning_objective: "Recognize intermittent dropout in a captured waveform and connect it to a sampling-related cause.",
+    difficulty: "easy",
+    estimated_minutes: 8,
+    instructions: "Use the oscilloscope's timebase controls to inspect CH2 (sensor output) against CH1 (reference), then submit your diagnosis.",
+    inputs: {
+      responseFields: [
+        { key: "diagnosis", label: "What is wrong with CH2?", type: "select", options: ["Amplitude clipping", "Random noise", "DC offset drift", "Signal dropout"] },
+        { key: "cause", label: "Which signal parameter is responsible?", type: "select", options: ["Amplitude", "Frequency", "Phase", "Sampling rate"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "waveform_lab",
+    verification_definition: {
+      simulation: {
+        sampleCount: 400, durationMs: 20, seed: 23,
+        channel1: { label: "Reference (CH1)", frequencyHz: 600, amplitude: 1 },
+        channel2: { label: "Sensor Output (CH2)", frequencyHz: 600, amplitude: 1, anomaly: { type: "dropout", severity: 0.15 } },
+      },
+      rules: [
+        { field: "diagnosis", equals: "Signal dropout" },
+        { field: "cause", equals: "Sampling rate" },
+      ],
+    },
+    points: 15,
+    explanation: "CH2 repeatedly flatlines to exactly zero at scattered points while CH1 stays smooth throughout — samples are being lost rather than distorted, the signature of intermittent dropout tied to sampling reliability.",
+    tags: ["ece", "signals", "waveform", "diagnosis", "oscilloscope"],
+  },
+  {
+    stream: "ece",
+    competency_area: "Signals",
+    skill: "Waveform Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Noisy Sensor Channel",
+    scenario: "A microphone's output was captured on a dual-channel scope alongside a clean reference tone of the same frequency for comparison during a bench test.",
+    mission: "Inspect both channels on the scope and determine what is wrong with the sensor's output.",
+    learning_objective: "Distinguish random noise from a periodic distortion in a captured waveform.",
+    difficulty: "easy",
+    estimated_minutes: 8,
+    instructions: "Use the oscilloscope's timebase and averaging controls to inspect CH2 (sensor output) against CH1 (reference), then submit your diagnosis.",
+    inputs: {
+      responseFields: [
+        { key: "diagnosis", label: "What is wrong with CH2?", type: "select", options: ["Amplitude clipping", "Random noise", "DC offset drift", "Signal dropout"] },
+        { key: "cause", label: "Which signal parameter is responsible?", type: "select", options: ["Amplitude", "Frequency", "Phase", "Sampling rate"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "waveform_lab",
+    verification_definition: {
+      simulation: {
+        sampleCount: 400, durationMs: 20, seed: 41,
+        channel1: { label: "Reference (CH1)", frequencyHz: 300, amplitude: 1 },
+        channel2: { label: "Sensor Output (CH2)", frequencyHz: 300, amplitude: 1, anomaly: { type: "added_noise", severity: 0.35 } },
+      },
+      rules: [
+        { field: "diagnosis", equals: "Random noise" },
+        { field: "cause", equals: "Amplitude" },
+      ],
+    },
+    points: 15,
+    explanation: "CH2 traces the same shape and frequency as CH1 but with irregular, non-repeating jitter added to every sample's amplitude — the signature of random noise, unlike the periodic pattern of clipping or a fixed offset.",
+    tags: ["ece", "signals", "waveform", "diagnosis", "oscilloscope"],
+  },
 
   // ─── Simulation vertical slice: Mechanical Materials Lab ───────────────
   {
@@ -643,6 +655,108 @@ export const SEED_CHALLENGES = [
     },
     points: 15,
     explanation: "The trace departs from its initial straight-line elastic slope at about 0.6% strain — before the 1.0% spec threshold — so the specimen yields before reaching the required load and fails acceptance.",
+    tags: ["mechanical", "materials", "compression", "diagnosis", "stress-strain"],
+  },
+  {
+    stream: "mechanical",
+    competency_area: "Materials",
+    skill: "Compression Test Interpretation",
+    challenge_type: "diagnosis",
+    title: "Verify a Cast Aluminum Bracket Against Acceptance Spec",
+    scenario: "A batch-acceptance compression test was run on a cast aluminum bracket and the stress-strain trace was captured for review against the acceptance spec.",
+    mission: "Step through the recorded test, identify where yielding begins, and decide whether the specimen meets the acceptance spec.",
+    learning_objective: "Read a stress-strain curve and classify specimen behavior against a yield-based acceptance threshold.",
+    difficulty: "easy",
+    estimated_minutes: 9,
+    instructions: "Use the load control to step through the captured test up to full load, compare where the curve leaves its elastic slope against the spec threshold line, then submit your classification.",
+    inputs: {
+      acceptanceStrainPct: 1.0,
+      responseFields: [
+        { key: "diagnosis", label: "Does the specimen pass the acceptance spec?", type: "select", options: ["Passes — stays within elastic limit past spec load", "Fails — yields before spec load", "Fails — fractures before spec load"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "compression_lab",
+    verification_definition: {
+      simulation: {
+        steps: 40, maxStrainPct: 3.5, elasticModulusMPa: 22000,
+        yieldStrainPct: 1.5, ultimateStrainPct: 2.8, ultimateStressMPa: 200,
+        specimenLabel: "Bracket AL-7",
+      },
+      rules: [{ field: "diagnosis", equals: "Passes — stays within elastic limit past spec load" }],
+    },
+    points: 15,
+    explanation: "The trace stays on its initial straight-line elastic slope well past the 1.0% spec threshold, only departing at about 1.5% strain — the specimen remains elastic through the required load and passes acceptance.",
+    tags: ["mechanical", "materials", "compression", "diagnosis", "stress-strain"],
+  },
+  {
+    stream: "mechanical",
+    competency_area: "Materials",
+    skill: "Compression Test Interpretation",
+    challenge_type: "diagnosis",
+    title: "Verify a Sintered Bronze Bushing Against Acceptance Spec",
+    scenario: "A batch-acceptance compression test was run on a sintered bronze bushing and the stress-strain trace was captured for review against the acceptance spec.",
+    mission: "Step through the recorded test, identify where the specimen fractures, and decide whether it meets the acceptance spec.",
+    learning_objective: "Recognize when a specimen's ultimate strength point falls before the required spec load, a more severe failure than merely yielding early.",
+    difficulty: "medium",
+    estimated_minutes: 9,
+    instructions: "Use the load control to step through the captured test up to full load, compare where the curve reaches its ultimate stress point against the spec threshold line, then submit your classification.",
+    inputs: {
+      acceptanceStrainPct: 1.5,
+      responseFields: [
+        { key: "diagnosis", label: "Does the specimen pass the acceptance spec?", type: "select", options: ["Passes — stays within elastic limit past spec load", "Fails — yields before spec load", "Fails — fractures before spec load"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "compression_lab",
+    verification_definition: {
+      simulation: {
+        steps: 40, maxStrainPct: 2, elasticModulusMPa: 15000,
+        yieldStrainPct: 0.5, ultimateStrainPct: 0.9, ultimateStressMPa: 90,
+        specimenLabel: "Bushing BR-3",
+      },
+      rules: [{ field: "diagnosis", equals: "Fails — fractures before spec load" }],
+    },
+    points: 15,
+    explanation: "The trace reaches its ultimate stress point at about 0.9% strain — well before the 1.5% spec threshold — meaning the specimen fractures before the required load is even reached, a more severe failure than early yielding alone.",
+    tags: ["mechanical", "materials", "compression", "diagnosis", "stress-strain"],
+  },
+  {
+    stream: "mechanical",
+    competency_area: "Materials",
+    skill: "Compression Test Interpretation",
+    challenge_type: "diagnosis",
+    title: "Verify a Forged Steel Coupling Against Acceptance Spec",
+    scenario: "A batch-acceptance compression test was run on a forged steel coupling and the stress-strain trace was captured for review against the acceptance spec.",
+    mission: "Step through the recorded test, identify where yielding begins, and decide whether the specimen meets the acceptance spec.",
+    learning_objective: "Read a stress-strain curve and classify specimen behavior against a yield-based acceptance threshold.",
+    difficulty: "easy",
+    estimated_minutes: 9,
+    instructions: "Use the load control to step through the captured test up to full load, compare where the curve leaves its elastic slope against the spec threshold line, then submit your classification.",
+    inputs: {
+      acceptanceStrainPct: 1.2,
+      responseFields: [
+        { key: "diagnosis", label: "Does the specimen pass the acceptance spec?", type: "select", options: ["Passes — stays within elastic limit past spec load", "Fails — yields before spec load", "Fails — fractures before spec load"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "compression_lab",
+    verification_definition: {
+      simulation: {
+        steps: 40, maxStrainPct: 2.5, elasticModulusMPa: 18000,
+        yieldStrainPct: 0.4, ultimateStrainPct: 1.5, ultimateStressMPa: 120,
+        specimenLabel: "Coupling FS-9",
+      },
+      rules: [{ field: "diagnosis", equals: "Fails — yields before spec load" }],
+    },
+    points: 15,
+    explanation: "The trace departs from its initial straight-line elastic slope at about 0.4% strain — before the 1.2% spec threshold — so the specimen yields before reaching the required load and fails acceptance.",
     tags: ["mechanical", "materials", "compression", "diagnosis", "stress-strain"],
   },
 
@@ -683,6 +797,120 @@ export const SEED_CHALLENGES = [
     },
     points: 20,
     explanation: "At resonance, inductive reactance (2*pi*f*L) equals capacitive reactance (1/(2*pi*f*C)), so they cancel — impedance drops to just R, current peaks, and the circuit is purely resistive. For this bench (L=20mH, C=50µF), that occurs near f0 = 1/(2*pi*sqrt(LC)) ≈ 159 Hz.",
+    tags: ["eee", "circuits", "rlc", "resonance", "investigation"],
+  },
+  {
+    stream: "eee",
+    competency_area: "Circuit Analysis",
+    skill: "Series RLC Resonance",
+    challenge_type: "investigation",
+    title: "Find the Resonance Condition on a Motor-Filter Test Bench",
+    scenario: "A bench models the filter network ahead of a motor drive, wired as a series R-L-C circuit driven by a variable-frequency source, with a voltmeter and ammeter across the components.",
+    mission: "Sweep the source frequency and find the operating condition where the circuit approaches resonance.",
+    learning_objective: "Recognize the resonance condition in a series RLC circuit — current peaks and the circuit becomes purely resistive when inductive and capacitive reactance cancel.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Use the frequency control to sweep the test bench and observe the current, impedance, and phase readouts, then submit your finding.",
+    inputs: {
+      responseFields: [
+        { key: "resonanceFrequencyHz", label: "Resonance frequency", type: "number", unit: "Hz", step: "1" },
+        { key: "behavior", label: "What happens to the current at that frequency?", type: "select", options: ["Current reaches its maximum value", "Current reaches its minimum value", "Voltage across R drops to zero", "Circuit becomes purely inductive"] },
+        { key: "conclusion", label: "What can you conclude about the circuit at that frequency?", type: "select", options: ["The circuit is purely resistive at this frequency", "The circuit is purely capacitive at this frequency", "The circuit is purely inductive at this frequency", "No current flows at this frequency"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "rlc_lab",
+    verification_definition: {
+      simulation: {
+        resistanceOhms: 12, inductanceH: 0.05, capacitanceF: 5e-6, sourceVoltageV: 24,
+        freqMinHz: 100, freqMaxHz: 500, sweepSteps: 90,
+      },
+      rules: [
+        { field: "resonanceFrequencyHz", numeric: { expected: 318.31, tolerance: 12 } },
+        { field: "behavior", equals: "Current reaches its maximum value" },
+        { field: "conclusion", equals: "The circuit is purely resistive at this frequency" },
+      ],
+    },
+    points: 20,
+    explanation: "At resonance, inductive reactance (2*pi*f*L) equals capacitive reactance (1/(2*pi*f*C)), so they cancel — impedance drops to just R, current peaks, and the circuit is purely resistive. For this bench (L=50mH, C=5µF), that occurs near f0 = 1/(2*pi*sqrt(LC)) ≈ 318 Hz.",
+    tags: ["eee", "circuits", "rlc", "resonance", "investigation"],
+  },
+  {
+    stream: "eee",
+    competency_area: "Circuit Analysis",
+    skill: "Series RLC Resonance",
+    challenge_type: "investigation",
+    title: "Find the Resonance Condition on a Substation Feeder Bench",
+    scenario: "A bench models a substation feeder's series compensation network, wired as a series R-L-C circuit driven by a variable-frequency source, with a voltmeter and ammeter across the components.",
+    mission: "Sweep the source frequency and find the operating condition where the circuit approaches resonance.",
+    learning_objective: "Recognize the resonance condition in a series RLC circuit — current peaks and the circuit becomes purely resistive when inductive and capacitive reactance cancel.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Use the frequency control to sweep the test bench and observe the current, impedance, and phase readouts, then submit your finding.",
+    inputs: {
+      responseFields: [
+        { key: "resonanceFrequencyHz", label: "Resonance frequency", type: "number", unit: "Hz", step: "1" },
+        { key: "behavior", label: "What happens to the current at that frequency?", type: "select", options: ["Current reaches its maximum value", "Current reaches its minimum value", "Voltage across R drops to zero", "Circuit becomes purely inductive"] },
+        { key: "conclusion", label: "What can you conclude about the circuit at that frequency?", type: "select", options: ["The circuit is purely resistive at this frequency", "The circuit is purely capacitive at this frequency", "The circuit is purely inductive at this frequency", "No current flows at this frequency"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "rlc_lab",
+    verification_definition: {
+      simulation: {
+        resistanceOhms: 8, inductanceH: 0.15, capacitanceF: 15e-6, sourceVoltageV: 12,
+        freqMinHz: 30, freqMaxHz: 250, sweepSteps: 90,
+      },
+      rules: [
+        { field: "resonanceFrequencyHz", numeric: { expected: 106.1, tolerance: 6 } },
+        { field: "behavior", equals: "Current reaches its maximum value" },
+        { field: "conclusion", equals: "The circuit is purely resistive at this frequency" },
+      ],
+    },
+    points: 20,
+    explanation: "At resonance, inductive reactance (2*pi*f*L) equals capacitive reactance (1/(2*pi*f*C)), so they cancel — impedance drops to just R, current peaks, and the circuit is purely resistive. For this bench (L=150mH, C=15µF), that occurs near f0 = 1/(2*pi*sqrt(LC)) ≈ 106 Hz.",
+    tags: ["eee", "circuits", "rlc", "resonance", "investigation"],
+  },
+  {
+    stream: "eee",
+    competency_area: "Circuit Analysis",
+    skill: "Series RLC Resonance",
+    challenge_type: "investigation",
+    title: "Find the Resonance Condition on a Relay Coil Test Bench",
+    scenario: "A bench models a relay coil's snubber network, wired as a series R-L-C circuit driven by a variable-frequency source, with a voltmeter and ammeter across the components.",
+    mission: "Sweep the source frequency and find the operating condition where the circuit approaches resonance.",
+    learning_objective: "Recognize the resonance condition in a series RLC circuit — current peaks and the circuit becomes purely resistive when inductive and capacitive reactance cancel.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Use the frequency control to sweep the test bench and observe the current, impedance, and phase readouts, then submit your finding.",
+    inputs: {
+      responseFields: [
+        { key: "resonanceFrequencyHz", label: "Resonance frequency", type: "number", unit: "Hz", step: "1" },
+        { key: "behavior", label: "What happens to the current at that frequency?", type: "select", options: ["Current reaches its maximum value", "Current reaches its minimum value", "Voltage across R drops to zero", "Circuit becomes purely inductive"] },
+        { key: "conclusion", label: "What can you conclude about the circuit at that frequency?", type: "select", options: ["The circuit is purely resistive at this frequency", "The circuit is purely capacitive at this frequency", "The circuit is purely inductive at this frequency", "No current flows at this frequency"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "rlc_lab",
+    verification_definition: {
+      simulation: {
+        resistanceOhms: 15, inductanceH: 0.2, capacitanceF: 2e-6, sourceVoltageV: 18,
+        freqMinHz: 80, freqMaxHz: 450, sweepSteps: 90,
+      },
+      rules: [
+        { field: "resonanceFrequencyHz", numeric: { expected: 251.65, tolerance: 10 } },
+        { field: "behavior", equals: "Current reaches its maximum value" },
+        { field: "conclusion", equals: "The circuit is purely resistive at this frequency" },
+      ],
+    },
+    points: 20,
+    explanation: "At resonance, inductive reactance (2*pi*f*L) equals capacitive reactance (1/(2*pi*f*C)), so they cancel — impedance drops to just R, current peaks, and the circuit is purely resistive. For this bench (L=200mH, C=2µF), that occurs near f0 = 1/(2*pi*sqrt(LC)) ≈ 251.6 Hz.",
     tags: ["eee", "circuits", "rlc", "resonance", "investigation"],
   },
 
@@ -730,46 +958,230 @@ export const SEED_CHALLENGES = [
     explanation: "At full design load (20 kN at 1.5m on a 4m span), the reaction moment is 18.75 kN·m, giving a bending stress of about 28.1 MPa (well under the 150 MPa allowable) and a deflection of about 1.76 mm (well under the 13.3 mm limit) — the beam is safe under both criteria.",
     tags: ["civil", "structures", "beam", "deflection", "bending-stress"],
   },
-
-  // ─── Simulation vertical slice: MBA Business Lab ───────────────────────
   {
-    stream: "mba",
-    competency_area: "Operations",
-    skill: "Inventory Stock-Level Decision",
-    challenge_type: "decision_making",
-    title: "Set a Stock Level That Meets Target Service Level Within Budget",
-    scenario: "A distribution center's weekly demand for a fast-moving SKU is uniformly distributed, and the operations team must set a stock level before the next replenishment cycle.",
-    mission: "Adjust the stock level, observe the resulting service level and weekly cost, and choose a stock level that meets the required service target within the cost budget.",
-    learning_objective: "Apply a newsvendor-style holding/stockout cost tradeoff to make an inventory stocking decision under demand uncertainty.",
+    stream: "civil",
+    competency_area: "Structural Reasoning",
+    skill: "Beam Deflection & Bending Stress",
+    challenge_type: "diagnosis",
+    title: "Classify a Timber Floor Joist Under Point Load",
+    scenario: "A timber floor joist spans between two supports and must carry a point load from a fixture without exceeding the structural spec.",
+    mission: "Load the joist to its design condition, read the resulting bending stress and deflection, and classify whether it meets the acceptance spec.",
+    learning_objective: "Apply simply-supported beam bending-stress and deflection formulas to classify structural adequacy against allowable limits.",
     difficulty: "medium",
     estimated_minutes: 10,
-    instructions: "Use the stock-level control to explore the cost/service-level tradeoff on the dashboard, then submit the stock level you would set and your assessment.",
+    instructions: "Use the load control to scale the joist up to its full design load, read the resulting bending stress and deflection off the bench, then submit your classification.",
     inputs: {
       responseFields: [
-        { key: "stockLevelUnits", label: "Stock level you would set", type: "number", unit: "units", step: "1" },
-        { key: "decision", label: "Assessment", type: "select", options: [
-          "Meets target service level within cost budget",
-          "Fails to meet target service level",
-          "Exceeds the cost budget",
+        { key: "maxBendingStressMPa", label: "Maximum bending stress", type: "number", unit: "MPa", step: "0.1" },
+        { key: "maxDeflectionMm", label: "Maximum deflection", type: "number", unit: "mm", step: "0.01" },
+        { key: "classification", label: "Does the beam meet the acceptance spec?", type: "select", options: [
+          "Safe — within both stress and deflection limits",
+          "Unsafe — bending stress exceeds allowable",
+          "Unsafe — deflection exceeds allowable limit",
         ] },
       ],
     },
     expected_output: {},
     workstation_type: "structured_response",
     verification_type: "rule_based",
-    simulation_type: "operations_lab",
+    simulation_type: "beam_lab",
     verification_definition: {
       simulation: {
-        demandLowUnits: 800, demandHighUnits: 1200, unitHoldingCost: 2, unitStockoutCost: 8,
-        targetServiceLevelPct: 90, maxWeeklyCostBudget: 900,
+        spanMm: 3000, loadN: 8000, loadPositionMm: 1500, modulusMPa: 11000,
+        sectionWidthMm: 50, sectionHeightMm: 200,
+        allowableStressMPa: 25, allowableDeflectionMm: 15,
       },
       rules: [
-        { field: "stockLevelUnits", numeric: { expected: 1160, tolerance: 40 } },
-        { field: "decision", equals: "Meets target service level within cost budget" },
+        { field: "maxBendingStressMPa", numeric: { expected: 18, tolerance: 1 } },
+        { field: "maxDeflectionMm", numeric: { expected: 12.27, tolerance: 0.5 } },
+        { field: "classification", equals: "Safe — within both stress and deflection limits" },
       ],
     },
     points: 20,
-    explanation: "Reaching the 90% service-level target requires a stock level of about 1160 units (800 + 90% of the 400-unit demand range). At that level, expected weekly cost is about $340 — well within the $900 budget — so the decision meets the target service level within the cost budget.",
-    tags: ["mba", "operations", "inventory", "newsvendor", "decision-making"],
+    explanation: "At full design load, the reaction moment gives a bending stress of about 18 MPa (under the 25 MPa allowable) and a deflection of about 12.27 mm (under the 15 mm limit) — the joist is safe under both criteria.",
+    tags: ["civil", "structures", "beam", "deflection", "bending-stress"],
+  },
+  {
+    stream: "civil",
+    competency_area: "Structural Reasoning",
+    skill: "Beam Deflection & Bending Stress",
+    challenge_type: "diagnosis",
+    title: "Classify a Steel Angle Bracket Under Point Load",
+    scenario: "A steel angle bracket spans between two supports on a site and must carry a point load from an equipment mount without exceeding the structural spec.",
+    mission: "Load the bracket to its design condition, read the resulting bending stress and deflection, and classify whether it meets the acceptance spec.",
+    learning_objective: "Apply simply-supported beam bending-stress and deflection formulas to classify structural adequacy against allowable limits.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Use the load control to scale the bracket up to its full design load, read the resulting bending stress and deflection off the bench, then submit your classification.",
+    inputs: {
+      responseFields: [
+        { key: "maxBendingStressMPa", label: "Maximum bending stress", type: "number", unit: "MPa", step: "0.1" },
+        { key: "maxDeflectionMm", label: "Maximum deflection", type: "number", unit: "mm", step: "0.01" },
+        { key: "classification", label: "Does the beam meet the acceptance spec?", type: "select", options: [
+          "Safe — within both stress and deflection limits",
+          "Unsafe — bending stress exceeds allowable",
+          "Unsafe — deflection exceeds allowable limit",
+        ] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "beam_lab",
+    verification_definition: {
+      simulation: {
+        spanMm: 2500, loadN: 35000, loadPositionMm: 1250, modulusMPa: 200000,
+        sectionWidthMm: 60, sectionHeightMm: 100,
+        allowableStressMPa: 150, allowableDeflectionMm: 15,
+      },
+      rules: [
+        { field: "maxBendingStressMPa", numeric: { expected: 218.75, tolerance: 5 } },
+        { field: "maxDeflectionMm", numeric: { expected: 11.39, tolerance: 0.5 } },
+        { field: "classification", equals: "Unsafe — bending stress exceeds allowable" },
+      ],
+    },
+    points: 20,
+    explanation: "At full design load, the reaction moment gives a bending stress of about 218.8 MPa — well over the 150 MPa allowable — while deflection stays under its own limit, so the bracket fails on bending stress alone.",
+    tags: ["civil", "structures", "beam", "deflection", "bending-stress"],
+  },
+  {
+    stream: "civil",
+    competency_area: "Structural Reasoning",
+    skill: "Beam Deflection & Bending Stress",
+    challenge_type: "diagnosis",
+    title: "Classify a Long Slender Footbridge Beam Under Point Load",
+    scenario: "A slender pedestrian footbridge beam spans between two supports and must carry a point load from foot traffic without exceeding the structural spec.",
+    mission: "Load the beam to its design condition, read the resulting bending stress and deflection, and classify whether it meets the acceptance spec.",
+    learning_objective: "Apply simply-supported beam bending-stress and deflection formulas to classify structural adequacy against allowable limits.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Use the load control to scale the beam up to its full design load, read the resulting bending stress and deflection off the bench, then submit your classification.",
+    inputs: {
+      responseFields: [
+        { key: "maxBendingStressMPa", label: "Maximum bending stress", type: "number", unit: "MPa", step: "0.1" },
+        { key: "maxDeflectionMm", label: "Maximum deflection", type: "number", unit: "mm", step: "0.01" },
+        { key: "classification", label: "Does the beam meet the acceptance spec?", type: "select", options: [
+          "Safe — within both stress and deflection limits",
+          "Unsafe — bending stress exceeds allowable",
+          "Unsafe — deflection exceeds allowable limit",
+        ] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "beam_lab",
+    verification_definition: {
+      simulation: {
+        spanMm: 5000, loadN: 6000, loadPositionMm: 2500, modulusMPa: 12000,
+        sectionWidthMm: 80, sectionHeightMm: 150,
+        allowableStressMPa: 40, allowableDeflectionMm: 20,
+      },
+      rules: [
+        { field: "maxBendingStressMPa", numeric: { expected: 25, tolerance: 1 } },
+        { field: "maxDeflectionMm", numeric: { expected: 57.87, tolerance: 2 } },
+        { field: "classification", equals: "Unsafe — deflection exceeds allowable limit" },
+      ],
+    },
+    points: 20,
+    explanation: "At full design load, deflection reaches about 57.9 mm — nearly triple the 20 mm allowable — while bending stress stays under its own limit, so the beam fails on deflection alone, a classic long-slender-span governing case.",
+    tags: ["civil", "structures", "beam", "deflection", "bending-stress"],
+  },
+
+  // ─── Simulation vertical slice: CSE Network Operations Lab ─────────────
+  {
+    stream: "cse",
+    competency_area: "Networking",
+    skill: "Network Fault Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Failing Link on a Distribution Network",
+    scenario: "A small campus network segment routes through a core router to two distribution switches, each fanning out to application hosts. Monitoring flags elevated latency somewhere downstream of the core.",
+    mission: "Inspect the topology's per-link latency against its rated baseline, trace routes from the core router, and identify which link is failing and how.",
+    learning_objective: "Read observed-vs-rated link metrics (latency, packet loss) to localize and classify a network fault.",
+    difficulty: "easy",
+    estimated_minutes: 9,
+    instructions: "Click through the link metrics table and use the trace-route panel to check reachability to each host, then submit the failing link and its fault type.",
+    inputs: {
+      responseFields: [
+        { key: "faultLinkId", label: "Which link is failing?", type: "select", options: ["L1 (Core → Distribution A)", "L2 (Core → Distribution B)", "L3 (Distribution A → Web 1)", "L4 (Distribution A → Web 2)"] },
+        { key: "faultType", label: "What kind of failure is it?", type: "select", options: ["Link down (unreachable)", "Degraded (elevated latency)", "Congested (packet loss)"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "network_ops_lab",
+    verification_definition: {
+      simulation: {
+        nodes: [
+          { id: "core", label: "Core Router", role: "router" },
+          { id: "dist-a", label: "Distribution A", role: "switch" },
+          { id: "dist-b", label: "Distribution B", role: "switch" },
+          { id: "web-1", label: "Web 1", role: "host" },
+          { id: "web-2", label: "Web 2", role: "host" },
+        ],
+        links: [
+          { id: "L1", from: "core", to: "dist-a", ratedLatencyMs: 2, ratedCapacityMbps: 1000 },
+          { id: "L2", from: "core", to: "dist-b", ratedLatencyMs: 2, ratedCapacityMbps: 1000 },
+          { id: "L3", from: "dist-a", to: "web-1", ratedLatencyMs: 1, ratedCapacityMbps: 1000 },
+          { id: "L4", from: "dist-a", to: "web-2", ratedLatencyMs: 1, ratedCapacityMbps: 1000 },
+        ],
+        faultLinkId: "L4",
+        faultType: "degraded",
+        faultSeverity: 6,
+      },
+      rules: [
+        { field: "faultLinkId", equals: "L4 (Distribution A → Web 2)" },
+        { field: "faultType", equals: "Degraded (elevated latency)" },
+      ],
+    },
+    points: 15,
+    explanation: "L4's observed latency (6ms) is well above its rated 1ms baseline while its packet loss stays at 0% — the signature of a degraded link, not a downed or congested one. Every other link matches its rated baseline exactly.",
+    tags: ["cse", "networking", "diagnosis", "topology"],
+  },
+  {
+    stream: "cse",
+    competency_area: "Networking",
+    skill: "Network Fault Diagnosis",
+    challenge_type: "investigation",
+    title: "Trace the Unreachable Host on a Hub-and-Spoke Network",
+    scenario: "A monitoring alert reports one host on a hub-and-spoke network segment is completely unreachable from the core router, while its sibling hosts still show normal latency.",
+    mission: "Use the trace-route panel to confirm which host is unreachable, compare each link's latency against its rated baseline, and identify the specific link responsible.",
+    learning_objective: "Distinguish a fully-down link (100% loss, no latency reading) from a merely degraded one using trace-route reachability.",
+    difficulty: "easy",
+    estimated_minutes: 8,
+    instructions: "Trace a route from the core to each host and inspect the link metrics table, then submit the failing link and its fault type.",
+    inputs: {
+      responseFields: [
+        { key: "faultLinkId", label: "Which link is failing?", type: "select", options: ["L1 (Core → Distribution B)", "L2 (Distribution B → Database)"] },
+        { key: "faultType", label: "What kind of failure is it?", type: "select", options: ["Link down (unreachable)", "Degraded (elevated latency)", "Congested (packet loss)"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "network_ops_lab",
+    verification_definition: {
+      simulation: {
+        nodes: [
+          { id: "core", label: "Core Router", role: "router" },
+          { id: "dist-b", label: "Distribution B", role: "switch" },
+          { id: "db-1", label: "Database", role: "host" },
+        ],
+        links: [
+          { id: "L1", from: "core", to: "dist-b", ratedLatencyMs: 2, ratedCapacityMbps: 1000 },
+          { id: "L2", from: "dist-b", to: "db-1", ratedLatencyMs: 1, ratedCapacityMbps: 1000 },
+        ],
+        faultLinkId: "L2",
+        faultType: "down",
+      },
+      rules: [
+        { field: "faultLinkId", equals: "L2 (Distribution B → Database)" },
+        { field: "faultType", equals: "Link down (unreachable)" },
+      ],
+    },
+    points: 15,
+    explanation: "Tracing from the core to the database host returns unreachable — L1 (Core → Distribution B) still shows its rated 2ms latency, so the fault is isolated to L2, which reports 100% packet loss and no latency reading: a fully down link.",
+    tags: ["cse", "networking", "investigation", "topology"],
   },
 ]

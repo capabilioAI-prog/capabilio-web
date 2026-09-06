@@ -10,7 +10,7 @@ import { SIMULATION_TYPE as WAVEFORM_LAB, generateWaveformState } from "./wavefo
 import { SIMULATION_TYPE as COMPRESSION_LAB, generateCompressionState } from "./compressionLab.js"
 import { SIMULATION_TYPE as RLC_LAB, generateRlcState } from "./rlcLab.js"
 import { SIMULATION_TYPE as BEAM_LAB, generateBeamState } from "./beamLab.js"
-import { SIMULATION_TYPE as OPERATIONS_LAB, generateOperationsState } from "./operationsLab.js"
+import { SIMULATION_TYPE as NETWORK_OPS_LAB, generateNetworkOpsState } from "./networkOpsLab.js"
 
 export const SIMULATION_REGISTRY = {
   [WAVEFORM_LAB]: {
@@ -52,25 +52,26 @@ export const SIMULATION_REGISTRY = {
     generate: generateBeamState,
     requiredConfigKeys: ["spanMm", "loadN", "loadPositionMm", "modulusMPa", "sectionWidthMm", "sectionHeightMm"],
   },
-  [OPERATIONS_LAB]: {
-    id: OPERATIONS_LAB,
-    name: "Business Lab",
-    supportedStreams: ["mba"],
-    supportedChallengeTypes: ["decision_making", "investigation", "diagnosis"],
-    generate: generateOperationsState,
-    requiredConfigKeys: ["demandLowUnits", "demandHighUnits", "unitHoldingCost", "unitStockoutCost"],
+  [NETWORK_OPS_LAB]: {
+    id: NETWORK_OPS_LAB,
+    name: "Network Operations Lab",
+    supportedStreams: ["cse"],
+    supportedChallengeTypes: ["diagnosis", "investigation"],
+    generate: generateNetworkOpsState,
+    requiredConfigKeys: ["nodes", "links", "faultLinkId"],
   },
 }
 
-// Roadmap (spec §20, §29-32) — additional simulation families this
-// registry is designed to grow into next: EEE motor_fault_lab/
-// power_factor_lab/control_response_lab/electrical_measurement_lab;
-// Mechanical vibration_lab/pneumatic_lab/measurement_lab/manufacturing_lab/
-// thermal_lab; Civil surveying_lab/soil_lab/hydraulics_lab; MBA
-// finance_lab/marketing_lab/hr_lab/strategy_lab. Not registered yet — an
-// unimplemented entry here would let content validation accept a
-// simulation_type with no working generator, breaking the UI it renders
-// into. Add each only alongside its own generator module, same as the six above.
+// Roadmap — additional simulation families this registry is designed to
+// grow into next: EEE motor_fault_lab/power_factor_lab/control_response_lab;
+// Mechanical vibration_lab/pneumatic_lab/manufacturing_lab; Civil
+// surveying_lab/soil_lab/hydraulics_lab; CSE cpu_architecture_lab/
+// distributed_system_lab; AI/ML model_diagnosis_studio; Data Science
+// data_investigation_studio; Cybersecurity soc_incident_room; IT
+// noc_lab. Not registered yet — an unimplemented entry here would let
+// content validation accept a simulation_type with no working generator,
+// breaking the UI it renders into. Add each only alongside its own
+// generator module, same as the five above.
 
 export const SIMULATION_TYPES = Object.keys(SIMULATION_REGISTRY)
 

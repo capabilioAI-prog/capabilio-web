@@ -12,6 +12,7 @@
 import { logger } from "../logger.js"
 import { findEligibleChallenges } from "./challengeRepository.js"
 import { generateChallenge } from "./generation.js"
+import { isSimulationRequiredStream } from "./streamTaxonomy.js"
 
 export function pickWithVariety(pool, count) {
   const chosen = []
@@ -59,10 +60,20 @@ async function generateDeficit({ streamId, streamSlug, deficit, existingTitles, 
  * @returns {Promise<{ ok: true, challenges: object[] } | { ok: false, reason: string, allocated: number, needed: number }>}
  */
 export async function planWeeklyMissions({ streamId, streamSlug, count, excludeChallengeIds = [] }) {
-  const eligible = await findEligibleChallenges({ streamId, excludeChallengeIds, limit: Math.max(count * 5, 50) })
+  const eligible = await findEligibleChallenges({ streamId, streamSlug, excludeChallengeIds, limit: Math.max(count * 5, 50) })
   logger.info("[arena.planner] eligible existing challenges found", { streamSlug, count, eligibleCount: eligible.length })
 
   let chosen = pickWithVariety(eligible, count)
+
+  // AI generation never produces a valid simulation_type (spec: AI must not
+  // invent simulation configs presented as physical truth) — for a
+  // simulation-required stream every attempt would fail validateSimulation-
+  // Required and just burn AI calls. Skip straight to "insufficient" so a
+  // thin simulation pool surfaces as a real content gap, not a slow one.
+  if (chosen.length < count && isSimulationRequiredStream(streamSlug)) {
+    logger.info("[arena.planner] simulation-required stream short on eligible challenges — skipping AI generation", { streamSlug, eligibleCount: eligible.length, needed: count })
+    return { ok: false, reason: "insufficient_valid_challenges", allocated: chosen.length, needed: count }
+  }
 
   for (let round = 1; round <= MAX_GENERATION_ROUNDS && chosen.length < count; round++) {
     const deficit = count - chosen.length

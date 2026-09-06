@@ -94,10 +94,10 @@ export function familyFor(challengeType) {
  *  typographic framing only (spec §19); never invents structured fields
  *  the backend didn't provide. */
 export const STREAM_REPORT_LABEL = {
-  cse: "BUG REPORT", mca: "BUG REPORT", it: "INCIDENT LOG",
+  cse: "BUG REPORT", it: "INCIDENT LOG",
   ece: "DIAGNOSTIC LOG", eee: "DIAGNOSTIC LOG", "cyber-security": "INCIDENT LOG",
   mechanical: "INSPECTION NOTE", civil: "SITE REPORT",
-  mba: "CASE BRIEF", "ai-ml": "LAB NOTE", "ai-ds": "LAB NOTE",
+  "ai-ml": "LAB NOTE", "ai-ds": "LAB NOTE",
 }
 export function reportLabelFor(streamSlug) {
   return STREAM_REPORT_LABEL[streamSlug] || "MISSION BRIEF"

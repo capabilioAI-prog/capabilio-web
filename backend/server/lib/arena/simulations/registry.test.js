@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { SIMULATION_TYPES, isKnownSimulationType, validateSimulationCompatibility, validateSimulationConfigShape, getSimulationState } from "./registry.js"
 
 test("registry lists exactly the five vertical-slice simulation types", () => {
-  assert.deepEqual(new Set(SIMULATION_TYPES), new Set(["waveform_lab", "compression_lab", "rlc_lab", "beam_lab", "operations_lab"]))
+  assert.deepEqual(new Set(SIMULATION_TYPES), new Set(["waveform_lab", "compression_lab", "rlc_lab", "beam_lab", "network_ops_lab"]))
 })
 
 test("isKnownSimulationType rejects anything not in the registry", () => {
@@ -11,9 +11,10 @@ test("isKnownSimulationType rejects anything not in the registry", () => {
   assert.ok(isKnownSimulationType("compression_lab"))
   assert.ok(isKnownSimulationType("rlc_lab"))
   assert.ok(isKnownSimulationType("beam_lab"))
-  assert.ok(isKnownSimulationType("operations_lab"))
+  assert.ok(isKnownSimulationType("network_ops_lab"))
   assert.ok(!isKnownSimulationType("quantumOscilloscopeRocket"))
   assert.ok(!isKnownSimulationType("motor_fault_lab"), "roadmap types must not validate until they have a real generator")
+  assert.ok(!isKnownSimulationType("operations_lab"), "MBA is removed from Arena — its simulation must not validate")
 })
 
 test("validateSimulationCompatibility passes null simulation_type through (non-simulation challenges)", () => {
@@ -75,15 +76,44 @@ test("getSimulationState dispatches beam_lab to its own generator", () => {
   assert.equal(state.points.length, 11)
 })
 
-test("operations_lab is registered for mba decision_making/investigation/diagnosis challenges only", () => {
-  assert.deepEqual(validateSimulationCompatibility("operations_lab", { streamSlug: "mba", challengeType: "decision_making" }), { ok: true })
-  assert.equal(validateSimulationCompatibility("operations_lab", { streamSlug: "cse", challengeType: "decision_making" }).ok, false)
+test("network_ops_lab is registered for cse diagnosis/investigation challenges only", () => {
+  assert.deepEqual(validateSimulationCompatibility("network_ops_lab", { streamSlug: "cse", challengeType: "diagnosis" }), { ok: true })
+  assert.equal(validateSimulationCompatibility("network_ops_lab", { streamSlug: "mechanical", challengeType: "diagnosis" }).ok, false)
 })
 
-test("getSimulationState dispatches operations_lab to its own generator", () => {
-  const state = getSimulationState("operations_lab", { demandLowUnits: 800, demandHighUnits: 1200, unitHoldingCost: 2, unitStockoutCost: 8, steps: 10 })
-  assert.equal(state.simulationType, "operations_lab")
-  assert.equal(state.points.length, 11)
+const NETWORK_RECIPE = {
+  nodes: [{ id: "core", label: "Core", role: "router" }, { id: "a", label: "A", role: "host" }, { id: "b", label: "B", role: "host" }],
+  links: [
+    { id: "L1", from: "core", to: "a", ratedLatencyMs: 2, ratedCapacityMbps: 1000 },
+    { id: "L2", from: "core", to: "b", ratedLatencyMs: 3, ratedCapacityMbps: 1000 },
+  ],
+  faultLinkId: "L2",
+  faultType: "down",
+}
+
+test("getSimulationState dispatches network_ops_lab to its own generator", () => {
+  const state = getSimulationState("network_ops_lab", NETWORK_RECIPE)
+  assert.equal(state.simulationType, "network_ops_lab")
+  assert.equal(state.links.length, 2)
+})
+
+test("network_ops_lab: a down link is unreachable end to end, an unaffected link stays at its rated latency", () => {
+  const state = getSimulationState("network_ops_lab", NETWORK_RECIPE)
+  const faulty = state.links.find((l) => l.id === "L2")
+  assert.equal(faulty.observedLatencyMs, null)
+  assert.equal(faulty.observedPacketLossPct, 100)
+  assert.equal(state.routes.b.reachable, false)
+  assert.equal(state.routes.a.reachable, true)
+  assert.equal(state.routes.a.totalLatencyMs, 2)
+})
+
+test("network_ops_lab: a degraded link stays reachable at elevated latency with no packet loss", () => {
+  const state = getSimulationState("network_ops_lab", { ...NETWORK_RECIPE, faultType: "degraded", faultSeverity: 4 })
+  const faulty = state.links.find((l) => l.id === "L2")
+  assert.equal(faulty.observedLatencyMs, 12)
+  assert.equal(faulty.observedPacketLossPct, 0)
+  assert.equal(state.routes.b.reachable, true)
+  assert.equal(state.routes.b.totalLatencyMs, 12)
 })
 
 test("validateSimulationConfigShape rejects a config missing required keys for a given simulation_type", () => {

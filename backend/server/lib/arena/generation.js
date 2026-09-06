@@ -21,7 +21,6 @@ const MAX_ATTEMPTS = 2
  *  non-computing stream (spec §32). */
 const STREAM_WORKSTATION_PREFERENCE = {
   cse: ["coding", "sql", "structured_response"],
-  mca: ["coding", "sql", "structured_response"],
   it: ["structured_response", "log_investigation", "sql"],
   "ai-ml": ["structured_response", "calculation", "coding"],
   "ai-ds": ["structured_response", "calculation", "sql"],
@@ -30,7 +29,6 @@ const STREAM_WORKSTATION_PREFERENCE = {
   eee: ["calculation", "structured_response", "decision"],
   mechanical: ["calculation", "structured_response", "decision"],
   civil: ["calculation", "structured_response", "decision"],
-  mba: ["decision", "structured_response", "calculation"],
 }
 
 function pickWorkstationType(streamSlug) {

@@ -2,10 +2,10 @@ import { A, reportLabelFor } from "./tokens"
 
 /**
  * MissionContext — turns the raw `scenario` string into visual context
- * (spec §19) via typographic framing, never by inventing structured
- * fields the backend didn't provide. `reportLabel` varies by stream
- * (BUG REPORT for CSE/MCA, SITE REPORT for Civil, CASE BRIEF for MBA,
- * etc.) — purely a display concern (tokens.js), zero backend involvement.
+ * via typographic framing, never by inventing structured fields the
+ * backend didn't provide. `reportLabel` varies by stream (BUG REPORT for
+ * CSE, SITE REPORT for Civil, DIAGNOSTIC LOG for ECE/EEE, etc.) — purely a
+ * display concern (tokens.js), zero backend involvement.
  */
 export default function MissionContext({ streamSlug, scenario, missionText }) {
   const label = reportLabelFor(streamSlug)

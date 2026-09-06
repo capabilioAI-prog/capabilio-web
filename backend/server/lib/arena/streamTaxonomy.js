@@ -21,26 +21,25 @@ export const STREAM_TAXONOMY = {
     name: "Electronics & Communication",
     competencyAreas: ["Digital Electronics", "Circuits", "Signals", "Embedded Systems", "Microcontrollers", "Sensors", "Communication Systems", "Instrumentation"],
     vocabulary: ["circuit", "voltage", "current", "resistor", "capacitor", "signal", "waveform", "frequency", "amplitude", "gpio", "microcontroller", "sensor", "adc", "dac", "modulation", "bandwidth", "logic gate", "flip-flop", "duty cycle", "oscilloscope", "uart", "i2c", "spi"],
+    simulationRequired: true,
   },
   eee: {
     name: "Electrical & Electronics",
     competencyAreas: ["Circuit Analysis", "Electrical Measurements", "Electrical Machines", "Power Systems", "Control Systems", "Power Electronics", "Transformers", "Motors"],
     vocabulary: ["voltage", "current", "resistance", "impedance", "transformer", "motor", "winding", "torque", "power factor", "relay", "circuit breaker", "load", "generator", "rms", "phasor", "harmonics", "grid", "substation", "pid", "feedback loop", "pole", "transfer function", "closed-loop", "stability", "resonance", "reactance", "inductor", "capacitor"],
+    simulationRequired: true,
   },
   mechanical: {
     name: "Mechanical Engineering",
     competencyAreas: ["Mechanics", "Materials", "Manufacturing", "Machine Design", "Thermal Engineering", "Quality", "Production"],
     vocabulary: ["stress", "strain", "load", "tolerance", "machining", "casting", "welding", "fatigue", "torque", "bearing", "gear", "thermal", "heat transfer", "material", "alloy", "yield strength", "defect", "tolerance stack", "assembly", "lathe", "cnc"],
+    simulationRequired: true,
   },
   civil: {
     name: "Civil Engineering",
     competencyAreas: ["Structural Reasoning", "Construction", "Surveying", "Materials", "Transportation", "Infrastructure", "Geotechnical"],
     vocabulary: ["load", "beam", "column", "foundation", "concrete", "rebar", "soil", "settlement", "survey", "gradient", "slab", "structural", "reinforcement", "aggregate", "curing", "bearing capacity", "drainage", "site", "deflection", "span", "moment", "shear"],
-  },
-  mba: {
-    name: "MBA",
-    competencyAreas: ["Finance", "Accounting", "Marketing", "Operations", "HR", "Strategy", "Business Analytics"],
-    vocabulary: ["revenue", "margin", "roi", "cash flow", "budget", "market share", "segment", "churn", "cac", "ltv", "lifetime value", "supply chain", "inventory turnover", "kpi", "stakeholder", "competitive advantage", "positioning", "attrition", "turnover", "forecast", "p&l", "bottleneck", "throughput", "capacity", "production line", "stage"],
+    simulationRequired: true,
   },
   "ai-ml": {
     name: "AI & Machine Learning",
@@ -62,13 +61,18 @@ export const STREAM_TAXONOMY = {
     competencyAreas: ["Networking", "Systems Administration", "Infrastructure", "Cloud", "Databases", "Web Technologies", "Troubleshooting", "Service Management"],
     vocabulary: ["dns", "dhcp", "vpn", "firewall", "load balancer", "uptime", "latency", "outage", "ticket", "server", "deployment", "container", "cloud", "backup", "failover", "bandwidth", "subnet", "ssl", "certificate"],
   },
-  mca: {
-    name: "MCA",
-    competencyAreas: ["Programming", "Data Structures", "Databases", "Web Development", "APIs", "Software Engineering", "Testing", "Application Architecture"],
-    vocabulary: ["function", "class", "api", "endpoint", "database", "query", "test case", "unit test", "framework", "request", "response", "schema", "architecture", "module", "dependency", "authentication", "deployment"],
-  },
 }
 
 export function getStreamTaxonomy(slug) {
   return STREAM_TAXONOMY[slug] || null
+}
+
+/** Non-IT/non-computing streams (Arena product rule) where every Common
+ *  Challenge must be an interactive simulation — no plain text + answer-
+ *  box, no generic worksheet, no generic code editor. IT/computing streams
+ *  (cse, it, ai-ml, ai-ds, cyber-security) are unaffected: a legitimate
+ *  coding/systems/investigation challenge can still use a non-simulation
+ *  workstation there — simulation is preferred but not hard-gated. */
+export function isSimulationRequiredStream(slug) {
+  return !!STREAM_TAXONOMY[slug]?.simulationRequired
 }
