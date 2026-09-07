@@ -31,9 +31,17 @@ const STREAM_WORKSTATION_PREFERENCE = {
   civil: ["calculation", "structured_response", "decision"],
 }
 
-function pickWorkstationType(streamSlug) {
+/** Diversity pressure (Arena product rule §21: prefer a different world/
+ *  workstation over repeating the one just used, not a hard requirement —
+ *  AI-generated content is text-only for these streams, so "world
+ *  diversity" here means workstation_type variety, not simulation_type
+ *  choice, which the AI never makes). Falls back to the full preference
+ *  list if every option has already been used this batch. */
+function pickWorkstationType(streamSlug, excludeWorkstationTypes = []) {
   const prefs = STREAM_WORKSTATION_PREFERENCE[streamSlug] || ["structured_response"]
-  return prefs[Math.floor(Math.random() * prefs.length)]
+  const fresh = prefs.filter((t) => !excludeWorkstationTypes.includes(t))
+  const pool = fresh.length > 0 ? fresh : prefs
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 function pickVerificationType(workstationType) {
@@ -48,17 +56,17 @@ function pickChallengeType(excludeTypes = []) {
 }
 
 /**
- * @param {{ streamId, streamSlug, existingTitles: string[], excludeChallengeTypes: string[] }} spec
+ * @param {{ streamId, streamSlug, existingTitles: string[], excludeChallengeTypes: string[], excludeWorkstationTypes: string[] }} spec
  * @returns {Promise<{ ok: true, challenge: object } | { ok: false, reason: string }>}
  */
-export async function generateChallenge({ streamId, streamSlug, existingTitles = [], excludeChallengeTypes = [] }) {
+export async function generateChallenge({ streamId, streamSlug, existingTitles = [], excludeChallengeTypes = [], excludeWorkstationTypes = [] }) {
   const taxonomy = getStreamTaxonomy(streamSlug)
   if (!taxonomy) return { ok: false, reason: `no taxonomy configured for stream "${streamSlug}"` }
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const competencyArea = taxonomy.competencyAreas[Math.floor(Math.random() * taxonomy.competencyAreas.length)]
     const challengeType = pickChallengeType(excludeChallengeTypes)
-    const workstationType = pickWorkstationType(streamSlug)
+    const workstationType = pickWorkstationType(streamSlug, excludeWorkstationTypes)
     const verificationType = pickVerificationType(workstationType)
 
     logger.info("[arena.generation] requesting generation", { streamSlug, competencyArea, challengeType, workstationType, verificationType, attempt })

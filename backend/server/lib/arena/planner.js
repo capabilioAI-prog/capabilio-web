@@ -5,26 +5,36 @@
  * only calls into generation.js when eligible existing challenges can't
  * fill the count.
  *
- * Variety (spec §43): greedily avoids repeating a challenge_type already
- * picked this week as long as an eligible option of a different type
- * exists — a soft preference, not a hard-coded sequence.
+ * Variety: greedily avoids repeating a "world" already picked this week
+ * as long as an eligible option from a different world exists — a soft
+ * preference, not a hard-coded sequence. For a simulation-bearing
+ * challenge, its world is its simulation_type: a stream backed by
+ * several worlds (e.g. Mechanical's compression_lab + vibration_rig +
+ * pneumatic_trainer) must actually surface more than one, not silently
+ * hand back N copies of whichever world happens to have the deepest
+ * seed pool. For plain (non-simulation) content, challenge_type is the
+ * only variety signal available, same as before.
  */
 import { logger } from "../logger.js"
 import { findEligibleChallenges } from "./challengeRepository.js"
 import { generateChallenge } from "./generation.js"
 import { isSimulationRequiredStream } from "./streamTaxonomy.js"
 
+function varietyKey(challenge) {
+  return challenge.simulation_type || challenge.challenge_type
+}
+
 export function pickWithVariety(pool, count) {
   const chosen = []
-  const usedTypes = new Set()
+  const usedKeys = new Set()
   const remaining = [...pool]
 
   while (chosen.length < count && remaining.length > 0) {
-    let idx = remaining.findIndex((c) => !usedTypes.has(c.challenge_type))
-    if (idx === -1) idx = 0 // no fresh type left — repeat is acceptable rather than starve the count
+    let idx = remaining.findIndex((c) => !usedKeys.has(varietyKey(c)))
+    if (idx === -1) idx = 0 // no fresh world/type left — repeat is acceptable rather than starve the count
     const [picked] = remaining.splice(idx, 1)
     chosen.push(picked)
-    usedTypes.add(picked.challenge_type)
+    usedKeys.add(varietyKey(picked))
   }
   return chosen
 }
@@ -41,10 +51,10 @@ const MAX_GENERATION_ROUNDS = 2
  * timeout middleware's own response. Parallel rounds keep total wall-clock
  * time roughly flat regardless of how many challenges are missing.
  */
-async function generateDeficit({ streamId, streamSlug, deficit, existingTitles, excludeTypesSoFar }) {
+async function generateDeficit({ streamId, streamSlug, deficit, existingTitles, excludeTypesSoFar, excludeWorkstationTypesSoFar }) {
   const results = await Promise.all(
     Array.from({ length: deficit }, () =>
-      generateChallenge({ streamId, streamSlug, existingTitles, excludeChallengeTypes: excludeTypesSoFar })
+      generateChallenge({ streamId, streamSlug, existingTitles, excludeChallengeTypes: excludeTypesSoFar, excludeWorkstationTypes: excludeWorkstationTypesSoFar })
     )
   )
   const generated = []
@@ -78,9 +88,10 @@ export async function planWeeklyMissions({ streamId, streamSlug, count, excludeC
   for (let round = 1; round <= MAX_GENERATION_ROUNDS && chosen.length < count; round++) {
     const deficit = count - chosen.length
     const excludeTypesSoFar = [...new Set(chosen.map((c) => c.challenge_type))]
+    const excludeWorkstationTypesSoFar = [...new Set(chosen.map((c) => c.workstation_type))]
     const existingTitles = [...eligible, ...chosen].map((c) => c.title)
     logger.info("[arena.planner] generating deficit in parallel", { streamSlug, round, deficit })
-    const generated = await generateDeficit({ streamId, streamSlug, deficit, existingTitles, excludeTypesSoFar })
+    const generated = await generateDeficit({ streamId, streamSlug, deficit, existingTitles, excludeTypesSoFar, excludeWorkstationTypesSoFar })
     chosen = pickWithVariety([...chosen, ...generated], count)
     eligible.push(...generated) // immediately eligible for the rest of this same allocation
   }

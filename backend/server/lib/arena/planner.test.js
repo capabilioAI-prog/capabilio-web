@@ -40,3 +40,36 @@ test("returns fewer than N if the pool itself has fewer than N (caller's job to 
   const chosen = pickWithVariety(pool, 5)
   assert.equal(chosen.length, 1)
 })
+
+function simChallenge(id, simulationType, challengeType = "diagnosis") {
+  return { id, challenge_type: challengeType, simulation_type: simulationType, title: `Challenge ${id}` }
+}
+
+test("diversifies by simulation_type (world), not just challenge_type — the real bug this fixes: 11 compression_lab entries and 1 vibration_rig all share challenge_type 'diagnosis', so challenge_type alone gives zero variety signal", () => {
+  const pool = [
+    ...Array.from({ length: 11 }, (_, i) => simChallenge(i, "compression_lab")),
+    simChallenge(100, "vibration_rig"),
+    simChallenge(101, "pneumatic_trainer"),
+  ]
+  const chosen = pickWithVariety(pool, 3)
+  const worlds = new Set(chosen.map((c) => c.simulation_type))
+  assert.equal(worlds.size, 3, "must surface all 3 distinct worlds when picking only 3, even though they all share challenge_type 'diagnosis'")
+})
+
+test("a spin large enough to need repeats still shows every distinct world at least once before repeating any", () => {
+  const pool = [
+    ...Array.from({ length: 11 }, (_, i) => simChallenge(i, "compression_lab")),
+    simChallenge(100, "vibration_rig"),
+    simChallenge(101, "pneumatic_trainer"),
+  ]
+  const chosen = pickWithVariety(pool, 5)
+  const worldsInFirstThree = new Set(chosen.slice(0, 3).map((c) => c.simulation_type))
+  assert.equal(worldsInFirstThree.size, 3, "the 3 distinct worlds must appear before any world repeats")
+})
+
+test("non-simulation content still diversifies by challenge_type exactly as before (back-compat)", () => {
+  const pool = [challenge(1, "debugging"), challenge(2, "debugging"), challenge(3, "debugging"), challenge(4, "calculation"), challenge(5, "diagnosis")]
+  const chosen = pickWithVariety(pool, 3)
+  const types = chosen.map((c) => c.challenge_type)
+  assert.equal(new Set(types).size, 3)
+})
