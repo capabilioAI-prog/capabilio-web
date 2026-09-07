@@ -1,9 +1,33 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { SIMULATION_TYPES, isKnownSimulationType, validateSimulationCompatibility, validateSimulationConfigShape, getSimulationState } from "./registry.js"
+import { SIMULATION_TYPES, SIMULATION_REGISTRY, isKnownSimulationType, validateSimulationCompatibility, validateSimulationConfigShape, getSimulationState } from "./registry.js"
 
-test("registry lists exactly the five vertical-slice simulation types", () => {
-  assert.deepEqual(new Set(SIMULATION_TYPES), new Set(["waveform_lab", "compression_lab", "rlc_lab", "beam_lab", "network_ops_lab"]))
+test("registry lists exactly the 22 vertical-slice simulation types across the 9 final Arena streams", () => {
+  assert.deepEqual(new Set(SIMULATION_TYPES), new Set([
+    "waveform_lab", "digital_logic_bench", "circuit_bench",
+    "rlc_lab", "motor_test_bench", "plc_panel",
+    "compression_lab", "vibration_rig", "pneumatic_trainer",
+    "beam_lab", "surveying_station", "hydraulics_channel",
+    "network_ops_lab", "cpu_architecture_lab", "distributed_systems_lab",
+    "model_diagnosis_studio", "computer_vision_lab",
+    "data_investigation_studio", "experiment_analysis_room",
+    "soc_incident_room", "digital_forensics_lab",
+    "network_operations_center", "system_admin_lab",
+  ]))
+})
+
+test("every stream (except mba/mca, which have no entries) resolves to at least two distinct simulation worlds", () => {
+  for (const slug of ["cse", "ece", "eee", "mechanical", "civil", "ai-ml", "ai-ds", "cyber-security", "it"]) {
+    const worlds = SIMULATION_TYPES.filter((t) => SIMULATION_REGISTRY[t].supportedStreams.includes(slug))
+    assert.ok(worlds.length >= 2, `stream "${slug}" must have at least 2 registered simulation worlds, found ${worlds.length}`)
+  }
+})
+
+test("no simulation world is registered for mba or mca — both are fully removed from Arena", () => {
+  for (const sim of Object.values(SIMULATION_REGISTRY)) {
+    assert.ok(!sim.supportedStreams.includes("mba"), `${sim.id} must not support mba`)
+    assert.ok(!sim.supportedStreams.includes("mca"), `${sim.id} must not support mca`)
+  }
 })
 
 test("isKnownSimulationType rejects anything not in the registry", () => {

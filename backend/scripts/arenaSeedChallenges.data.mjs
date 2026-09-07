@@ -1184,4 +1184,676 @@ export const SEED_CHALLENGES = [
     explanation: "Tracing from the core to the database host returns unreachable — L1 (Core → Distribution B) still shows its rated 2ms latency, so the fault is isolated to L2, which reports 100% packet loss and no latency reading: a fully down link.",
     tags: ["cse", "networking", "investigation", "topology"],
   },
+
+  // ─── Simulation vertical slice: CSE CPU / Architecture Lab ─────────────
+  {
+    stream: "cse",
+    competency_area: "Computer Architecture",
+    skill: "Pipeline Hazard Analysis",
+    challenge_type: "calculation",
+    title: "Count the Stall Cycles in a Load-Dependent Instruction Stream",
+    scenario: "A 5-stage in-order pipeline (IF/ID/EX/MEM/WB) with no forwarding is issued a short instruction stream where several instructions depend on a preceding LOAD's result, and the trace is captured alongside a cache access log.",
+    mission: "Step through the pipeline timeline with forwarding disabled, and report the total stall cycles and the cache hit rate for the access trace.",
+    learning_objective: "Apply the classic RAW-hazard stall model for an in-order pipeline without forwarding, and compute direct-mapped cache hit/miss from an address trace.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "With forwarding disabled, read the stall count directly off the pipeline timeline, then read the cache hit rate off the access trace.",
+    inputs: {
+      responseFields: [
+        { key: "totalStalls", label: "Total stall cycles (no forwarding)", type: "number", step: "1" },
+        { key: "cacheHitRatePct", label: "Cache hit rate", type: "number", unit: "%", step: "0.1" },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "cpu_architecture_lab",
+    verification_definition: {
+      simulation: {
+        instructions: [
+          { id: 1, op: "LOAD", dest: "R1", srcs: [] },
+          { id: 2, op: "ADD", dest: "R2", srcs: ["R1", "R3"] },
+          { id: 3, op: "SUB", dest: "R5", srcs: ["R4"] },
+          { id: 4, op: "MUL", dest: "R6", srcs: ["R7", "R8"] },
+        ],
+        cache: { sizeBlocks: 2, blockSize: 4, addresses: [0, 4, 8, 4, 12, 8] },
+      },
+      rules: [
+        { field: "totalStalls", numeric: { expected: 3, tolerance: 0.5 } },
+        { field: "cacheHitRatePct", numeric: { expected: 33.3, tolerance: 2 } },
+      ],
+    },
+    points: 20,
+    explanation: "Instruction 2's ADD depends directly on instruction 1's LOAD result (0 instructions between them), costing the full 3-cycle stall with no forwarding; instructions 3 and 4 have no dependency on anything still in flight. The cache trace re-references blocks 1 and 2 before their index is evicted, giving 2 hits out of 6 accesses (33.3%).",
+    tags: ["cse", "computer-architecture", "pipeline", "cache", "calculation"],
+  },
+
+  // ─── Simulation vertical slice: CSE Distributed Systems Lab ────────────
+  {
+    stream: "cse",
+    competency_area: "Systems",
+    skill: "Replication Consistency",
+    challenge_type: "diagnosis",
+    title: "Find the Replica That Fell Behind During a Network Partition",
+    scenario: "A leader-replicated cluster processes a sequence of writes while one replica process is partitioned away from the leader for part of the run.",
+    mission: "Step through the write timeline and identify which replica ends up inconsistent with the leader, and how many writes it missed.",
+    learning_objective: "Trace how a partition window causes a replica to permanently miss writes in a leader-replicated system with no automatic catch-up.",
+    difficulty: "easy",
+    estimated_minutes: 8,
+    instructions: "Step through each write and watch which nodes go down, then submit the inconsistent replica and its missed-write count.",
+    inputs: {
+      responseFields: [
+        { key: "inconsistentNodeId", label: "Which node is inconsistent?", type: "select", options: ["r1 (Replica A)", "r2 (Replica B)"] },
+        { key: "missedCount", label: "How many writes did it miss?", type: "number", step: "1" },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "distributed_systems_lab",
+    verification_definition: {
+      simulation: {
+        nodes: [{ id: "leader", label: "Leader" }, { id: "r1", label: "Replica A" }, { id: "r2", label: "Replica B" }],
+        leaderId: "leader",
+        writes: ["w1", "w2", "w3", "w4", "w5"],
+        downWindows: [{ nodeId: "r2", fromStep: 2, toStep: 4, reason: "partitioned" }],
+      },
+      rules: [
+        { field: "inconsistentNodeId", equals: "r2 (Replica B)" },
+        { field: "missedCount", numeric: { expected: 3, tolerance: 0 } },
+      ],
+    },
+    points: 15,
+    explanation: "Replica B is partitioned from step 2 through step 4, missing writes w2, w3, and w4 (3 writes) while Replica A stays connected the whole time and remains fully consistent.",
+    tags: ["cse", "distributed-systems", "replication", "diagnosis"],
+  },
+
+  // ─── Simulation vertical slice: ECE Digital Logic Bench ────────────────
+  {
+    stream: "ece",
+    competency_area: "Digital Electronics",
+    skill: "Logic Gate Verification",
+    challenge_type: "investigation",
+    title: "Verify a NAND Gate Against Its Truth Table",
+    scenario: "A single logic gate is wired on the digital logic bench, with two switches feeding its inputs and an LED on its output for probing.",
+    mission: "Toggle every switch combination, probe the output, and confirm which standard logic gate this bench actually implements.",
+    learning_objective: "Read a logic gate's behavior directly from its probed truth table rather than assuming it from its label.",
+    difficulty: "easy",
+    estimated_minutes: 6,
+    instructions: "Click through all four switch combinations and probe the output LED, then submit which gate type matches the observed truth table.",
+    inputs: {
+      responseFields: [
+        { key: "gateType", label: "Which gate does this truth table match?", type: "select", options: ["AND", "OR", "NAND", "XOR"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "digital_logic_bench",
+    verification_definition: {
+      simulation: { inputLabels: ["A", "B"], gates: [{ id: "G1", label: "G1", type: "NAND", inputs: ["A", "B"], output: "Y" }], outputWire: "Y" },
+      rules: [{ field: "gateType", equals: "NAND" }],
+    },
+    points: 10,
+    explanation: "The output is HIGH for every combination except A=1,B=1 — the signature truth table of a NAND gate.",
+    tags: ["ece", "digital-electronics", "logic-gates", "investigation"],
+  },
+
+  // ─── Simulation vertical slice: ECE Electronics Circuit Bench ──────────
+  {
+    stream: "ece",
+    competency_area: "Circuits",
+    skill: "DC Network Fault Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Open Resistor on a Voltage Divider Bench",
+    scenario: "A bench circuit has R1 in series with R2 parallel R3, driven by a fixed source. A technician suspects one of the parallel-branch resistors has failed open.",
+    mission: "Probe the circuit's test points and branch currents, then identify the faulted resistor.",
+    learning_objective: "Diagnose an open resistor in a parallel branch from probe readings compared against the nominal design spec.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Probe node A, node B, and ground, and read the branch currents, then compare against the nominal spec to identify the fault.",
+    inputs: {
+      responseFields: [
+        { key: "faultedComponent", label: "Which component is faulted?", type: "select", options: ["R1", "R2", "R3", "None — circuit is healthy"] },
+        { key: "faultType", label: "What kind of fault?", type: "select", options: ["Open", "Short", "Healthy"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "circuit_bench",
+    verification_definition: {
+      simulation: {
+        sourceVoltageV: 12,
+        nominal: { r1Ohms: 100, r2Ohms: 300, r3Ohms: 150 },
+        actual: { r1Ohms: 100, r2Ohms: 300, r3Ohms: Infinity },
+      },
+      rules: [
+        { field: "faultedComponent", equals: "R3" },
+        { field: "faultType", equals: "Open" },
+      ],
+    },
+    points: 15,
+    explanation: "With R3 open, all parallel-branch current (30 mA) flows through R2 alone and node B rises to 9V instead of the nominal 6V — the branch-current split between R2 and R3 disappearing is the signature of R3 failing open.",
+    tags: ["ece", "circuits", "diagnosis", "dc-network"],
+  },
+
+  // ─── Simulation vertical slice: EEE Motor Test Bench ───────────────────
+  {
+    stream: "eee",
+    competency_area: "Electrical Machines",
+    skill: "Motor Fault Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Overheating Motor on the Test Bench",
+    scenario: "An induction motor's nameplate rating is known, and it was run at two load conditions on the test bench while current and temperature were logged.",
+    mission: "Compare the observed readings against the nameplate-implied expected values at each load condition and diagnose the fault.",
+    learning_objective: "Distinguish a winding short (elevated current and temperature, unaffected RPM and vibration) from other motor fault signatures.",
+    difficulty: "medium",
+    estimated_minutes: 9,
+    instructions: "Step through both load conditions and compare observed vs. expected current and temperature, then submit your diagnosis.",
+    inputs: {
+      responseFields: [
+        { key: "faultType", label: "What is the fault?", type: "select", options: ["Bearing wear", "Winding short", "Supply imbalance", "No fault"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "motor_test_bench",
+    verification_definition: {
+      simulation: {
+        rated: { ratedRPM: 1450, ratedCurrentA: 12, noLoadCurrentA: 2, ambientC: 25, ratedTempRiseC: 35, baselineVibrationMmS: 1.0 },
+        loadLevelsPct: [50, 100], faultType: "winding_short", faultSeverity: 0.8,
+      },
+      rules: [{ field: "faultType", equals: "Winding short" }],
+    },
+    points: 15,
+    explanation: "At both load conditions, observed current and temperature run well above the nameplate-expected values while RPM and vibration match their expected baseline exactly — current and heat rising together with no mechanical symptom is the signature of a winding short, not a bearing or supply fault.",
+    tags: ["eee", "electrical-machines", "motor", "diagnosis"],
+  },
+
+  // ─── Simulation vertical slice: EEE PLC / Industrial Automation Panel ──
+  {
+    stream: "eee",
+    competency_area: "Control Systems",
+    skill: "Relay Logic Sequencing",
+    challenge_type: "investigation",
+    title: "Trace the Conveyor and Clamp Sequence on the Automation Panel",
+    scenario: "A small automation panel controls a conveyor motor (start/stop seal-in relay logic) and a clamp actuator (interlocked against an e-stop), driven by a fixed sensor input sequence.",
+    mission: "Step through the sensor sequence and determine the conveyor and clamp state at the final step.",
+    learning_objective: "Trace a seal-in (latched) relay circuit and an interlocked combinational circuit through a multi-step input sequence.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Step through all four steps of the sensor sequence and read the resulting actuator states, then submit the final-step machine state.",
+    inputs: {
+      responseFields: [
+        { key: "finalConveyorState", label: "Conveyor at the final step", type: "select", options: ["Running", "Stopped"] },
+        { key: "finalClampState", label: "Clamp at the final step", type: "select", options: ["Engaged", "Disengaged"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "plc_panel",
+    verification_definition: {
+      simulation: {
+        sensorLabels: ["start", "stop", "partPresent", "estop"],
+        actuatorLabels: [{ id: "conveyor", label: "Conveyor Motor" }, { id: "clamp", label: "Clamp Actuator" }],
+        rules: [
+          { actuatorId: "conveyor", type: "latch", setWhen: ["start"], resetWhen: ["stop"] },
+          { actuatorId: "clamp", type: "combinational", allOf: ["partPresent"], noneOf: ["estop"] },
+        ],
+        inputSequence: [
+          { step: 1, inputs: { start: true, stop: false, partPresent: false, estop: false } },
+          { step: 2, inputs: { start: false, stop: false, partPresent: true, estop: false } },
+          { step: 3, inputs: { start: false, stop: false, partPresent: true, estop: true } },
+          { step: 4, inputs: { start: false, stop: true, partPresent: false, estop: false } },
+        ],
+      },
+      rules: [
+        { field: "finalConveyorState", equals: "Stopped" },
+        { field: "finalClampState", equals: "Disengaged" },
+      ],
+    },
+    points: 15,
+    explanation: "The conveyor latches ON at step 1 (start) and stays latched until stop fires at step 4, ending Stopped. The clamp is only engaged while a part is present AND no e-stop is active — by step 4 partPresent is false, so it's Disengaged.",
+    tags: ["eee", "control-systems", "plc", "relay-logic", "investigation"],
+  },
+
+  // ─── Simulation vertical slice: Mechanical Machine Vibration Rig ───────
+  {
+    stream: "mechanical",
+    competency_area: "Mechanics",
+    skill: "Vibration Signature Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Machine Fault From Its Vibration Spectrum",
+    scenario: "A rotating machine's bearing housing was instrumented, and its vibration spectrum was captured at a known operating condition and compared against the expected running-speed signature.",
+    mission: "Inspect the spectrum peaks and identify the fault class from its signature.",
+    learning_objective: "Distinguish a 2x-running-speed misalignment peak from a 1x imbalance peak or a bearing-defect order peak.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Inspect the spectrum's peaks — note which frequency orders are present — then submit the fault classification.",
+    inputs: {
+      responseFields: [
+        { key: "faultType", label: "What fault does this spectrum indicate?", type: "select", options: ["Imbalance", "Misalignment", "Bearing defect", "Healthy"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "vibration_rig",
+    verification_definition: {
+      simulation: { conditions: [{ label: "Operating point", rpm: 1500, loadPct: 60 }], faultType: "misalignment", faultSeverity: 1.5 },
+      rules: [{ field: "faultType", equals: "Misalignment" }],
+    },
+    points: 15,
+    explanation: "The spectrum shows a distinct peak at 2x running speed (50 Hz) alongside the normal 1x peak (25 Hz) — a second peak at exactly twice running speed, with the 1x peak unchanged, is the classic misalignment signature (an imbalance would only amplify 1x; a bearing defect would show a non-integer-order peak instead).",
+    tags: ["mechanical", "mechanics", "vibration", "diagnosis"],
+  },
+
+  // ─── Simulation vertical slice: Mechanical Pneumatic Trainer ───────────
+  {
+    stream: "mechanical",
+    competency_area: "Machine Design",
+    skill: "Actuator Fault Diagnosis",
+    challenge_type: "diagnosis",
+    title: "Diagnose the Slow-Extending Cylinder on the Pneumatic Trainer",
+    scenario: "A double-acting cylinder assembly is commanded to extend under load for several steps on the pneumatic trainer, and its position was logged against the bench's rated flow specification.",
+    mission: "Step through the extend sequence and compare the observed piston travel per step against the rated extend flow rate.",
+    learning_objective: "Recognize a flow restriction in one direction only from a slower-than-rated piston travel rate.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Step through the sequence, compare the mm/step advance against the rated extend flow rate, then submit which direction is restricted.",
+    inputs: {
+      responseFields: [
+        { key: "restrictedDirection", label: "Which direction is flow-restricted?", type: "select", options: ["Extend", "Retract", "Neither — both nominal"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "pneumatic_trainer",
+    verification_definition: {
+      simulation: {
+        strokeMm: 150, extendFlowRateMmS: 30, retractFlowRateMmS: 30, supplyPressureBar: 6,
+        valveSequence: [{ step: 1, state: "extend" }, { step: 2, state: "extend" }, { step: 3, state: "extend" }, { step: 4, state: "extend" }, { step: 5, state: "extend" }],
+        faultDirection: "extend", faultSeverity: 0.5,
+      },
+      rules: [{ field: "restrictedDirection", equals: "Extend" }],
+    },
+    points: 15,
+    explanation: "The piston advances only 15mm per step instead of the rated 30mm/s extend rate — exactly half speed — while nothing about the retract side has been exercised or shown to be off-spec, isolating the restriction to the extend path.",
+    tags: ["mechanical", "machine-design", "pneumatics", "diagnosis"],
+  },
+
+  // ─── Simulation vertical slice: Civil Surveying Station ────────────────
+  {
+    stream: "civil",
+    competency_area: "Surveying",
+    skill: "Traverse Closing Error",
+    challenge_type: "calculation",
+    title: "Calculate the Linear Closing Error of a Site Traverse",
+    scenario: "A closed traverse survey was sighted around a site boundary using four legs, and the readings were logged from the instrument.",
+    mission: "Plot the traverse from the sighted bearings and distances, and compute the linear closing error.",
+    learning_objective: "Apply survey traverse coordinate geometry (bearing/distance to cumulative x,y) to compute a closing error.",
+    difficulty: "medium",
+    estimated_minutes: 10,
+    instructions: "Read the four sighted legs off the bench, compute the cumulative traverse coordinates, and enter the linear closing error as your calculated answer.",
+    inputs: {},
+    expected_output: {},
+    workstation_type: "calculation",
+    verification_type: "numeric_tolerance",
+    simulation_type: "surveying_station",
+    verification_definition: {
+      simulation: {
+        legs: [
+          { id: "A", label: "Leg A", bearingDeg: 0, distanceM: 120 },
+          { id: "B", label: "Leg B", bearingDeg: 90, distanceM: 80 },
+          { id: "C", label: "Leg C", bearingDeg: 180, distanceM: 125 },
+          { id: "D", label: "Leg D", bearingDeg: 270, distanceM: 80 },
+        ],
+      },
+      expectedValue: 5,
+      tolerance: 0.3,
+    },
+    points: 20,
+    explanation: "Summing the traverse legs (120m north, 80m east, 125m south, 80m west) leaves the survey 5m short of closing back to the starting point on the north-south axis — a linear closing error of 5.0m, most likely from Leg C's distance being read 5m long.",
+    tags: ["civil", "surveying", "traverse", "calculation"],
+  },
+
+  // ─── Simulation vertical slice: Civil Hydraulics Channel ───────────────
+  {
+    stream: "civil",
+    competency_area: "Infrastructure",
+    skill: "Sluice Gate Discharge",
+    challenge_type: "calculation",
+    title: "Calculate the Discharge Through a Drainage Channel Sluice Gate",
+    scenario: "A sluice gate controls discharge from an upstream detention pond into a site drainage channel, with a known upstream head and gate opening.",
+    mission: "Read the channel's given dimensions and head, then compute the discharge flow rate through the gate.",
+    learning_objective: "Apply the standard free-flow sluice-gate discharge equation to a real drainage design scenario.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Read the channel width, upstream head, and gate opening off the bench, then enter the discharge flow rate as your calculated answer.",
+    inputs: {},
+    expected_output: {},
+    workstation_type: "calculation",
+    verification_type: "numeric_tolerance",
+    simulation_type: "hydraulics_channel",
+    verification_definition: {
+      simulation: { channelWidthM: 3, upstreamHeadM: 2.5, gateSettings: [{ label: "Design opening", gateOpeningM: 0.4 }] },
+      expectedValue: 5.13,
+      tolerance: 0.15,
+    },
+    points: 15,
+    explanation: "Q = Cd·a·b·sqrt(2gH) = 0.61 × 0.4m × 3m × sqrt(2 × 9.81 × 2.5) ≈ 5.13 m³/s — the site drainage channel's discharge under the design head and gate opening.",
+    tags: ["civil", "infrastructure", "hydraulics", "calculation"],
+  },
+
+  // ─── Simulation vertical slice: AI/ML Model Diagnosis Studio ───────────
+  {
+    stream: "ai-ml",
+    competency_area: "Model Evaluation",
+    skill: "Threshold Selection",
+    challenge_type: "decision_making",
+    title: "Choose the Decision Threshold That Maximizes F1",
+    scenario: "A binary classifier's predicted scores on a held-out test set are available, along with the true labels, for evaluation at several candidate decision thresholds.",
+    mission: "Inspect the confusion matrix at each candidate threshold and choose the one that maximizes F1 score.",
+    learning_objective: "Read a confusion matrix and F1 score across multiple thresholds to select the one best balancing precision and recall.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Step through each candidate threshold, inspect the confusion matrix, and report the threshold with the best F1 score along with that score.",
+    inputs: {
+      responseFields: [
+        { key: "bestThreshold", label: "Best threshold", type: "number", step: "0.05" },
+        { key: "bestF1", label: "F1 score at that threshold", type: "number", step: "0.01" },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "model_diagnosis_studio",
+    verification_definition: {
+      simulation: {
+        labeledScores: [
+          { id: 1, trueLabel: 1, score: 0.95 }, { id: 2, trueLabel: 1, score: 0.85 }, { id: 3, trueLabel: 1, score: 0.55 },
+          { id: 4, trueLabel: 0, score: 0.6 }, { id: 5, trueLabel: 0, score: 0.3 }, { id: 6, trueLabel: 0, score: 0.1 },
+          { id: 7, trueLabel: 1, score: 0.4 }, { id: 8, trueLabel: 0, score: 0.2 },
+        ],
+        thresholdOptions: [0.3, 0.5, 0.7],
+      },
+      rules: [
+        { field: "bestThreshold", numeric: { expected: 0.5, tolerance: 0.05 } },
+        { field: "bestF1", numeric: { expected: 0.75, tolerance: 0.05 } },
+      ],
+    },
+    points: 20,
+    explanation: "At threshold 0.5 the confusion matrix is TP=3, FP=1, TN=3, FN=1 — precision and recall both 0.75, giving F1=0.75, the best balance among the three candidate thresholds (0.3 over-predicts positives, hurting precision; 0.7 under-predicts, hurting recall).",
+    tags: ["ai-ml", "model-evaluation", "threshold", "decision-making"],
+  },
+
+  // ─── Simulation vertical slice: AI/ML Computer Vision Lab ──────────────
+  {
+    stream: "ai-ml",
+    competency_area: "Model Evaluation",
+    skill: "Object Detection Evaluation",
+    challenge_type: "investigation",
+    title: "Classify a Detector's Predictions by IoU Against Ground Truth",
+    scenario: "An object detector's predicted bounding boxes are overlaid against ground-truth annotations for a small labeled image set.",
+    mission: "Inspect each image's overlap and classify the detector's prediction using a required IoU threshold.",
+    learning_objective: "Apply Intersection-over-Union thresholding to classify object-detection predictions as correct, false-positive, or missed.",
+    difficulty: "easy",
+    estimated_minutes: 7,
+    instructions: "Inspect the overlaid boxes for the well-aligned image at the 0.5 IoU threshold, then classify the prediction.",
+    inputs: {
+      responseFields: [
+        { key: "classification", label: "Classification at IoU ≥ 0.5", type: "select", options: ["Correct detection", "False positive", "Missed detection"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "computer_vision_lab",
+    verification_definition: {
+      simulation: {
+        images: [{ id: 1, label: "Sample A", imageWidth: 100, imageHeight: 100, groundTruthBox: { x: 10, y: 10, w: 40, h: 40 }, predictedBox: { x: 12, y: 12, w: 38, h: 38 } }],
+        iouThresholdOptions: [0.5],
+      },
+      rules: [{ field: "classification", equals: "Correct detection" }],
+    },
+    points: 10,
+    explanation: "The predicted and ground-truth boxes overlap almost completely, giving an IoU of about 0.90 — well above the 0.5 threshold required to count as a correct detection.",
+    tags: ["ai-ml", "model-evaluation", "computer-vision", "investigation"],
+  },
+
+  // ─── Simulation vertical slice: AI & Data Science Data Investigation Studio ─
+  {
+    stream: "ai-ds",
+    competency_area: "Exploratory Data Analysis",
+    skill: "Filter and Aggregate Investigation",
+    challenge_type: "data_interpretation",
+    title: "Investigate Whether a Revenue Anomaly Is a Refund Artifact",
+    scenario: "A product revenue dataset shows an unusually low average revenue for one product line, and the team suspects refunds are distorting the aggregate.",
+    mission: "Toggle the refund filter and compare the group-by-product averages to determine whether the anomaly is a refund artifact.",
+    learning_objective: "Recognize when a low aggregate average is caused by a small number of large negative (refund) values rather than a genuine trend.",
+    difficulty: "easy",
+    estimated_minutes: 7,
+    instructions: "Compare the average revenue per product with the refund filter off and on, then report whether the anomaly is a refund artifact.",
+    inputs: {
+      responseFields: [
+        { key: "isRefundArtifact", label: "Is the Widget anomaly a refund artifact?", type: "select", options: ["Yes — excluding refunds resolves it", "No — the anomaly persists after excluding refunds"] },
+        { key: "avgAfterFilter", label: "Widget's average revenue with refunds excluded", type: "number", unit: "USD", step: "1" },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "data_investigation_studio",
+    verification_definition: {
+      simulation: {
+        rows: [
+          { id: 1, product: "Widget", revenueUSD: 500, isRefund: false }, { id: 2, product: "Widget", revenueUSD: -200, isRefund: true },
+          { id: 3, product: "Gadget", revenueUSD: 900, isRefund: false }, { id: 4, product: "Gadget", revenueUSD: 850, isRefund: false },
+        ],
+        excludeFilter: { column: "isRefund", equalsValue: true, label: "Exclude refunds" },
+        groupByOptions: ["product"],
+        aggregateColumn: "revenueUSD",
+      },
+      rules: [
+        { field: "isRefundArtifact", equals: "Yes — excluding refunds resolves it" },
+        { field: "avgAfterFilter", numeric: { expected: 500, tolerance: 1 } },
+      ],
+    },
+    points: 15,
+    explanation: "Widget's average is 150 with refunds included but jumps to 500 once the single refund row is excluded, matching Gadget's normal range — the anomaly was entirely a refund artifact, not a genuine product-line problem.",
+    tags: ["ai-ds", "exploratory-data-analysis", "aggregation", "data-interpretation"],
+  },
+
+  // ─── Simulation vertical slice: AI & Data Science Experiment Analysis Room ─
+  {
+    stream: "ai-ds",
+    competency_area: "Statistics",
+    skill: "A/B Test Significance",
+    challenge_type: "decision_making",
+    title: "Decide Whether a Checkout Redesign's Lift Is Statistically Significant",
+    scenario: "A checkout redesign was A/B tested against the existing control at meaningful sample size, and the resulting conversion counts are available for analysis.",
+    mission: "Run the two-proportion significance test and decide whether the observed lift is real or could be due to chance.",
+    learning_objective: "Apply a two-proportion z-test and interpret a 95% confidence interval to make a ship/no-ship decision under a stated hypothesis.",
+    difficulty: "medium",
+    estimated_minutes: 9,
+    instructions: "Inspect the z-score and confidence interval for the experiment, then decide whether to ship the redesign.",
+    inputs: {
+      responseFields: [
+        { key: "decision", label: "Should the redesign ship?", type: "select", options: ["Ship — the lift is statistically significant", "Do not ship — the result is not statistically significant"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "experiment_analysis_room",
+    verification_definition: {
+      simulation: { experiments: [{ id: 1, label: "Checkout redesign", controlN: 8000, controlConversions: 640, treatmentN: 8000, treatmentConversions: 760 }] },
+      rules: [{ field: "decision", equals: "Ship — the lift is statistically significant" }],
+    },
+    points: 15,
+    explanation: "The z-score is about 3.36 (well beyond the ±1.96 threshold) and the 95% confidence interval on the difference (about 0.6 to 2.4 percentage points) excludes zero entirely — the lift is real, not sampling noise, so the redesign should ship.",
+    tags: ["ai-ds", "statistics", "hypothesis-testing", "decision-making"],
+  },
+
+  // ─── Simulation vertical slice: Cyber Security SOC Incident Room ───────
+  {
+    stream: "cyber-security",
+    competency_area: "Incident Response",
+    skill: "Brute-Force Detection",
+    challenge_type: "investigation",
+    title: "Pivot on the Source IP Behind a Suspicious Login Streak",
+    scenario: "A SOC alert flags an unusual login pattern against an administrator account, and the raw authentication log for the affected host is available for investigation.",
+    mission: "Pivot on the flagged source IP, inspect its login timeline, and determine whether this is a confirmed brute-force compromise.",
+    learning_objective: "Recognize the brute-force-then-compromise incident signature: a sustained run of failed logins immediately followed by a success.",
+    difficulty: "easy",
+    estimated_minutes: 7,
+    instructions: "Pivot on source IP 203.0.113.9 and inspect its login timeline, then classify the incident.",
+    inputs: {
+      responseFields: [
+        { key: "classification", label: "Incident classification", type: "select", options: ["Confirmed brute-force compromise", "Failed brute-force attempt (no compromise)", "Normal login activity"] },
+        { key: "failedAttemptCount", label: "Consecutive failed attempts before success", type: "number", step: "1" },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "soc_incident_room",
+    verification_definition: {
+      simulation: {
+        events: Array.from({ length: 7 }, (_, i) => ({
+          id: i, timestamp: i, hostId: "h1", userId: "admin", sourceIP: "203.0.113.9", eventType: "login", outcome: i < 6 ? "failure" : "success",
+        })),
+      },
+      rules: [
+        { field: "classification", equals: "Confirmed brute-force compromise" },
+        { field: "failedAttemptCount", numeric: { expected: 6, tolerance: 0 } },
+      ],
+    },
+    points: 15,
+    explanation: "Pivoting on 203.0.113.9 shows 6 consecutive failed logins against the admin account immediately followed by a success — well past the brute-force threshold, this is a confirmed compromise, not just an attempt.",
+    tags: ["cyber-security", "incident-response", "soc", "investigation"],
+  },
+
+  // ─── Simulation vertical slice: Cyber Security Digital Forensics Lab ───
+  {
+    stream: "cyber-security",
+    competency_area: "Incident Response",
+    skill: "Artifact Correlation",
+    challenge_type: "investigation",
+    title: "Find the Malware Renamed to Evade Detection",
+    scenario: "A disk image was recovered from a compromised host, and its file artifacts (including one deleted file) are available for review with a full audit trail of timestamps and content hashes.",
+    mission: "Correlate the artifacts by content hash to find a file that was renamed to disguise itself as something else.",
+    learning_objective: "Use hash-based correlation, not filename trust, to detect a renamed/disguised malicious file on a compromised host.",
+    difficulty: "medium",
+    estimated_minutes: 8,
+    instructions: "Check the hash index for any hash shared by more than one artifact, then identify the renamed pair and which copy was deleted.",
+    inputs: {
+      responseFields: [
+        { key: "originalFilename", label: "Original (legitimate-looking) filename", type: "text" },
+        { key: "renamedFilename", label: "Renamed (disguised) filename", type: "text" },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "digital_forensics_lab",
+    verification_definition: {
+      simulation: {
+        artifacts: [
+          { id: 1, filename: "report.docx", path: "/docs/report.docx", createdAt: 100, modifiedAt: 100, accessedAt: 100, sizeBytes: 5000, isDeleted: false, hash: "h1" },
+          { id: 2, filename: "payroll.xlsx", path: "/finance/payroll.xlsx", createdAt: 150, modifiedAt: 150, accessedAt: 150, sizeBytes: 8000, isDeleted: false, hash: "h2" },
+          { id: 3, filename: "svchost.exe", path: "/windows/system32/svchost.exe", createdAt: 200, modifiedAt: 200, accessedAt: 210, sizeBytes: 44000, isDeleted: false, hash: "h3" },
+          { id: 4, filename: "scanner.exe", path: "/tmp/.hidden/scanner.exe", createdAt: 300, modifiedAt: 300, accessedAt: 300, sizeBytes: 44000, isDeleted: true, hash: "h3" },
+        ],
+      },
+      rules: [
+        { field: "originalFilename", equals: "svchost.exe" },
+        { field: "renamedFilename", equals: "scanner.exe" },
+      ],
+    },
+    points: 20,
+    explanation: "svchost.exe and scanner.exe share the exact same content hash (h3) despite different filenames, paths, and timestamps — scanner.exe is a later copy of the same binary, hidden in a dotfile directory and then deleted to cover its tracks, while svchost.exe's legitimate-looking name and path was the original disguise.",
+    tags: ["cyber-security", "incident-response", "forensics", "investigation"],
+  },
+
+  // ─── Simulation vertical slice: IT Network Operations Center ──────────
+  {
+    stream: "it",
+    competency_area: "Infrastructure",
+    skill: "Root-Cause Service Recovery",
+    challenge_type: "decision_making",
+    title: "Find the One Service to Restart That Recovers the Whole Stack",
+    scenario: "A monitoring dashboard shows a web frontend, its API service, and a load balancer are all reporting down, with a DNS resolver also present in the dependency chain — but an outage in one upstream service is dragging the rest down with it.",
+    mission: "Inspect the dependency chain and restart the one service that clears the entire outage, rather than a downstream symptom.",
+    learning_objective: "Distinguish a root-cause service failure from its downstream symptoms in a dependency chain, and confirm the fix by re-checking every dependent service's status.",
+    difficulty: "medium",
+    estimated_minutes: 7,
+    instructions: "Inspect which services are down and their dependencies, then restart the one service whose recovery clears every other outage.",
+    inputs: {
+      responseFields: [
+        { key: "restartedService", label: "Which service should be restarted?", type: "select", options: ["DNS Resolver", "Load Balancer", "API Service", "Web Frontend"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "network_operations_center",
+    verification_definition: {
+      simulation: {
+        services: [
+          { id: "dns", label: "DNS Resolver", dependsOn: [], initialStatus: "up" },
+          { id: "lb", label: "Load Balancer", dependsOn: ["dns"], initialStatus: "crashed" },
+          { id: "api", label: "API Service", dependsOn: ["lb"], initialStatus: "up" },
+          { id: "web", label: "Web Frontend", dependsOn: ["api"], initialStatus: "up" },
+        ],
+      },
+      rules: [{ field: "restartedService", equals: "Load Balancer" }],
+    },
+    points: 15,
+    explanation: "The Load Balancer itself crashed; the API Service and Web Frontend are only down because they depend (directly or transitively) on it. DNS was never affected. Restarting the Load Balancer clears its own crash and, since nothing else is actually broken, the entire chain recovers — restarting API or Web Frontend alone would do nothing, since their real dependency is still down.",
+    tags: ["it", "infrastructure", "noc", "decision-making"],
+  },
+
+  // ─── Simulation vertical slice: IT System Admin Lab ────────────────────
+  {
+    stream: "it",
+    competency_area: "Systems Administration",
+    skill: "Memory Leak Isolation",
+    challenge_type: "diagnosis",
+    title: "Isolate the Leaking Process Threatening Server Uptime",
+    scenario: "A production server's total memory usage has been climbing, threatening uptime, and per-process memory telemetry was captured over a 30-minute window.",
+    mission: "Inspect each process's memory trend and identify which one is leaking.",
+    learning_objective: "Distinguish a genuine memory leak (sustained positive growth rate) from normal flat memory usage using a time-series trend, not a single snapshot.",
+    difficulty: "easy",
+    estimated_minutes: 6,
+    instructions: "Inspect each process's memory sparkline and growth rate, then identify the leaking process.",
+    inputs: {
+      responseFields: [
+        { key: "leakingProcess", label: "Which process is leaking memory?", type: "select", options: ["nginx", "backup-agent"] },
+      ],
+    },
+    expected_output: {},
+    workstation_type: "structured_response",
+    verification_type: "rule_based",
+    simulation_type: "system_admin_lab",
+    verification_definition: {
+      simulation: {
+        processes: [{ pid: "p1", label: "nginx" }, { pid: "p2", label: "backup-agent" }],
+        totalMemoryMB: 4096,
+        metrics: [
+          { timestampMin: 0, perProcessMemoryMB: { p1: 300, p2: 200 } },
+          { timestampMin: 15, perProcessMemoryMB: { p1: 295, p2: 950 } },
+          { timestampMin: 30, perProcessMemoryMB: { p1: 290, p2: 1700 } },
+        ],
+      },
+      rules: [{ field: "leakingProcess", equals: "backup-agent" }],
+    },
+    points: 10,
+    explanation: "nginx's memory stays essentially flat (300MB → 290MB), while backup-agent climbs steadily from 200MB to 1700MB over the same 30-minute window (about 50 MB/min) — a sustained, one-directional growth trend, the signature of a real memory leak.",
+    tags: ["it", "systems-administration", "memory-leak", "diagnosis"],
+  },
 ]
