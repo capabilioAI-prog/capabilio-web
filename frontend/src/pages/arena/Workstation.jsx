@@ -29,7 +29,12 @@ export default function Workstation({ challenge, value, onChange }) {
     case "sql":
       return <CodeEditorPanel language="sql" code={value.sql || ""} onCodeChange={(sql) => onChange({ ...value, sql })} />
     case "calculation":
-      return <CalculationPanel family={family} numericValue={value.numericValue || ""} onChange={(numericValue) => onChange({ ...value, numericValue })} />
+      // The submitted response is posted verbatim as `{ response }` (see
+      // lib/api.js's submitMission) straight into verifyNumericTolerance,
+      // which reads `response.value` — the state key here MUST be `value`,
+      // not some other name, or every calculation-type submission fails
+      // verification unconditionally regardless of correctness.
+      return <CalculationPanel family={family} answerValue={value.value ?? ""} onChange={(v) => onChange({ ...value, value: v })} />
     default:
       // structured_response / decision / log_investigation render one
       // control per the challenge's own response_schema (spec §19) —
@@ -102,7 +107,7 @@ function ExtensionGate({ load, children }) {
   return children(ext)
 }
 
-function CalculationPanel({ family, numericValue, onChange }) {
+function CalculationPanel({ family, answerValue, onChange }) {
   return (
     <div style={{
       borderRadius: A.radiusSm, border: `1px solid ${A.border}`, padding: 24,
@@ -114,7 +119,7 @@ function CalculationPanel({ family, numericValue, onChange }) {
       </div>
       <label style={{ display: "block", fontSize: 12.5, color: A.ink3, marginBottom: 8 }}>Your calculated answer</label>
       <input
-        type="number" inputMode="decimal" value={numericValue} onChange={(e) => onChange(e.target.value)}
+        type="number" inputMode="decimal" value={answerValue} onChange={(e) => onChange(e.target.value)}
         placeholder="0"
         style={{
           width: "100%", padding: "16px 18px", borderRadius: 12, border: `2px solid ${family.accent}33`,
