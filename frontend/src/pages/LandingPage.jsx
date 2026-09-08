@@ -1,168 +1,18 @@
 import { useState, useRef, useEffect } from "react"
-import { motion, useReducedMotion, useInView, animate } from "framer-motion"
+import { motion, useReducedMotion, useInView } from "framer-motion"
 import {
   ClipboardCheck, Network, BookOpen, Swords, FolderCheck, Search,
   ArrowRight, Check, ChevronDown,
-  ShieldCheck, XCircle, Play, Loader2, Rocket, Factory, TrendingUp,
+  ShieldCheck, XCircle, Play, Loader2, TrendingUp,
 } from "lucide-react"
 import { T, EASE } from "../lib/osDesignTokens"
-import { PRIMARY_PATHS, withAlpha } from "../lib/pathIdentity"
-
-// ─── useCountUp — imperative numeric tween via framer-motion's animate().
-// Shared by the Arena preview's ELO step and the ELO Growth card so both
-// use the exact same mechanism (no separate counter implementation).
-function useCountUp(target, { start = target, duration = 0.7, delay = 0, active = true, reduce = false } = {}) {
-  const [value, setValue] = useState(reduce ? target : start)
-  useEffect(() => {
-    if (!active) return
-    if (reduce) { setValue(target); return }
-    setValue(start)
-    const controls = animate(start, target, { duration, delay, ease: EASE, onUpdate: v => setValue(Math.round(v)) })
-    return () => controls.stop()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, target, start, duration, delay, reduce])
-  return value
-}
-
-// ─── useReveal — scroll-triggered entrance, no-op under reduced motion ────
-function useReveal() {
-  const ref = useRef(null)
-  const reduce = useReducedMotion()
-  return {
-    ref,
-    initial: reduce ? false : { opacity: 0, y: 20 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-60px" },
-    transition: { duration: 0.5, ease: EASE },
-  }
-}
-
-// ─── Primitives ─────────────────────────────────────────────────────────
-function PrimaryButton({ children, onClick, href, target }) {
-  const Tag = href ? "a" : "button"
-  return (
-    <Tag
-      href={href} target={target} rel={target ? "noopener noreferrer" : undefined}
-      onClick={onClick}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        padding: "12px 20px", borderRadius: 10, border: "none",
-        background: T.accent, color: "#fff", fontSize: 14, fontWeight: 600,
-        cursor: "pointer", fontFamily: "'DM Sans',sans-serif", textDecoration: "none",
-        transition: "background 150ms ease, transform 150ms ease",
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = T.accentDark }}
-      onMouseLeave={e => { e.currentTarget.style.background = T.accent }}
-      onMouseDown={e => { e.currentTarget.style.transform = "scale(0.98)" }}
-      onMouseUp={e => { e.currentTarget.style.transform = "scale(1)" }}
-    >{children}</Tag>
-  )
-}
-
-function GhostButton({ children, onClick, href, target }) {
-  const Tag = href ? "a" : "button"
-  return (
-    <Tag
-      href={href} target={target} rel={target ? "noopener noreferrer" : undefined}
-      onClick={onClick}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        padding: "12px 20px", borderRadius: 10, border: `1px solid ${T.border}`,
-        background: "transparent", color: T.ink, fontSize: 14, fontWeight: 600,
-        cursor: "pointer", fontFamily: "'DM Sans',sans-serif", textDecoration: "none",
-        transition: "border-color 150ms ease",
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = T.borderHover }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = T.border }}
-    >{children}</Tag>
-  )
-}
-
-function Eyebrow({ children }) {
-  return (
-    <div style={{
-      fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
-      color: T.accent, marginBottom: 12, fontFamily: "'DM Sans',sans-serif",
-    }}>{children}</div>
-  )
-}
-
-// ─── IllustrativeTag — every fictional persona/company/mission on this page
-// carries this, consistently, so nothing reads as real user or platform
-// data. Quiet by design (DESIGN.md's "quiet, not loud" rule) — plain text,
-// no border/background ceremony.
-function IllustrativeTag({ style }) {
-  return (
-    <span style={{ fontSize: 10.5, color: T.ink3, fontWeight: 500, ...style }}>Illustrative example</span>
-  )
-}
-
-// ─── Hover-lift card wrapper — the entire hover vocabulary for this page ──
-// hoverColor: optional per-path accent (pathIdentity.js) for the four
-// signup-path cards — every other LiftCard use stays neutral (T.borderHover).
-function LiftCard({ children, style, onClick, as = "div", hoverColor }) {
-  const [hov, setHov] = useState(false)
-  const Tag = as
-  return (
-    <Tag
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        background: T.surface, border: `1px solid ${hov ? (hoverColor || T.borderHover) : T.border}`,
-        borderRadius: 16, transform: hov ? "translateY(-4px)" : "translateY(0)",
-        transition: "transform 200ms cubic-bezier(0.16,1,0.3,1), border-color 200ms ease",
-        cursor: onClick ? "pointer" : "default", textAlign: "left",
-        fontFamily: "inherit", textDecoration: "none", color: "inherit",
-        ...style,
-      }}
-    >{children}</Tag>
-  )
-}
-
-// ─── EloSparkline — kept, restyled flat (no glow, no drop-shadow) ─────────
-function EloSparkline({ points, width = 340, height = 64 }) {
-  const reduce = useReducedMotion()
-  if (!points || points.length < 2) return null
-  const min = Math.min(...points), max = Math.max(...points), range = max - min || 1
-  const xs = points.map((_, i) => (i / (points.length - 1)) * width)
-  const ys = points.map(v => height - ((v - min) / range) * (height * 0.8) - height * 0.1)
-  const path = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ")
-  const fill = `${path} L${width},${height} L0,${height} Z`
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block", width: "100%" }}>
-      <defs>
-        <linearGradient id="eloFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={T.accent} stopOpacity="0.14" />
-          <stop offset="100%" stopColor={T.accent} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <motion.path d={fill} fill="url(#eloFill)"
-        initial={reduce ? false : { opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4, delay: 0.7, ease: EASE }}
-      />
-      <motion.path d={path} fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round"
-        initial={reduce ? false : { pathLength: 0 }}
-        whileInView={{ pathLength: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.9, ease: EASE }}
-      />
-      <motion.circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} fill={T.accent}
-        initial={reduce ? false : { r: 0, opacity: 0 }}
-        whileInView={{ r: 3.5, opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.25, delay: 0.9, ease: EASE }}
-      />
-    </svg>
-  )
-}
-
-// Illustrative growth arc — reused by both the Claim vs. Proof section's
-// chart and the Student journey card's mini sparkline, so the "1,847"
-// story is the same thread in both places, not two different numbers.
-const ELO_HISTORY = [400, 420, 450, 490, 560, 640, 750, 900, 1050, 1200, 1400, 1620, 1847]
+import { PRIMARY_PATHS, PATH_URLS, withAlpha, selectPath } from "../lib/pathIdentity"
+import MarketingNav from "./marketing/MarketingNav"
+import MarketingFooter from "./marketing/MarketingFooter"
+import {
+  Eyebrow, PrimaryButton, GhostButton, LiftCard, IllustrativeTag,
+  useReveal, useCountUp, EloSparkline, ELO_HISTORY, JourneyProof,
+} from "./marketing/primitives"
 
 // ─── Hero workflow diagram — the "live animated workflow" ─────────────────
 const FLOW_NODES = [
@@ -622,91 +472,12 @@ const JOURNEY_PERSONAS = {
   institution: { name: "VIT Vellore", role: "College" },
 }
 
-// One reused animated mechanism per path — same patterns already built for
-// the "Show, don't explain" section (sparkline draw, node-graph draw,
-// verified-badge pop), miniaturized. No fabricated stat grids, no numbers
-// presented as real — student's sparkline reuses the exact same
-// illustrative ELO_HISTORY the Claim vs. Proof section already uses.
-function JourneyProof({ pathKey, color }) {
-  const reduce = useReducedMotion()
-
-  if (pathKey === "student") {
-    return (
-      <div>
-        <EloSparkline points={ELO_HISTORY} width={200} height={36} />
-        <p style={{ fontSize: 11.5, color: T.ink3, margin: "6px 0 0" }}>ELO grows with every submission.</p>
-      </div>
-    )
-  }
-
-  if (pathKey === "professional") {
-    const nodes = [{ x: 20, y: 26 }, { x: 100, y: 12 }, { x: 180, y: 30 }]
-    return (
-      <div>
-        <svg width="200" height="40" viewBox="0 0 200 40" style={{ display: "block" }}>
-          {[[0, 1], [1, 2]].map(([a, b], i) => (
-            <motion.line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y}
-              stroke={T.border} strokeWidth="1.5"
-              initial={reduce ? false : { pathLength: 0 }} whileInView={{ pathLength: 1 }} viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.15, ease: EASE }}
-            />
-          ))}
-          {nodes.map((n, i) => (
-            <motion.circle key={i} cx={n.x} cy={n.y} fill={color} stroke={color} strokeWidth="1.5"
-              initial={reduce ? false : { r: 0 }} whileInView={{ r: 4.5 }} viewport={{ once: true }}
-              transition={{ duration: 0.3, delay: 0.4 + i * 0.12, ease: EASE }}
-            />
-          ))}
-        </svg>
-        <p style={{ fontSize: 11.5, color: T.ink3, margin: "2px 0 0" }}>Skills stay verified automatically.</p>
-      </div>
-    )
-  }
-
-  if (pathKey === "executive") {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <motion.div
-          initial={reduce ? false : { scale: 0, opacity: 0 }} whileInView={{ scale: 1, opacity: 1 }} viewport={{ once: true }}
-          transition={{ duration: 0.35, ease: EASE }}
-          style={{ width: 30, height: 30, borderRadius: 9, background: withAlpha(color, 0.12), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-        >
-          <ShieldCheck size={15} color={color} strokeWidth={2} />
-        </motion.div>
-        <p style={{ fontSize: 11.5, color: T.ink3, margin: 0 }}>Every profile identity-verified before it goes live.</p>
-      </div>
-    )
-  }
-
-  // institution
-  const bars = [{ label: "Cohort avg", pct: 55 }, { label: "Top scorer", pct: 90 }]
-  return (
-    <div>
-      {bars.map((b, i) => (
-        <div key={b.label} style={{ marginBottom: i === 0 ? 6 : 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: T.ink3, marginBottom: 3 }}>
-            <span>{b.label}</span>
-          </div>
-          <div style={{ height: 5, borderRadius: 99, background: T.hairline, overflow: "hidden" }}>
-            <motion.div
-              initial={reduce ? false : { width: 0 }} whileInView={{ width: `${b.pct}%` }} viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.15, ease: EASE }}
-              style={{ height: "100%", borderRadius: 99, background: color }}
-            />
-          </div>
-        </div>
-      ))}
-      <p style={{ fontSize: 11.5, color: T.ink3, margin: "6px 0 0" }}>Every bar reflects real submitted work.</p>
-    </div>
-  )
-}
-
-function JourneyCard({ item, onOpen }) {
+function JourneyCard({ item }) {
   const Icon = item.icon
   const persona = JOURNEY_PERSONAS[item.key]
   return (
     <LiftCard
-      onClick={() => onOpen(item.path, "journey-card", item.instType ? { instType: item.instType } : {})}
+      onClick={() => { window.location.href = PATH_URLS[item.key] }}
       style={{ padding: 28 }}
       hoverColor={withAlpha(item.color, 0.5)}
     >
@@ -774,37 +545,92 @@ function FAQItem({ q, a }) {
   )
 }
 
-function TrustBadge({ icon: Icon, label, sub }) {
+// ─── Heritage motif icons — hand-drawn line art, single-stroke, same
+// weight as the lucide icons used elsewhere on this page (never a filled
+// illustration, never a second color — DESIGN.md's one-accent rule).
+// WheelIcon uses 8 spokes deliberately (not 24), a generic temple-wheel
+// abstraction rather than a rendering of the national emblem.
+function LotusIcon({ size = 20, color = "currentColor" }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px" }}>
-      <Icon size={16} color={T.ink3} strokeWidth={1.75} />
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: T.ink }}>{label}</div>
-        {sub && <div style={{ fontSize: 10.5, color: T.ink3, marginTop: 1 }}>{sub}</div>}
-      </div>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20c-4-2-4-6-4-9 1 2 2 3 4 4 2-1 3-2 4-4 0 3 0 7-4 9Z" />
+      <path d="M6.5 15.5c-2-2-2.2-5-1.2-7.8 1 1.1 2 1.9 3 2.3" />
+      <path d="M17.5 15.5c2-2 2.2-5 1.2-7.8-1 1.1-2 1.9-3 2.3" />
+    </svg>
   )
 }
 
+function WheelIcon({ size = 20, color = "currentColor" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="1.6" fill={color} stroke="none" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="12" y1="3" x2="12" y2="21" />
+      <line x1="5.64" y1="5.64" x2="18.36" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="5.64" y2="18.36" />
+    </svg>
+  )
+}
+
+function BanyanIcon({ size = 20, color = "currentColor" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3c-3 2-5 5-5 8 0 2 1 3 2 3" />
+      <path d="M12 3c3 2 5 5 5 8 0 2-1 3-2 3" />
+      <path d="M12 3v8" />
+      <path d="M9 14v6M12 14v6M15 14v6" />
+      <path d="M6 20h12" />
+    </svg>
+  )
+}
+
+// ─── Heritage timeline — real, dated, independently verifiable milestones
+// only (no invented stats), framed as the longer lineage Capabilio's
+// verification model sits inside.
+const INDIA_MILESTONES = [
+  { year: "499 CE", title: "Zero, formalized", detail: "Aryabhata's Aryabhatiya lays out the place-value system the entire numeric world still runs on." },
+  { year: "1951", title: "IIT Kharagpur opens", detail: "The first Indian Institute of Technology — the start of an engineering pipeline that now runs much of the world's software." },
+  { year: "1975", title: "Aryabhata launches", detail: "India's first satellite, built and launched by ISRO — a space programme that still runs on a fraction of a typical mission budget." },
+  { year: "2009", title: "Aadhaar begins", detail: "The world's largest biometric identity system — over a billion people, one verifiable ID each." },
+  { year: "2016", title: "UPI goes live", detail: "India's real-time payments rail now clears more transactions than any other country on Earth." },
+  { year: "2023", title: "Chandrayaan-3 lands", detail: "First spacecraft from any nation to reach the Moon's south pole region — on a fraction of a typical mission's cost." },
+]
+
+function MilestoneCard({ item, index }) {
+  const reveal = useReveal()
+  return (
+    <motion.div ref={reveal.ref} {...reveal} transition={{ ...reveal.transition, delay: (index % 3) * 0.08 }}>
+      <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, marginBottom: 10 }} />
+      <div style={{ width: 1, height: 20, background: T.border, marginBottom: 10 }} />
+      <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 600, color: T.ink, marginBottom: 6 }}>{item.year}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: T.ink, marginBottom: 6 }}>{item.title}</div>
+      <p style={{ fontSize: 13, color: T.ink2, lineHeight: 1.6, margin: 0 }}>{item.detail}</p>
+    </motion.div>
+  )
+}
+
+// ─── Cultural pillars — each motif maps to an actual product truth, not
+// decoration for its own sake (Konark's wheel → verification precision;
+// the lotus → ELO's no-starting-line design; the banyan → one skill graph
+// branching across a whole career). Cards reuse LiftCard exactly as every
+// other card on this page does — no new color, no gradient.
+const CULTURAL_PILLARS = [
+  { icon: LotusIcon, title: "Growth has no starting line", body: "A lotus rises clean through mud that would hold anything else back. ELO works the same way — it measures where you're going, never where you started." },
+  { icon: WheelIcon, title: "Precision, carved in stone", body: "The 13th-century Sun Temple at Konark carries a stone wheel precise enough to tell time. Every Arena score is held to that same standard — exact, and impossible to fake." },
+  { icon: BanyanIcon, title: "One root, an entire canopy", body: "A banyan grows new trunks from its own branches until a single tree becomes a forest. One verified skill graph, branching into every stage of your career." },
+]
+
 // ═══════════════════════════════════════════════════════════════════════
 export default function LandingPage({ onGetStarted, onLogin }) {
-  const [pricingFlow, setPricingFlow] = useState("student")
-
-  // extra.instType seeds AuthModal's institution sub-type toggle (College/
-  // Company/...). Always writes or clears the key on every call — never
-  // leaves a stale value from a previous click (e.g. clicking the College
-  // card after the "company profile instead" link) to leak into the next.
-  // path=null (the generic nav/hero "Get started" buttons) clears any
-  // stale path instead — AuthModal opens fresh at its step-1 chooser
-  // rather than inheriting a path from an earlier, unrelated visit.
-  const openPath = (path, source = "landing", extra = {}) => {
-    try {
-      if (path) localStorage.setItem("capabilio_selected_path", path)
-      else localStorage.removeItem("capabilio_selected_path")
-      if (extra.instType) localStorage.setItem("capabilio_selected_inst_type", extra.instType)
-      else localStorage.removeItem("capabilio_selected_inst_type")
-    } catch (_) { /* localStorage unavailable */ }
-    if (typeof onGetStarted === "function") onGetStarted({ path, source })
+  // Generic nav/hero "Get started" — path=null clears any stale selection
+  // so AuthModal opens fresh at its step-1 chooser, rather than inheriting
+  // a path from an earlier, unrelated visit. Journey cards no longer call
+  // this — they navigate to that path's own dedicated page instead (see
+  // JourneyCard below), whose own "Get started" locks the path directly.
+  const openPath = (source = "landing") => {
+    selectPath(null)
+    if (typeof onGetStarted === "function") onGetStarted({ path: null, source })
   }
 
   const PROBLEM_ROWS = [
@@ -819,24 +645,6 @@ export default function LandingPage({ onGetStarted, onLogin }) {
     { q: "How does verification work for professionals?", a: "You upload a resume or LinkedIn URL and AI extracts your career timeline. Employment history is then cross-matched against UAN/EPFO records. Anything that can't be verified this way is shown as “self-claimed,” not presented as fact." },
     { q: "What happens if I stop doing Arena tasks for a while?", a: "Your ELO can decay after 7+ days of inactivity, the same way a chess rating drifts without play — it reflects current skill, not a score you can bank and coast on." },
   ]
-
-  const PRICING = {
-    student: { plans: [
-      { label: "Free", price: null, features: ["1 Arena task every 15 days", "Portfolio generation", "Locked premium previews", "Market reports at ₹49/report"], cta: "Get started free" },
-      { label: "Pro", price: "₹299/mo", sub: "Billed monthly", features: ["3 Arena tasks per day", "3 AI Interview sessions/month", "1 market report/month", "Full Arena access", "Portfolio generation"], cta: "Start Pro" },
-      { label: "Elite", price: "₹599/mo", sub: "Best value", recommended: true, features: ["6 Arena tasks per day", "5 AI Interview sessions/month", "2 market reports/month", "Personal branding video", "Full advanced Arena", "Portfolio generation"], cta: "Go Elite" },
-    ]},
-    professional: { plans: [
-      { label: "Free", price: null, features: ["Basic Orbit dashboard", "1 Forge challenge/week", "Public verified profile", "UAN verification"], cta: "Start free" },
-      { label: "Capabilio Pro", price: "₹499/mo", sub: "₹3,999/yr — save 33%", recommended: true, features: ["Full Orbit — all 4 career signals", "Unlimited Forge challenges", "Signal — 3 market reports/mo", "Compensation Intelligence", "Gap Mode + Gap Narrative Engine", "Vault full verification", "Nexus verified network"], cta: "Go Capabilio Pro" },
-      { label: "Capabilio Elite", price: "₹999/mo", sub: "₹7,999/yr — save 33%", features: ["Everything in Capabilio Pro", "AI Interview — 5 sessions/mo", "Mentor Hub listing (15% commission)", "Transition Tracks access", "Return-Ready Sprint", "Signal — unlimited reports", "Priority Launchpad matching"], cta: "Go Capabilio Elite" },
-    ]},
-    college: {
-      custom: true,
-      sub: "A bad hire costs ₹80,000+. One better placement decision pays for the year. Pricing is scoped to your student/employee count.",
-      cta: "Talk to us",
-    },
-  }
 
   return (
     <div style={{ minHeight: "100vh", background: T.surface, color: T.ink, fontFamily: "'DM Sans',sans-serif" }}>
@@ -853,23 +661,13 @@ export default function LandingPage({ onGetStarted, onLogin }) {
         @media (prefers-reduced-motion: reduce) { .lp-hero-grid *, .lp-grid-2 *, .lp-grid-3 *, .lp-grid-4 * { animation: none !important; } }
       `}</style>
 
-      {/* ── NAV ─────────────────────────────────────────────────────── */}
-      <nav style={{ borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, background: T.surface, zIndex: 50 }}>
-        <div className="lp-container" style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <img src="/capabilio-logo-dark.png" alt="Capabilio AI" style={{ height: 24, width: "auto" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <a href="#how-it-works" style={{ fontSize: 14, color: T.ink2, textDecoration: "none", fontWeight: 500 }}>How it works</a>
-            <a href="#pricing" style={{ fontSize: 14, color: T.ink2, textDecoration: "none", fontWeight: 500 }}>Pricing</a>
-            <GhostButton onClick={onLogin}>Sign in</GhostButton>
-            <PrimaryButton onClick={() => openPath(null, "nav")}>Get started</PrimaryButton>
-          </div>
-        </div>
-      </nav>
+      <MarketingNav activePath="home" onGetStarted={() => openPath("nav")} onLogin={onLogin} />
 
       {/* ── HERO ────────────────────────────────────────────────────── */}
       <section style={{ padding: "88px 0 96px" }}>
         <div className="lp-container lp-hero-grid">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+            <Eyebrow>India&apos;s Verified Skill Platform</Eyebrow>
             <h1 style={{ fontSize: "clamp(34px,4.6vw,54px)", lineHeight: 1.08, fontWeight: 700, letterSpacing: "-0.02em", color: T.ink, margin: "0 0 20px" }}>
               Your Career Needs More Than A Resume.<br />Build. Practice. Prove. Get Hired.
             </h1>
@@ -877,7 +675,7 @@ export default function LandingPage({ onGetStarted, onLogin }) {
               Capabilio is an AI Career Operating System that continuously builds, verifies, and showcases your professional skills.
             </p>
             <div style={{ display: "flex", gap: 12 }}>
-              <PrimaryButton onClick={() => openPath(null, "hero")}>Get started <ArrowRight size={15} /></PrimaryButton>
+              <PrimaryButton onClick={() => openPath("hero")}>Get started <ArrowRight size={15} /></PrimaryButton>
               <GhostButton href="#how-it-works">See how it works</GhostButton>
             </div>
           </motion.div>
@@ -887,8 +685,22 @@ export default function LandingPage({ onGetStarted, onLogin }) {
         </div>
       </section>
 
+      {/* ── HERITAGE TIMELINE ───────────────────────────────────────── */}
+      <section style={{ padding: "80px 0 96px", background: T.surfaceRaised, borderTop: `1px solid ${T.hairline}`, borderBottom: `1px solid ${T.hairline}` }}>
+        <div className="lp-container">
+          <div style={{ textAlign: "center", marginBottom: 44 }}>
+            <Eyebrow>Built on a longer track record</Eyebrow>
+            <h2 style={{ fontSize: "clamp(28px,3.6vw,40px)", fontWeight: 700, letterSpacing: "-0.015em", color: T.ink, margin: "0 0 12px" }}>India has been engineering for scale since before &ldquo;scale&rdquo; was a word.</h2>
+            <p style={{ fontSize: 15, color: T.ink2, maxWidth: 620, margin: "0 auto" }}>Capabilio&apos;s verification model — real work, checked against reality — sits inside a longer Indian tradition of building things that have to actually work, for everyone.</p>
+          </div>
+          <div className="lp-grid-3" style={{ rowGap: 32 }}>
+            {INDIA_MILESTONES.map((item, i) => <MilestoneCard key={item.year} item={item} index={i} />)}
+          </div>
+        </div>
+      </section>
+
       {/* ── CHOOSE YOUR JOURNEY ─────────────────────────────────────── */}
-      <section style={{ padding: "0 0 96px" }}>
+      <section style={{ padding: "96px 0" }}>
         <div className="lp-container">
           <div style={{ textAlign: "center", marginBottom: 40 }}>
             <Eyebrow>Choose your journey</Eyebrow>
@@ -896,12 +708,33 @@ export default function LandingPage({ onGetStarted, onLogin }) {
             <p style={{ fontSize: 15, color: T.ink2, maxWidth: 560, margin: "0 auto" }}>Students prove readiness. Professionals stay verified. Executives monetize authority. Colleges measure cohort health.</p>
           </div>
           <div className="lp-grid-4">
-            {PRIMARY_PATHS.map(item => <JourneyCard key={item.key} item={item} onOpen={openPath} />)}
+            {PRIMARY_PATHS.map(item => <JourneyCard key={item.key} item={item} />)}
           </div>
           <div style={{ textAlign: "center", marginTop: 16 }}>
-            <a onClick={() => openPath("institution", "journey-company-link", { instType: "Company" })} style={{ fontSize: 13, color: T.ink3, cursor: "pointer", textDecoration: "none" }}>
+            <a href="/for/colleges?type=company" style={{ fontSize: 13, color: T.ink3, textDecoration: "none" }}>
               Building a company profile instead? <span style={{ color: T.accent, fontWeight: 600 }}>&rarr;</span>
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── CULTURAL PILLARS ────────────────────────────────────────── */}
+      <section style={{ padding: "0 0 96px" }}>
+        <div className="lp-container">
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <Eyebrow>Ideas we build on</Eyebrow>
+            <h2 style={{ fontSize: "clamp(28px,3.6vw,40px)", fontWeight: 700, letterSpacing: "-0.015em", color: T.ink, margin: 0 }}>Three old ideas, one verified platform.</h2>
+          </div>
+          <div className="lp-grid-3">
+            {CULTURAL_PILLARS.map((p) => (
+              <LiftCard key={p.title} style={{ padding: 28 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 11, background: T.accentDim, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+                  <p.icon size={20} color={T.accent} />
+                </div>
+                <div style={{ fontSize: 19, fontWeight: 700, color: T.ink, marginBottom: 8 }}>{p.title}</div>
+                <p style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.6, margin: 0 }}>{p.body}</p>
+              </LiftCard>
+            ))}
           </div>
         </div>
       </section>
@@ -945,53 +778,34 @@ export default function LandingPage({ onGetStarted, onLogin }) {
       <ClaimVsProofSection problemRows={PROBLEM_ROWS} eloHistory={ELO_HISTORY} />
 
       {/* ── PRICING ─────────────────────────────────────────────────── */}
+      {/* Each path's real pricing now lives on its own dedicated page
+          (sourced from config/plans.js — the same data the post-login
+          Pricing.jsx uses) so no path's plans are ever shown next to
+          another's. This is a teaser linking into each, not a duplicate
+          plan grid. */}
       <section id="pricing" style={{ padding: "0 0 96px" }}>
         <div className="lp-container">
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <Eyebrow>Pricing</Eyebrow>
-            <h2 style={{ fontSize: "clamp(28px,3.6vw,40px)", fontWeight: 700, letterSpacing: "-0.015em", color: T.ink, margin: "0 0 12px" }}>Simple pricing.</h2>
+            <h2 style={{ fontSize: "clamp(28px,3.6vw,40px)", fontWeight: 700, letterSpacing: "-0.015em", color: T.ink, margin: "0 0 12px" }}>Pricing, by path.</h2>
+            <p style={{ fontSize: 15, color: T.ink2, maxWidth: 560, margin: "0 auto" }}>Every path has its own plans — see the one that&apos;s actually yours.</p>
           </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 32 }}>
-            {["student", "professional", "college"].map(key => (
-              <button key={key} onClick={() => setPricingFlow(key)} style={{
-                padding: "8px 16px", borderRadius: 999, border: `1px solid ${pricingFlow === key ? T.accent : T.border}`,
-                background: pricingFlow === key ? T.accentDim : "transparent",
-                color: pricingFlow === key ? T.accent : T.ink2, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize",
-              }}>{key}</button>
-            ))}
-          </div>
-          {PRICING[pricingFlow].custom ? (
-            <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center", border: `1px solid ${T.border}`, borderRadius: 16, padding: "36px 28px" }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Custom pricing</div>
-              <p style={{ fontSize: 13.5, color: T.ink2, lineHeight: 1.6, margin: "0 0 20px" }}>{PRICING.college.sub}</p>
-              <PrimaryButton onClick={() => openPath("institution", "pricing-college-cta")}>{PRICING.college.cta}</PrimaryButton>
-            </div>
-          ) : (
-            <div className="lp-grid-3">
-              {PRICING[pricingFlow].plans.map(plan => (
-                <div key={plan.label} style={{
-                  border: `1px solid ${T.border}`, borderTop: plan.recommended ? `3px solid ${T.accent}` : `1px solid ${T.border}`,
-                  borderRadius: 16, padding: "24px 22px", display: "flex", flexDirection: "column",
-                }}>
-                  {plan.recommended && <div style={{ fontSize: 10.5, fontWeight: 700, color: T.accent, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>Recommended</div>}
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.ink3, marginBottom: 6 }}>{plan.label}</div>
-                  <div style={{ fontSize: 30, fontWeight: 700, color: T.ink, marginBottom: plan.sub ? 4 : 18 }}>{plan.price || "Free"}</div>
-                  {plan.sub && <div style={{ fontSize: 12, color: T.ink3, marginBottom: 18 }}>{plan.sub}</div>}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 22, flex: 1 }}>
-                    {plan.features.map(f => (
-                      <div key={f} style={{ display: "flex", gap: 8, fontSize: 13, color: T.ink2 }}>
-                        <Check size={14} color={T.accent} strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 2 }} /> {f}
-                      </div>
-                    ))}
+          <div className="lp-grid-4">
+            {PRIMARY_PATHS.map((item) => {
+              const Icon = item.icon
+              return (
+                <LiftCard key={item.key} as="a" href={`${PATH_URLS[item.key]}#pricing`} style={{ padding: 22 }} hoverColor={withAlpha(item.color, 0.5)}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: withAlpha(item.color, 0.12), display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                    <Icon size={17} color={item.color} strokeWidth={1.75} />
                   </div>
-                  {plan.recommended
-                    ? <PrimaryButton onClick={() => openPath(pricingFlow, `pricing-${plan.label}`)}>{plan.cta}</PrimaryButton>
-                    : <GhostButton onClick={() => openPath(pricingFlow, `pricing-${plan.label}`)}>{plan.cta}</GhostButton>}
-                </div>
-              ))}
-            </div>
-          )}
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, marginBottom: 6 }}>{item.title} pricing</div>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: item.color }}>
+                    View plans <ArrowRight size={13} />
+                  </span>
+                </LiftCard>
+              )
+            })}
+          </div>
         </div>
       </section>
 
@@ -1019,7 +833,7 @@ export default function LandingPage({ onGetStarted, onLogin }) {
       </section>
 
       {/* ── FAQ ─────────────────────────────────────────────────────── */}
-      <section style={{ padding: "0 0 96px" }}>
+      <section id="faq" style={{ padding: "0 0 96px" }}>
         <div className="lp-container" style={{ maxWidth: 720 }}>
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <Eyebrow>Frequently asked</Eyebrow>
@@ -1031,27 +845,7 @@ export default function LandingPage({ onGetStarted, onLogin }) {
         </div>
       </section>
 
-      {/* ── TRUST BADGES + FOOTER ───────────────────────────────────── */}
-      <section style={{ padding: "0 0 32px" }}>
-        <div className="lp-container" style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
-          <TrustBadge icon={Rocket} label="DPIIT Recognised" sub="Startup India" />
-          <TrustBadge icon={Factory} label="Udyam Registered" sub="MSME, Govt. of India" />
-          <TrustBadge icon={ShieldCheck} label="MCA Incorporated" sub="Ministry of Corporate Affairs" />
-        </div>
-      </section>
-
-      <footer style={{ borderTop: `1px solid ${T.border}`, padding: "28px 0 44px" }}>
-        <div className="lp-container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <img src="/capabilio-logo-dark.png" alt="Capabilio AI" style={{ height: 20, width: "auto" }} />
-          <div style={{ fontSize: 12.5, color: T.ink3 }}>
-            Hiring team?{" "}
-            <a href="https://recruiter.capabilio.online" target="_blank" rel="noopener noreferrer" style={{ color: T.accent, textDecoration: "none", fontWeight: 600 }}>
-              Search verified talent at recruiter.capabilio.online
-            </a>
-          </div>
-          <div style={{ fontSize: 12.5, color: T.ink3 }}>Amaravati, Andhra Pradesh</div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }

@@ -36,6 +36,31 @@ export function withAlpha(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
+// Writes (or clears) the two localStorage keys AuthModal reads on open to
+// decide whether to show its step-1 chooser or jump straight to a path's
+// form (App.jsx:~368). Single place for this logic — previously duplicated
+// between LandingPage.jsx's openPath() and AuthModal's handlePickPath().
+// path=null clears any stale path (generic "Get started" entry points).
+export function selectPath(path, instType = null) {
+  try {
+    if (path) localStorage.setItem("capabilio_selected_path", path)
+    else localStorage.removeItem("capabilio_selected_path")
+    if (instType) localStorage.setItem("capabilio_selected_inst_type", instType)
+    else localStorage.removeItem("capabilio_selected_inst_type")
+  } catch (_) { /* localStorage unavailable */ }
+}
+
+// URL for each path's dedicated marketing page (App.jsx early-returns on
+// these under the /for/ prefix — see pages/paths/*.jsx). Institution's
+// visible label is "College" everywhere in copy, but the URL and the
+// underlying selectedPath both stay "institution"/"colleges" respectively.
+export const PATH_URLS = {
+  student: "/for/students",
+  professional: "/for/professionals",
+  executive: "/for/executives",
+  institution: "/for/colleges",
+}
+
 export const PRIMARY_PATHS = [
   {
     key: "student", path: "student", icon: GraduationCap, title: "Student",
