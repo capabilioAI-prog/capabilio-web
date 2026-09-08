@@ -23,6 +23,13 @@ import CopilotWidget from "./components/CopilotWidget"
 // ── Always needed for auth flow — keep static ────────────────────────────────
 import MyTasks      from "./pages/MyTasks"
 import LandingPage  from "./pages/LandingPage"
+import StudentPath from "./pages/paths/StudentPath"
+import ProfessionalPath from "./pages/paths/ProfessionalPath"
+import ExecutivePath from "./pages/paths/ExecutivePath"
+import CollegePath from "./pages/paths/CollegePath"
+import AboutPage from "./pages/company/AboutPage"
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy"
+import TermsOfService from "./pages/legal/TermsOfService"
 import AccountType  from "./pages/AccountType"
 import Onboarding   from "./pages/Onboarding"
 import JoinPage     from "./pages/JoinPage"
@@ -1429,9 +1436,60 @@ function App() {
     )
   }
 
+  // Static marketing/legal pages the footer links to — never gated on
+  // `user` (a logged-in visitor should be able to read Terms/Privacy/About
+  // too), and rendered before the `loading` gate since they need no user
+  // data at all. Share the same showAuth/authMode state as everywhere else
+  // so their nav's "Get started"/"Sign in" open the real AuthModal.
+  const staticMarketingPages = {
+    "/about": AboutPage,
+    "/privacy": PrivacyPolicy,
+    "/terms": TermsOfService,
+  }
+  const StaticMarketingPage = staticMarketingPages[window.location.pathname]
+  if (StaticMarketingPage) {
+    return (
+      <>
+        <StaticMarketingPage
+          onGetStarted={() => { setAuthMode("signup"); setShowAuth(true) }}
+          onLogin={() => { setAuthMode("login"); setShowAuth(true) }}
+        />
+        <AuthModal show={showAuth} onClose={() => setShowAuth(false)} mode={authMode} setMode={setAuthMode} />
+      </>
+    )
+  }
+
   if (loading) return <PageLoader />
 
   if (!user) {
+    // Dedicated per-path marketing pages (/for/students, /for/professionals,
+    // /for/executives, /for/colleges) — each has its own hero, its own
+    // pricing (never another path's), and a "Get started" that locks
+    // straight into that path's signup form via the same showAuth/authMode
+    // state and capabilio_selected_path mechanism LandingPage already uses
+    // (AuthModal reads it and skips its own step-1 chooser — see AuthModal's
+    // `step` init below). Only reachable for a logged-out visitor; a
+    // logged-in user hitting one of these URLs falls through to the normal
+    // authenticated app instead.
+    const marketingPathPages = {
+      "/for/students": StudentPath,
+      "/for/professionals": ProfessionalPath,
+      "/for/executives": ExecutivePath,
+      "/for/colleges": CollegePath,
+    }
+    const MarketingPathPage = marketingPathPages[window.location.pathname]
+    if (MarketingPathPage) {
+      return (
+        <>
+          <MarketingPathPage
+            onGetStarted={() => { setAuthMode("signup"); setShowAuth(true) }}
+            onLogin={() => { setAuthMode("login"); setShowAuth(true) }}
+          />
+          <AuthModal show={showAuth} onClose={() => setShowAuth(false)} mode={authMode} setMode={setAuthMode} />
+        </>
+      )
+    }
+
     return (
       <>
         {appStage === "accountType" ? (
